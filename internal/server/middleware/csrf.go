@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/server/apierr"
@@ -37,7 +38,9 @@ func CSRF() func(http.Handler) http.Handler {
 					locErr := apierr.Localized(ctx, apierr.ErrCSRFFailed())
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(locErr.GetStatus())
-					_ = json.NewEncoder(w).Encode(locErr)
+					if err := json.NewEncoder(w).Encode(locErr); err != nil {
+						log.Printf("failed to encode CSRF error response: %v", err)
+					}
 					return
 				}
 			}

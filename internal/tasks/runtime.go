@@ -44,13 +44,17 @@ func (r *Runtime) Stop() {
 func (r *Runtime) loop(ctx context.Context) {
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
-	_ = r.runSessionCleanup(ctx)
+	if err := r.runSessionCleanup(ctx); err != nil {
+		log.Printf("session_cleanup run failed: %v", err)
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			_ = r.runSessionCleanup(ctx)
+			if err := r.runSessionCleanup(ctx); err != nil {
+				log.Printf("session_cleanup run failed: %v", err)
+			}
 		}
 	}
 }
@@ -63,7 +67,9 @@ func (r *Runtime) runSessionCleanup(ctx context.Context) error {
 	}
 	count, runErr := r.store.DeleteEndedSessionsOlderThan(ctx, now.Add(-24*time.Hour))
 	if runErr != nil {
-		_ = r.store.FinishTask(ctx, "session_cleanup", now, false, "task.session_cleanup_failed", runErr.Error(), now.Add(5*time.Minute))
+		if finishErr := r.store.FinishTask(ctx, "session_cleanup", now, false, "task.session_cleanup_failed", runErr.Error(), now.Add(5*time.Minute)); finishErr != nil {
+			log.Printf("session_cleanup failed to persist failure state: %v", finishErr)
+		}
 		return runErr
 	}
 	log.Printf("session_cleanup deleted=%d", count)

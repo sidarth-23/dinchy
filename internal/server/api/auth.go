@@ -112,7 +112,9 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
 	}
 	if in.DinchySession != "" {
-		_ = a.auth.Logout(ctx, in.DinchySession)
+		if err := a.auth.Logout(ctx, in.DinchySession); err != nil {
+			return nil, apierr.Localized(ctx, apierr.ErrInternal())
+		}
 	}
 	out := &LogoutOut{}
 	out.SetCookie = *support.ClearSessionCookie(support.IsSecure(ctx))

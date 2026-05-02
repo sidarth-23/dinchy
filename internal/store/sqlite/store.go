@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,17 +49,14 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, err
 	}
 	if err := applyPragmas(ctx, db); err != nil {
-		_ = db.Close()
-		return nil, err
+		return nil, closeWithErr(db, err)
 	}
 	if err := goose.Up(db, "migrations"); err != nil {
-		_ = db.Close()
-		return nil, err
+		return nil, closeWithErr(db, err)
 	}
 	s := &Store{db: db, q: sqlcgen.New(db)}
 	if err := s.ensureDefaultSettings(ctx); err != nil {
-		_ = db.Close()
-		return nil, err
+		return nil, closeWithErr(db, err)
 	}
 	return s, nil
 }
@@ -92,7 +90,9 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 	}
 	txStore := &Store{db: nil, q: sqlcgen.New(sqlTx)}
 	if err := fn(txStore); err != nil {
-		_ = sqlTx.Rollback()
+		if rbErr := sqlTx.Rollback(); rbErr != nil {
+			return errors.Join(err, rbErr)
+		}
 		return err
 	}
 	return sqlTx.Commit()
@@ -131,4 +131,11 @@ func nullString(v string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: v, Valid: true}
+}
+
+func closeWithErr(c interface{ Close() error }, cause error) error {
+	if closeErr := c.Close(); closeErr != nil {
+		return errors.Join(cause, closeErr)
+	}
+	return cause
 }

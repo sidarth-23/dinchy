@@ -29,7 +29,9 @@ func main() {
 	go func() {
 		<-ctx.Done()
 		stop()
-		_ = a.Shutdown(context.Background())
+		if err := a.Shutdown(context.Background()); err != nil {
+			log.Printf("shutdown failed: %v", err)
+		}
 	}()
 
 	if err := a.Wait(); err != nil {

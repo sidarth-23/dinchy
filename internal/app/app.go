@@ -3,8 +3,10 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/auth"
@@ -68,19 +70,29 @@ func (a *App) Start() error {
 // the public server, then the internal server (kept up during public drain), then
 // the database.
 func (a *App) Shutdown(ctx context.Context) error {
+	var shutdownErr error
 	if a.tasks != nil {
 		a.tasks.Stop()
 	}
 	if a.public != nil {
-		_ = a.public.Shutdown(ctx)
+		if err := a.public.Shutdown(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
 	}
 	if a.internal != nil {
-		_ = a.internal.Shutdown(ctx)
+		if err := a.internal.Shutdown(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
 	}
 	if a.closer != nil {
-		_ = a.closer.Close()
+		if err := a.closer.Close(); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
 	}
-	return nil
+	if shutdownErr != nil {
+		log.Printf("app shutdown encountered errors: %v", shutdownErr)
+	}
+	return shutdownErr
 }
 
 // Wait blocks until both servers exit and returns the first fatal error encountered.

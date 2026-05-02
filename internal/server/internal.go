@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -25,7 +26,7 @@ func NewInternal(addr string, db Pinger) *http.Server {
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+		w.Write([]byte("ok"))
 	})
 
 	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
@@ -48,11 +49,13 @@ func NewInternal(addr string, db Pinger) *http.Server {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"ready":   ready,
 			"version": "dev",
 			"checks":  checks,
-		})
+		}); err != nil {
+			log.Printf("failed to encode /readyz response: %v", err)
+		}
 	})
 
 	return &http.Server{

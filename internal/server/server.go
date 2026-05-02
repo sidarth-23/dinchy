@@ -4,6 +4,7 @@ package server
 import (
 	"errors"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -61,9 +62,14 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sr domain.SettingsReade
 	r.Mount("/api", apiRouter)
 
 	if devMode {
-		target, _ := url.Parse(devProxyURL)
-		proxy := httputil.NewSingleHostReverseProxy(target)
-		r.Handle("/*", proxy)
+		target, err := url.Parse(devProxyURL)
+		if err != nil {
+			log.Printf("invalid dev proxy URL %q: %v", devProxyURL, err)
+			r.Handle("/*", http.NotFoundHandler())
+		} else {
+			proxy := httputil.NewSingleHostReverseProxy(target)
+			r.Handle("/*", proxy)
+		}
 	} else {
 		r.Handle("/*", http.FileServer(http.FS(dist)))
 	}
