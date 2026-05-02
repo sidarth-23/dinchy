@@ -1,0 +1,31 @@
+# Go
+/dinchy
+/dinchy-update
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+/dist/
+go.sum
+
+# Frontend
+web/node_modules/
+web/dist/
+web/.env
+web/.env.local
+
+# Runtime
+*.db
+*.db-shm
+*.db-wal
+dinchy.old
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
