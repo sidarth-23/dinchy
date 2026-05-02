@@ -9,11 +9,13 @@
 **Goal:** Runnable skeleton — Go backend serves a React frontend, SQLite is set up, basic auth works.
 
 **Backend:**
-- Go project structure (`cmd/dinchy/`, `internal/`, `web/`)
-- Echo + Huma API skeleton with generated OpenAPI and client support
-- SQLite setup with WAL mode (`modernc.org/sqlite`)
-- Database migrations (`pressly/goose`)
+- Layered Go project structure (`cmd/dinchy/`, `internal/{app,config,domain,auth,tasks,store,server,platform}`)
+- Echo + Huma API with typed operations, OpenAPI metadata, input validation, and structured error responses
+- SQLite setup with WAL mode (`modernc.org/sqlite`), sqlc-generated queries (`sqlc.yaml`)
+- Database migrations (`pressly/goose`) per database backend — multi-database seam: `store/sqlite/` now, `store/postgres/` ready to add
+- Consumer-defined store interfaces per domain (`auth.Store`, `tasks.Store`, `domain.SettingsReader`)
 - Initial schema: users, sessions, app_settings, auth_audit_logs, scheduled_tasks
+- Echo middleware stack: request ID, CORS, CSRF double-submit, session validation, security headers, HTTPS detection
 - `embed.FS` serving the frontend build
 - Persistent internal scheduled task foundation for `session_cleanup`
 

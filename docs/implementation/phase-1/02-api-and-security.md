@@ -2,28 +2,51 @@
 
 ## Transport Stack
 
-- Echo is the outer HTTP server.
-- Huma is mounted under `/api` via the Echo adapter.
+- Echo is the outer HTTP server (`internal/server/server.go`).
+- Huma is mounted under `/api` via the Echo adapter (`humaecho.New`).
 - Huma owns typed request/response models, OpenAPI generation, and generated client compatibility.
-- Echo remains confined to the transport layer. `echo.Context` must not leak into services.
+- `echo.Context` must not leak past the middleware layer into handlers or services.
 
 Responsibility split:
 
-- Huma owns API contract concerns:
-  - operation registration and routing under `/api`
-  - request decode/validation and typed response encode
+- **Huma** owns API contract concerns:
+  - operation registration via `huma.Register(h, huma.Operation{...}, handler)`
+  - typed request decode/validation and response encode
   - OpenAPI generation and generated-client compatibility
-- Echo owns transport and middleware concerns:
+  - all handler signatures use `func(ctx context.Context, in *I) (*O, error)`
+- **Echo** owns transport and middleware concerns:
   - request ID and structured request logging
-  - trusted proxy handling and secure-request detection
-  - CORS policy, CSRF enforcement, same-origin checks, and security headers
-  - auth/session middleware and Casbin authorization middleware
-  - top-level non-OpenAPI routes such as `/healthz`, `/readyz`, and frontend serving
+  - HTTPS/secure-request detection (`internal/server/middleware/https.go`)
+  - client IP and User-Agent extraction (`internal/server/middleware/requestinfo.go`)
+  - security headers CSP, X-Frame-Options, Referrer-Policy (`internal/server/middleware/secure.go`)
+  - CORS policy and CSRF double-submit cookie enforcement (`internal/server/middleware/csrf.go`)
+  - session cookie validation and context injection (`internal/server/middleware/session.go`)
+  - top-level non-OpenAPI routes: `/healthz`, `/readyz`, `/api/docs` redirect, frontend serving
+
+Middleware stack order in `server.New()`:
+1. `echomw.RequestID()`
+2. `echomw.Recover()`
+3. `mw.SecureDetect()` — injects `IsSecure` into context
+4. `mw.RequestInfo()` — injects `RemoteIP` + `UserAgent` into context
+5. `mw.SecureHeaders(devMode)` — CSP, X-Frame-Options, Referrer-Policy
+6. `echomw.CORSWithConfig(...)` — CORS
+7. `mw.CSRF()` — double-submit cookie, skip safe methods
+8. `mw.Session(authSvc)` — cookie → `*domain.SessionWithUser` in context
+
+## Context-Value Bridge
+
+Huma handlers receive `context.Context` (not `echo.Context`). Echo middleware injects request-scoped values into context via `internal/server/support`:
+
+- `support.WithSession(ctx, sess)` → `support.SessionFrom(ctx)`
+- `support.WithSecure(ctx, bool)` → `support.IsSecure(ctx)`
+- `support.WithRequestInfo(ctx, ip, ua)` → `support.RemoteIPFrom(ctx)` / `support.UserAgentFrom(ctx)`
+
+Cookie setting uses huma's native `header:"Set-Cookie"` output struct field — no `echo.Context` needed in handlers.
 
 Guardrails:
 
-- Huma handlers call service interfaces and return domain/application errors only.
-- Echo middleware may translate transport concerns into structured API errors, but business logic does not depend on Echo types.
+- Huma handlers call service interfaces and return `*DinchyError` values (implementing `huma.StatusError`).
+- Business logic does not depend on Echo types at all.
 
 ## API Shape
 
@@ -171,17 +194,18 @@ Mutating requests also enforce same-origin policy:
 
 ## Error Contract
 
-Errors use one structured envelope.
+Errors are returned as `*DinchyError` values defined in `internal/server/api/errors.go`. They implement `huma.StatusError` so huma serialises them with the correct HTTP status code.
 
 ```json
 {
-  "error": {
-    "code": "auth.invalid_credentials",
-    "message": "Invalid email or password.",
-    "request_id": "01J..."
-  }
+  "code": "auth.invalid_credentials",
+  "message": "Invalid email or password."
 }
 ```
+
+Predefined constructors: `ErrInvalidCredentials()`, `ErrSetupCompleted()`, `ErrUnauthenticated()`, `ErrHTTPSRequired()`, `ErrInternal()`. Domain errors from services are mapped via `MapServiceError(err)`.
+
+The full documented envelope (with `request_id` and `fields`) is the target shape; the `request_id` field is added when `huma.NewError` is overridden globally. Huma's built-in `422` validation errors produce field details automatically.
 
 Validation failures add field details:
 

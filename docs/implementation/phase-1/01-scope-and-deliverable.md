@@ -46,40 +46,79 @@ The deliverable remains:
 
 ## Backend Structure
 
-Phase 1 should start with explicit package boundaries.
+Phase 1 uses a layered package layout grouped by concern. The top-level under `internal/` stays stable through all 8 phases — new features add packages inside each layer, not new top-level entries.
 
-Recommended structure:
+```
+cmd/
+  dinchy/
+    main.go
 
-- `cmd/dinchy/`
-- `internal/app/`
-- `internal/config/`
-- `internal/http/`
-- `internal/http/middleware/`
-- `internal/http/support/`
-- `internal/api/`
-- `internal/auth/`
-- `internal/users/`
-- `internal/settings/`
-- `internal/tasks/`
-- `internal/store/`
-- `internal/store/sqlite/`
-- `internal/frontend/`
-- `internal/id/`
-- `internal/clock/`
-- `web/`
+internal/
+  app/                          # Composition root — wires all dependencies
+  config/                       # Startup config from environment variables
+
+  domain/                       # Pure domain types — ZERO project imports
+    users.go                    #   User, Role, CreateUserInput
+    auth.go                     #   Session, SessionWithUser, CreateSessionInput
+    settings.go                 #   BootstrapState, SettingsReader interface
+
+  auth/                         # Auth business logic
+    service.go                  #   Password hashing, session issuance/validation
+    store.go                    #   Consumer-defined Store interface
+
+  tasks/                        # Scheduled task runtime
+    runtime.go                  #   Ticker loop, session_cleanup
+    store.go                    #   Consumer-defined Store interface
+
+  store/                        # Persistence layer
+    store.go                    #   Shared DBTX interface
+    sqlite/                     #   SQLite implementation
+      store.go                  #     Open, Close, WithTx, pragmas, goose migrations
+      users.go                  #     CreateFirstUser, FindUserByEmail
+      sessions.go               #     CreateSession, GetSessionByTokenHash, ...
+      settings.go               #     Bootstrap, ensureDefaultSettings
+      tasks.go                  #     EnsureTask, ClaimTask, FinishTask
+      queries/                  #     sqlc query files (.sql) — SQLite syntax
+      sqlcgen/                  #     sqlc generated code (DO NOT EDIT)
+      migrations/               #     goose migrations — SQLite DDL
+    # Future: postgres/, mysql/ — same internal shape as sqlite/
+
+  server/                       # HTTP transport layer
+    server.go                   #   Echo setup, middleware stack, health endpoints
+    middleware/                  #   Echo middleware
+      session.go, csrf.go, secure.go, https.go, requestinfo.go
+    support/                    #   Shared transport helpers
+      cookies.go, context.go
+    api/                        #   Huma API handlers
+      api.go, errors.go, bootstrap.go, setup.go, auth.go
+
+  platform/                     # Shared infrastructure utilities
+    clock/clock.go              #   Clock interface + RealClock
+    id/id.go                    #   ULID generator
+    frontend/frontend.go        #   embed.FS for compiled web UI
+
+web/                            # Frontend source (Vite + React)
+```
 
 ## Ownership Boundaries
 
-- `internal/api` depends on application services only.
-- `internal/api` (Huma layer) owns typed endpoint contracts and OpenAPI, not transport middleware orchestration.
-- `internal/http` owns Echo server setup, middleware mounting, docs, health, and frontend route wiring.
-- `internal/http` (Echo layer) owns transport concerns such as CORS, CSRF, request security headers, and Casbin middleware wiring.
-- `internal/auth` owns password hashing, session issuance/validation/revocation, and auth-specific errors.
-- `internal/users` owns user domain data and `viewer` projection.
-- `internal/settings` owns DB-backed app settings, caching, and `app` projection.
-- `internal/tasks` owns the durable internal scheduler and task runtime.
-- `internal/store` defines interfaces and transaction boundaries.
-- `internal/store/sqlite` contains the SQLite `sqlc` implementation.
+- `internal/domain` owns all shared business types — zero project imports; the root of the dependency graph.
+- `internal/auth` owns password hashing, session issuance/validation/revocation, and declares its own `Store` interface.
+- `internal/tasks` owns the durable internal scheduler and declares its own `Store` interface.
+- `internal/store/sqlite` is the only package that imports sqlc-generated code; it implements all consumer-defined store interfaces and translates between sqlcgen row types and domain types.
+- `internal/server` owns the Echo server, all middleware, and all Huma API handlers. `echo.Context` must not leak past the middleware layer into handlers.
+- `internal/server/api` handlers receive `context.Context` (not `echo.Context`), call service methods, and return domain errors. Transport concerns (cookies, IP, UA) are injected via `internal/server/support` context accessors.
+- `internal/platform` owns standalone infrastructure utilities that have no domain knowledge.
+- `internal/app` is the only package allowed to import concrete store implementations (`store/sqlite`); all other packages depend on interfaces.
+
+## Multi-Database Seam
+
+Each database backend (`store/sqlite/`, future `store/postgres/`) has an identical internal structure:
+- `queries/*.sql` — database-specific SQL (placeholders, DDL, functions)
+- `sqlcgen/` — sqlc-generated Go code for that engine
+- `migrations/` — goose migration files in that database's DDL dialect
+
+The `sqlc.yaml` at the project root has one `sql:` block per engine. Adding a new database means adding a new sub-package that implements `auth.Store`, `tasks.Store`, and `domain.SettingsReader`. Nothing outside `store/` changes.
 
 ## App Lifecycle
 

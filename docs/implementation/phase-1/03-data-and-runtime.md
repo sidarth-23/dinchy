@@ -32,15 +32,45 @@ Required pragmas:
 
 ## `sqlc` And Store Boundaries
 
-- `sqlc` is used from Phase 1.
-- SQLite is the only concrete implementation now.
-- The architecture must not assume SQLite forever.
+- `sqlc` is used from Phase 1, configured via `sqlc.yaml` at the project root.
+- SQLite is the only concrete implementation now; the architecture has explicit seams for adding other databases.
+- The `sqlc.yaml` has one `sql:` block per database engine. Adding PostgreSQL means adding a new block and a new `store/postgres/` sub-package.
 
-Rules:
+**Query organisation:**
 
-- service/domain code depends on store interfaces, not generated query structs
-- API layer depends on services only
-- multi-repository operations use a `WithTx(ctx, fn)` unit-of-work boundary
+```
+internal/store/sqlite/queries/    ← .sql files (SQLite syntax — ?, ON CONFLICT DO NOTHING)
+internal/store/sqlite/sqlcgen/    ← sqlc-generated Go code (DO NOT EDIT)
+internal/store/sqlite/migrations/ ← goose migrations (SQLite DDL — TEXT timestamps, etc.)
+```
+
+Future PostgreSQL queries go in `internal/store/postgres/queries/` with PostgreSQL syntax (`$1`, `RETURNING`, `TIMESTAMPTZ`), separate generated code, and separate migrations.
+
+**Consumer-defined interfaces (no monolithic Store):**
+
+Each service declares the exact data access it needs:
+- `internal/auth/store.go` — `auth.Store` interface
+- `internal/tasks/store.go` — `tasks.Store` interface
+- `internal/domain/settings.go` — `domain.SettingsReader` interface
+
+The concrete `sqlite.Store` (in `internal/store/sqlite/`) implements all three. `internal/app/app.go` is the only place that imports the concrete store; it passes it to each service typed as that service's narrow interface.
+
+**WithTx closure pattern:**
+
+```go
+err := s.WithTx(ctx, func(tx *Store) error {
+    count, _ := tx.q.CountUsers(ctx)
+    if count > 0 { return errors.New("setup already completed") }
+    return tx.q.InsertUser(ctx, ...)
+})
+```
+
+- `db == nil` means the Store is tx-scoped (backed by `*sql.Tx`).
+- Calling `WithTx` on a tx-scoped Store is a passthrough — prevents accidental nested transactions.
+
+**Wrapper translation:**
+
+Generated sqlcgen structs are internal to the `store/sqlite/` package. Wrapper methods in `sqlite/users.go`, `sqlite/sessions.go` etc. translate between sqlcgen row types and the canonical domain types in `internal/domain/`. No code outside `store/sqlite/` ever imports `sqlcgen`.
 
 ## IDs, Time, And Internal Types
 
