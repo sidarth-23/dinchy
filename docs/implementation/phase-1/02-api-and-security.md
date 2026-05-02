@@ -2,10 +2,10 @@
 
 ## Transport Stack
 
-- Echo is the outer HTTP server (`internal/server/server.go`).
-- Huma is mounted under `/api` via the Echo adapter (`humaecho.New`).
+- Chi is the outer HTTP router (`internal/server/server.go`).
+- Huma is mounted under `/api` via the Chi adapter (`humachi.New`).
 - Huma owns typed request/response models, OpenAPI generation, and generated client compatibility.
-- `echo.Context` must not leak past the middleware layer into handlers or services.
+- No router-specific types must leak past the middleware layer into handlers or services.
 
 Responsibility split:
 
@@ -14,8 +14,9 @@ Responsibility split:
   - typed request decode/validation and response encode
   - OpenAPI generation and generated-client compatibility
   - all handler signatures use `func(ctx context.Context, in *I) (*O, error)`
-- **Echo** owns transport and middleware concerns:
-  - request ID and structured request logging
+- **Chi middleware** owns transport concerns:
+  - request ID and panic recovery
+  - real IP resolution from proxy headers
   - HTTPS/secure-request detection (`internal/server/middleware/https.go`)
   - client IP and User-Agent extraction (`internal/server/middleware/requestinfo.go`)
   - security headers CSP, X-Frame-Options, Referrer-Policy (`internal/server/middleware/secure.go`)
@@ -23,30 +24,39 @@ Responsibility split:
   - session cookie validation and context injection (`internal/server/middleware/session.go`)
   - top-level non-OpenAPI routes: `/healthz`, `/readyz`, `/api/docs` redirect, frontend serving
 
+All middleware in `internal/server/middleware/` uses the standard `func(http.Handler) http.Handler`
+signature — router-agnostic and HTTP-compliant. Each middleware has its own file as a single source of truth.
+
 Middleware stack order in `server.New()`:
-1. `echomw.RequestID()`
-2. `echomw.Recover()`
-3. `mw.SecureDetect()` — injects `IsSecure` into context
-4. `mw.RequestInfo()` — injects `RemoteIP` + `UserAgent` into context
-5. `mw.SecureHeaders(devMode)` — CSP, X-Frame-Options, Referrer-Policy
-6. `echomw.CORSWithConfig(...)` — CORS
-7. `mw.CSRF()` — double-submit cookie, skip safe methods
-8. `mw.Session(authSvc)` — cookie → `*domain.SessionWithUser` in context
+1. `mw.RequestID()` — injects unique request ID
+2. `mw.Recover()` — panic recovery → 500
+3. `mw.RealIP()` — resolves `RemoteAddr` from `X-Real-IP` / `X-Forwarded-For`
+4. `mw.CleanPath()` — normalises double slashes
+5. `mw.SecureDetect()` — injects `IsSecure` into context
+6. `mw.RequestInfo()` — injects `RemoteIP` + `UserAgent` into context
+7. `mw.Lang(catalog)` — injects resolved `language.Tag` into context
+8. `mw.SecureHeaders(devMode)` — CSP, X-Frame-Options, Referrer-Policy
+9. `mw.CORS()` — CORS via `go-chi/cors`
+10. `mw.CSRF()` — double-submit cookie, skip safe methods
+11. `mw.Session(authSvc)` — cookie → `*domain.SessionWithUser` in context
+12. `mw.Timeout(30s)` — request deadline
 
 ## Context-Value Bridge
 
-Huma handlers receive `context.Context` (not `echo.Context`). Echo middleware injects request-scoped values into context via `internal/server/support`:
+Huma handlers receive `context.Context`. Middleware injects request-scoped values into context via `internal/server/support`:
 
 - `support.WithSession(ctx, sess)` → `support.SessionFrom(ctx)`
 - `support.WithSecure(ctx, bool)` → `support.IsSecure(ctx)`
 - `support.WithRequestInfo(ctx, ip, ua)` → `support.RemoteIPFrom(ctx)` / `support.UserAgentFrom(ctx)`
+- `support.WithLang(ctx, tag)` → `support.LangFrom(ctx)`
 
-Cookie setting uses huma's native `header:"Set-Cookie"` output struct field — no `echo.Context` needed in handlers.
+Cookie setting uses huma's native `header:"Set-Cookie"` output struct field — no router context needed in handlers.
 
 Guardrails:
 
 - Huma handlers call service interfaces and return `*DinchyError` values (implementing `huma.StatusError`).
-- Business logic does not depend on Echo types at all.
+- Business logic does not depend on Chi or any router types at all.
+- `huma.NewError` is overridden at server startup so `*apierr.LocalizedError` is serialised as `{"code":"...","message":"..."}` rather than wrapped in Huma's default error envelope.
 
 ## API Shape
 

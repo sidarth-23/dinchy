@@ -1,16 +1,17 @@
-// Package server configures the Echo HTTP server, mounts middleware, and wires API routes.
+// Package server configures the Chi HTTP router, mounts middleware, and wires API routes.
 package server
 
 import (
+	"errors"
 	"io/fs"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humaecho"
-	"github.com/labstack/echo/v4"
-	echomw "github.com/labstack/echo/v4/middleware"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/sidarth-23/dinchy/internal/auth"
 	"github.com/sidarth-23/dinchy/internal/domain"
@@ -20,47 +21,55 @@ import (
 	mw "github.com/sidarth-23/dinchy/internal/server/middleware"
 )
 
-// New creates a fully configured Echo instance with middleware, the Huma API,
+// New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sr domain.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *echo.Echo {
-	e := echo.New()
-	e.HideBanner = true
-	e.HTTPErrorHandler = func(err error, c echo.Context) {
-		if locErr, ok := err.(*apierr.LocalizedError); ok {
-			_ = c.JSON(locErr.GetStatus(), locErr)
-			return
+func New(addr string, dist fs.FS, authSvc *auth.Service, sr domain.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
+	// Override huma's error model so LocalizedError is returned as-is
+	// ({"code":"...","message":"..."}) instead of wrapped in huma's ErrorModel.
+	defaultNewError := huma.NewError
+	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
+		for _, err := range errs {
+			var locErr *apierr.LocalizedError
+			if errors.As(err, &locErr) {
+				return locErr
+			}
 		}
-		e.DefaultHTTPErrorHandler(err, c)
+		return defaultNewError(status, msg, errs...)
 	}
 
-	e.Use(echomw.RequestID())
-	e.Use(echomw.Recover())
-	e.Use(mw.SecureDetect())
-	e.Use(mw.RequestInfo())
-	e.Use(mw.Lang(i18n.Default))
-	e.Use(mw.SecureHeaders(devMode))
-	e.Use(echomw.CORSWithConfig(echomw.CORSConfig{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete},
-	}))
-	e.Use(mw.CSRF())
-	e.Use(mw.Session(authSvc))
+	r := chi.NewRouter()
 
+	r.Use(mw.RequestID())
+	r.Use(mw.Recover())
+	r.Use(mw.RealIP())
+	r.Use(mw.CleanPath())
+	r.Use(mw.SecureDetect())
+	r.Use(mw.RequestInfo())
+	r.Use(mw.Lang(i18n.Default))
+	r.Use(mw.SecureHeaders(devMode))
+	r.Use(mw.CORS())
+	r.Use(mw.CSRF())
+	r.Use(mw.Session(authSvc))
+	r.Use(mw.Timeout(30 * time.Second))
+
+	apiRouter := chi.NewRouter()
 	cfg := huma.DefaultConfig("Dinchy API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
-	g := e.Group("/api")
-	api := humaecho.NewWithGroup(e, g, cfg)
+	api := humachi.New(apiRouter, cfg)
 	serverapi.Register(api, authSvc, sr, requireHTTPS)
+	r.Mount("/api", apiRouter)
 
-	if devMode && devProxyURL != "" {
+	if devMode {
 		target, _ := url.Parse(devProxyURL)
 		proxy := httputil.NewSingleHostReverseProxy(target)
-		e.GET("/*", echo.WrapHandler(proxy))
+		r.Handle("/*", proxy)
 	} else {
-		e.GET("/*", echo.WrapHandler(http.FileServer(http.FS(dist))))
+		r.Handle("/*", http.FileServer(http.FS(dist)))
 	}
 
-	e.Server.Addr = addr
-	return e
+	return &http.Server{
+		Addr:    addr,
+		Handler: r,
+	}
 }

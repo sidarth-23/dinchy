@@ -3,6 +3,7 @@
 package i18n
 
 import (
+	"fmt"
 	"sync"
 
 	"golang.org/x/text/language"
@@ -11,7 +12,7 @@ import (
 // Catalog maps error codes to localized messages across multiple locales.
 type Catalog struct {
 	mu       sync.RWMutex
-	locales  map[language.Tag]map[string]string
+	locales  map[language.Tag]Messages
 	fallback language.Tag
 	matcher  language.Matcher
 }
@@ -19,14 +20,19 @@ type Catalog struct {
 // New creates a Catalog with the given fallback locale.
 func New(fallback language.Tag) *Catalog {
 	return &Catalog{
-		locales:  make(map[language.Tag]map[string]string),
+		locales:  make(map[language.Tag]Messages),
 		fallback: fallback,
 		matcher:  language.NewMatcher([]language.Tag{fallback}),
 	}
 }
 
-// Register adds a locale's message map to the catalog and rebuilds the matcher.
-func (c *Catalog) Register(tag language.Tag, messages map[string]string) {
+// Register adds a locale's Messages to the catalog and rebuilds the matcher.
+// Panics if any field in messages is empty (missing translation).
+func (c *Catalog) Register(tag language.Tag, messages Messages) {
+	if err := Validate(messages); err != nil {
+		panic(fmt.Sprintf("i18n: registering %s: %v", tag, err))
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -55,25 +61,25 @@ func (c *Catalog) Match(acceptLanguage string) language.Tag {
 	return tag
 }
 
-// Resolve returns the message for code in the requested locale, falling back to
-// the catalog's fallback locale, then to the code itself if no translation exists.
-func (c *Catalog) Resolve(tag language.Tag, code string) string {
+// Resolve returns the message selected by fn in the requested locale, falling back to
+// the catalog's fallback locale, then to the msg tag string if no translation exists.
+func (c *Catalog) Resolve(tag language.Tag, fn MsgFunc) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if msgs, ok := c.locales[tag]; ok {
-		if msg, ok := msgs[code]; ok {
+		if msg := fn(msgs); msg != "" {
 			return msg
 		}
 	}
 
 	if tag != c.fallback {
 		if msgs, ok := c.locales[c.fallback]; ok {
-			if msg, ok := msgs[code]; ok {
+			if msg := fn(msgs); msg != "" {
 				return msg
 			}
 		}
 	}
 
-	return code
+	return MsgCode(fn)
 }

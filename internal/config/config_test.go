@@ -61,6 +61,17 @@ func TestLoad_InvalidDevProxyURL_Fails(t *testing.T) {
 	require.Error(t, err, "invalid DevProxyURL should fail validation")
 }
 
+func TestLoad_DevMode_DefaultProxyURLPassesValidation(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_DEV", "true")
+	// DevProxyURL intentionally not set — default "http://127.0.0.1:5173" must satisfy required_if.
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.DevMode)
+	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
+}
+
 func TestLoad_MissingExplicitEnvFile_Fails(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_ENV_FILE", "/tmp/definitely-does-not-exist-dinchy.env")

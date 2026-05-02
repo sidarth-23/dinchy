@@ -90,8 +90,9 @@ Rejected because: 100MB is 50% of the entire Dinchy memory budget just for auth.
 - `golang.org/x/crypto/argon2` — password hashing
 
 **Phase 1 transport stack:**
-- `labstack/echo/v4` — outer HTTP server and middleware ecosystem
-- `github.com/danielgtaylor/huma/v2` — typed API contract, OpenAPI generation, generated client workflow
+- `go-chi/chi/v5` — outer HTTP router and middleware host
+- `go-chi/cors` — CORS middleware
+- `github.com/danielgtaylor/huma/v2` — typed API contract, OpenAPI generation, generated client workflow (mounted via `humachi` adapter)
 
 ---
 

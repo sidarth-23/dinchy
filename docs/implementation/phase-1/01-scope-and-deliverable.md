@@ -6,7 +6,7 @@ Phase 1 is not just a server stub. It is the full foundation slice for the produ
 
 - Go process lifecycle and package structure
 - SQLite initialization, migrations, and initial schema
-- Echo + Huma HTTP/API foundation
+- Chi + Huma HTTP/API foundation
 - Embedded frontend serving in production mode
 - Explicit dev proxy mode
 - First-user setup, login, logout, session validation
@@ -84,9 +84,12 @@ internal/
     # Future: postgres/, mysql/ — same internal shape as sqlite/
 
   server/                       # HTTP transport layer
-    server.go                   #   Echo setup, middleware stack, health endpoints
-    middleware/                  #   Echo middleware
-      session.go, csrf.go, secure.go, https.go, requestinfo.go
+    server.go                   #   Chi router setup, middleware stack, Huma mount, frontend serving
+    internal.go                 #   Internal server (healthz, readyz)
+    middleware/                 #   HTTP middleware (func(http.Handler) http.Handler)
+      requestid.go, recover.go, realip.go, cleanpath.go, timeout.go  # Chi builtin wrappers
+      cors.go                                                         # go-chi/cors wrapper
+      https.go, requestinfo.go, lang.go, secure.go, csrf.go, session.go  # custom
     support/                    #   Shared transport helpers
       cookies.go, context.go
     api/                        #   Huma API handlers
@@ -106,8 +109,9 @@ web/                            # Frontend source (Vite + React)
 - `internal/auth` owns password hashing, session issuance/validation/revocation, and declares its own `Store` interface.
 - `internal/tasks` owns the durable internal scheduler and declares its own `Store` interface.
 - `internal/store/sqlite` is the only package that imports sqlc-generated code; it implements all consumer-defined store interfaces and translates between sqlcgen row types and domain types.
-- `internal/server` owns the Echo server, all middleware, and all Huma API handlers. `echo.Context` must not leak past the middleware layer into handlers.
-- `internal/server/api` handlers receive `context.Context` (not `echo.Context`), call service methods, and return domain errors. Transport concerns (cookies, IP, UA) are injected via `internal/server/support` context accessors.
+- `internal/server` owns the Chi router, all middleware, and all Huma API handlers. No router-specific types leak past the middleware layer into handlers.
+- `internal/server/api` handlers receive `context.Context`, call service methods, and return domain errors. Transport concerns (cookies, IP, UA, language) are injected via `internal/server/support` context accessors.
+- `internal/server/middleware` houses every middleware as its own file with a `func(http.Handler) http.Handler` signature. `server.go` only imports `mw.*` — swapping a middleware implementation touches one file.
 - `internal/platform` owns standalone infrastructure utilities that have no domain knowledge.
 - `internal/app` is the only package allowed to import concrete store implementations (`store/sqlite`); all other packages depend on interfaces.
 

@@ -4,9 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
-
-	"github.com/labstack/echo/v4"
 
 	"github.com/sidarth-23/dinchy/internal/server/apierr"
 	"github.com/sidarth-23/dinchy/internal/server/support"
@@ -16,31 +15,35 @@ import (
 // Every request ensures a dinchy_csrf cookie exists; mutating requests
 // (POST, PUT, PATCH, DELETE) additionally require the X-CSRF-Token header
 // to match the cookie value.
-func CSRF() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			ctx := c.Request().Context()
+func CSRF() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			secure := support.IsSecure(ctx)
 
 			var token string
-			cookie, err := c.Cookie(support.CSRFCookieName)
+			cookie, err := r.Cookie(support.CSRFCookieName)
 			if err != nil || cookie.Value == "" {
 				token = generateToken()
-				c.SetCookie(support.CSRFCookie(token, secure))
+				http.SetCookie(w, support.CSRFCookie(token, secure))
 			} else {
 				token = cookie.Value
 			}
 
-			switch c.Request().Method {
+			switch r.Method {
 			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-				header := c.Request().Header.Get("X-CSRF-Token")
+				header := r.Header.Get("X-CSRF-Token")
 				if subtle.ConstantTimeCompare([]byte(token), []byte(header)) != 1 {
-					return apierr.Localized(ctx, apierr.ErrCSRFFailed())
+					locErr := apierr.Localized(ctx, apierr.ErrCSRFFailed())
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(locErr.GetStatus())
+					_ = json.NewEncoder(w).Encode(locErr)
+					return
 				}
 			}
 
-			return next(c)
-		}
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 

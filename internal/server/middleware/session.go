@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/labstack/echo/v4"
+	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/auth"
 	"github.com/sidarth-23/dinchy/internal/server/support"
@@ -10,20 +10,20 @@ import (
 // Session reads the session cookie, validates it via the auth service, and injects
 // the session into the request context. Requests with absent or invalid cookies
 // continue as anonymous (nil session).
-func Session(svc *auth.Service) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			cookie, err := c.Cookie(support.SessionCookieName)
+func Session(svc *auth.Service) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cookie, err := r.Cookie(support.SessionCookieName)
 			if err != nil || cookie.Value == "" {
-				return next(c)
+				next.ServeHTTP(w, r)
+				return
 			}
-			sess, err := svc.Session(c.Request().Context(), cookie.Value)
+			sess, err := svc.Session(r.Context(), cookie.Value)
 			if err != nil || sess == nil {
-				return next(c)
+				next.ServeHTTP(w, r)
+				return
 			}
-			ctx := support.WithSession(c.Request().Context(), sess)
-			c.SetRequest(c.Request().WithContext(ctx))
-			return next(c)
-		}
+			next.ServeHTTP(w, r.WithContext(support.WithSession(r.Context(), sess)))
+		})
 	}
 }

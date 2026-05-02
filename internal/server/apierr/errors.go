@@ -13,12 +13,12 @@ import (
 	"github.com/sidarth-23/dinchy/internal/server/support"
 )
 
-// DinchyError is a language-neutral structured error carrying an HTTP status code
-// and an error code. The human-readable message is resolved lazily at response time
-// via Localized, allowing the same error value to be localized into any language.
+// DinchyError is a language-neutral structured error carrying an HTTP status code,
+// a wire-format error code, and a MsgFunc for lazy localization at response time.
 type DinchyError struct {
-	status int
-	Code   string
+	status  int
+	Code    string
+	MsgFunc i18n.MsgFunc
 }
 
 // Error implements the error interface.
@@ -50,7 +50,7 @@ func Localized(ctx context.Context, err *DinchyError) *LocalizedError {
 	return &LocalizedError{
 		status:  err.status,
 		Code:    err.Code,
-		Message: i18n.Default.Resolve(tag, err.Code),
+		Message: i18n.Default.Resolve(tag, err.MsgFunc),
 	}
 }
 
@@ -59,36 +59,44 @@ func LocalizedTag(tag language.Tag, err *DinchyError) *LocalizedError {
 	return &LocalizedError{
 		status:  err.status,
 		Code:    err.Code,
-		Message: i18n.Default.Resolve(tag, err.Code),
+		Message: i18n.Default.Resolve(tag, err.MsgFunc),
+	}
+}
+
+func newErr(status int, fn i18n.MsgFunc) *DinchyError {
+	return &DinchyError{
+		status:  status,
+		Code:    i18n.MsgCode(fn),
+		MsgFunc: fn,
 	}
 }
 
 // ErrInvalidCredentials returns a 401 for failed login attempts.
 func ErrInvalidCredentials() *DinchyError {
-	return &DinchyError{status: http.StatusUnauthorized, Code: "auth.invalid_credentials"}
+	return newErr(http.StatusUnauthorized, func(m i18n.Messages) string { return m.AuthInvalidCredentials })
 }
 
 // ErrSetupCompleted returns a 409 when first-user setup has already been done.
 func ErrSetupCompleted() *DinchyError {
-	return &DinchyError{status: http.StatusConflict, Code: "auth.setup_completed"}
+	return newErr(http.StatusConflict, func(m i18n.Messages) string { return m.AuthSetupCompleted })
 }
 
 // ErrUnauthenticated returns a 401 for requests that require authentication.
 func ErrUnauthenticated() *DinchyError {
-	return &DinchyError{status: http.StatusUnauthorized, Code: "auth.unauthenticated"}
+	return newErr(http.StatusUnauthorized, func(m i18n.Messages) string { return m.AuthUnauthenticated })
 }
 
 // ErrHTTPSRequired returns a 403 when HTTPS is required but the request is insecure.
 func ErrHTTPSRequired() *DinchyError {
-	return &DinchyError{status: http.StatusForbidden, Code: "security.https_required"}
+	return newErr(http.StatusForbidden, func(m i18n.Messages) string { return m.SecurityHTTPSRequired })
 }
 
 // ErrCSRFFailed returns a 400 for requests with a missing or invalid CSRF token.
 func ErrCSRFFailed() *DinchyError {
-	return &DinchyError{status: http.StatusBadRequest, Code: "security.csrf_failed"}
+	return newErr(http.StatusBadRequest, func(m i18n.Messages) string { return m.SecurityCSRFFailed })
 }
 
 // ErrInternal returns a 500 for unexpected server errors.
 func ErrInternal() *DinchyError {
-	return &DinchyError{status: http.StatusInternalServerError, Code: "server.internal_error"}
+	return newErr(http.StatusInternalServerError, func(m i18n.Messages) string { return m.ServerInternalError })
 }

@@ -28,8 +28,8 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	authSvc := auth.NewService(s, id.NewGenerator(), clk)
 
 	dist := fstest.MapFS{"index.html": {Data: []byte("<html></html>")}}
-	e := server.New(":0", dist, authSvc, s, false, false, "")
-	return httptest.NewServer(e)
+	srv := server.New(":0", dist, authSvc, s, false, false, "")
+	return httptest.NewServer(srv.Handler)
 }
 
 // doRequest is a convenience helper for making a JSON request to the test server.

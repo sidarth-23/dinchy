@@ -7,8 +7,6 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
-
 	"github.com/sidarth-23/dinchy/internal/auth"
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
@@ -21,12 +19,12 @@ import (
 
 // App is the top-level application container.
 type App struct {
-	cfg          config.Config
-	closer       io.Closer
-	echo         *echo.Echo
-	internalEcho *echo.Echo
-	tasks        *tasks.Runtime
-	errCh        chan error
+	cfg      config.Config
+	closer   io.Closer
+	public   *http.Server
+	internal *http.Server
+	tasks    *tasks.Runtime
+	errCh    chan error
 }
 
 // NewApp creates an App with the given configuration. Heavy initialization is deferred to Start.
@@ -53,19 +51,16 @@ func (a *App) Start() error {
 		return err
 	}
 
-	e := server.New(a.cfg.Addr, dist, authSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL)
-	a.echo = e
-
-	ie := server.NewInternal(a.cfg.InternalAddr, s)
-	a.internalEcho = ie
+	a.public = server.New(a.cfg.Addr, dist, authSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL)
+	a.internal = server.NewInternal(a.cfg.InternalAddr, s)
 
 	a.tasks = tasks.NewRuntime(s, clk)
 	if err := a.tasks.Start(ctx); err != nil {
 		return err
 	}
 
-	go func() { a.errCh <- e.Start(a.cfg.Addr) }()
-	go func() { a.errCh <- ie.Start(a.cfg.InternalAddr) }()
+	go func() { a.errCh <- a.public.ListenAndServe() }()
+	go func() { a.errCh <- a.internal.ListenAndServe() }()
 	return nil
 }
 
@@ -76,11 +71,11 @@ func (a *App) Shutdown(ctx context.Context) error {
 	if a.tasks != nil {
 		a.tasks.Stop()
 	}
-	if a.echo != nil {
-		_ = a.echo.Shutdown(ctx)
+	if a.public != nil {
+		_ = a.public.Shutdown(ctx)
 	}
-	if a.internalEcho != nil {
-		_ = a.internalEcho.Shutdown(ctx)
+	if a.internal != nil {
+		_ = a.internal.Shutdown(ctx)
 	}
 	if a.closer != nil {
 		_ = a.closer.Close()

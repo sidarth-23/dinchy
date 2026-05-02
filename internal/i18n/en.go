@@ -1,11 +1,11 @@
 package i18n
 
-// En contains English translations for all Dinchy error codes.
-var En = map[string]string{
-	"auth.invalid_credentials": "Invalid email or password.",
-	"auth.setup_completed":     "Setup has already been completed.",
-	"auth.unauthenticated":     "Authentication required.",
-	"security.https_required":  "This endpoint requires a secure (HTTPS) connection.",
-	"security.csrf_failed":     "Missing or invalid CSRF token.",
-	"server.internal_error":    "An unexpected error occurred.",
+// En contains English translations for all Dinchy messages.
+var En = Messages{
+	AuthInvalidCredentials: "Invalid email or password.",
+	AuthSetupCompleted:     "Setup has already been completed.",
+	AuthUnauthenticated:    "Authentication required.",
+	SecurityHTTPSRequired:  "This endpoint requires a secure (HTTPS) connection.",
+	SecurityCSRFFailed:     "Missing or invalid CSRF token.",
+	ServerInternalError:    "An unexpected error occurred.",
 }
