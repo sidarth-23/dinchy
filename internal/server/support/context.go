@@ -3,6 +3,8 @@ package support
 import (
 	"context"
 
+	"golang.org/x/text/language"
+
 	"github.com/sidarth-23/dinchy/internal/domain"
 )
 
@@ -13,6 +15,7 @@ const (
 	ctxKeySecure
 	ctxKeyRemoteIP
 	ctxKeyUserAgent
+	ctxKeyLang
 )
 
 // WithSession attaches a validated session to the request context.
@@ -54,4 +57,18 @@ func RemoteIPFrom(ctx context.Context) string {
 func UserAgentFrom(ctx context.Context) string {
 	s, _ := ctx.Value(ctxKeyUserAgent).(string)
 	return s
+}
+
+// WithLang attaches the resolved language tag to the request context.
+func WithLang(ctx context.Context, tag language.Tag) context.Context {
+	return context.WithValue(ctx, ctxKeyLang, tag)
+}
+
+// LangFrom returns the language tag stored by the Lang middleware.
+// Returns language.English if no tag has been set.
+func LangFrom(ctx context.Context) language.Tag {
+	if tag, ok := ctx.Value(ctxKeyLang).(language.Tag); ok {
+		return tag
+	}
+	return language.English
 }

@@ -1,5 +1,7 @@
 package tasks
 
+//go:generate mockgen -destination=mock_store_test.go -package=tasks . Store
+
 import (
 	"context"
 	"time"

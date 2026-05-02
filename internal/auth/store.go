@@ -1,5 +1,7 @@
 package auth
 
+//go:generate mockgen -destination=mock_store_test.go -package=auth . Store
+
 import (
 	"context"
 

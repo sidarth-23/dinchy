@@ -12,7 +12,10 @@ import (
 )
 
 func main() {
-	cfg := config.FromEnv()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
 	a, err := app.NewApp(cfg)
 	if err != nil {
 		log.Fatal(err)
@@ -22,10 +25,10 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		<-ctx.Done()
+		stop()
 		_ = a.Shutdown(context.Background())
 	}()
 

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/sidarth-23/dinchy/internal/server/apierr"
 	"github.com/sidarth-23/dinchy/internal/server/support"
 )
 
@@ -40,7 +42,7 @@ func (a *API) registerSetup(h huma.API) {
 
 func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, ErrHTTPSRequired()
+		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
 	}
 	token, err := a.auth.SetupFirstUser(
 		ctx,
@@ -51,15 +53,15 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 		support.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, MapServiceError(err)
+		return nil, apierr.MapServiceError(ctx, err)
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, ErrInternal()
+		return nil, apierr.Localized(ctx, apierr.ErrInternal())
 	}
 	sess, err := a.auth.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, ErrInternal()
+		return nil, apierr.Localized(ctx, apierr.ErrInternal())
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}

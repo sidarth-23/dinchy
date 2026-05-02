@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/sidarth-23/dinchy/internal/server/apierr"
 	"github.com/sidarth-23/dinchy/internal/server/support"
 )
 
@@ -46,11 +48,11 @@ func (a *API) registerBootstrap(h huma.API) {
 
 func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, ErrHTTPSRequired()
+		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, ErrInternal()
+		return nil, apierr.Localized(ctx, apierr.ErrInternal())
 	}
 	out := &BootstrapOut{}
 	out.Body.SetupRequired = bs.SetupRequired

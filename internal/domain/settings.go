@@ -1,5 +1,7 @@
 package domain
 
+//go:generate mockgen -destination=mock_settings_reader_test.go -package=domain . SettingsReader
+
 import "context"
 
 // BootstrapState describes whether initial setup is required and the configured instance name.

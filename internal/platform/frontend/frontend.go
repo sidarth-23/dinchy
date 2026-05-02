@@ -7,6 +7,7 @@ import (
 )
 
 // WebFS is the embedded filesystem containing the frontend build output.
+//
 //go:embed dist/*
 var WebFS embed.FS
 

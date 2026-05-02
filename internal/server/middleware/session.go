@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"github.com/labstack/echo/v4"
+
 	"github.com/sidarth-23/dinchy/internal/auth"
 	"github.com/sidarth-23/dinchy/internal/server/support"
 )

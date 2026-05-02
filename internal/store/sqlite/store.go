@@ -12,9 +12,10 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register the sqlite3 driver with database/sql
 
 	"github.com/pressly/goose/v3"
+
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
@@ -28,12 +29,17 @@ type Store struct {
 	q  *sqlcgen.Queries
 }
 
+func init() {
+	// Both SetDialect and SetBaseFS write goose global state; call once at init to avoid races.
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		panic("sqlite: goose.SetDialect: " + err.Error())
+	}
+	goose.SetBaseFS(migrationsFS)
+}
+
 // Open creates a Store by opening the SQLite file at path, applying pragmas,
 // running embedded goose migrations, and seeding default settings.
 func Open(ctx context.Context, path string) (*Store, error) {
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		return nil, err
-	}
 	if err := ensureDir(path); err != nil {
 		return nil, err
 	}
@@ -45,7 +51,6 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	goose.SetBaseFS(migrationsFS)
 	if err := goose.Up(db, "migrations"); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -56,6 +61,14 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// PingContext verifies the database connection is alive. Satisfies server.Pinger.
+func (s *Store) PingContext(ctx context.Context) error {
+	if s.db == nil {
+		return fmt.Errorf("sqlite: cannot ping a transaction-scoped store")
+	}
+	return s.db.PingContext(ctx)
 }
 
 // Close shuts down the database connection. It must not be called on a tx-scoped Store.

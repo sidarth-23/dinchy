@@ -12,11 +12,11 @@ type Session struct {
 
 // SessionWithUser is a session joined with its owner's user info, used for request validation.
 type SessionWithUser struct {
-	SessionID   string
-	UserID      string
-	Email       string
-	DisplayName string
-	Role        Role
+	SessionID     string
+	UserID        string
+	Email         string
+	DisplayName   string
+	Role          Role
 	IdleExpiresAt time.Time
 	ExpiresAt     time.Time
 	RevokedAt     sql.NullTime

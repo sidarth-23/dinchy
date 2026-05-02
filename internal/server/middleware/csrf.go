@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/sidarth-23/dinchy/internal/server/apierr"
 	"github.com/sidarth-23/dinchy/internal/server/support"
 )
 
@@ -17,9 +19,9 @@ import (
 func CSRF() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			secure := support.IsSecure(c.Request().Context())
+			ctx := c.Request().Context()
+			secure := support.IsSecure(ctx)
 
-			// Fetch or generate the CSRF token.
 			var token string
 			cookie, err := c.Cookie(support.CSRFCookieName)
 			if err != nil || cookie.Value == "" {
@@ -29,15 +31,11 @@ func CSRF() echo.MiddlewareFunc {
 				token = cookie.Value
 			}
 
-			// Validate on mutating methods only.
 			switch c.Request().Method {
 			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 				header := c.Request().Header.Get("X-CSRF-Token")
 				if subtle.ConstantTimeCompare([]byte(token), []byte(header)) != 1 {
-					return &echo.HTTPError{
-						Code:    http.StatusBadRequest,
-						Message: "missing csrf token in request header",
-					}
+					return apierr.Localized(ctx, apierr.ErrCSRFFailed())
 				}
 			}
 

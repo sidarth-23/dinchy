@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/sidarth-23/dinchy/internal/auth"
 	"github.com/sidarth-23/dinchy/internal/domain"
 )
