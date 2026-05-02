@@ -21,7 +21,7 @@ SQLite with WAL mode handles everything Dinchy needs:
 - Encrypted secrets — application-layer AES-256-GCM on sensitive columns
 - Logs with full-text search — SQLite FTS5 extension
 - Container stats with rolling retention — simple time-series table with auto-prune
-- Build/job queue — channel-based in Go, with SQLite for persistence across restarts
+- Durable internal scheduled tasks and future job state — persisted in SQLite with lease-based recovery
 
 At homelab scale (10-50 containers, tens of thousands of log lines/day), SQLite is never the bottleneck. The single-file database means backups are `cp dinchy.db dinchy.db.backup`.
 
@@ -89,6 +89,10 @@ Rejected because: 100MB is 50% of the entire Dinchy memory budget just for auth.
 - `pquerna/otp` — TOTP for 2FA
 - `golang.org/x/crypto/argon2` — password hashing
 
+**Phase 1 transport stack:**
+- `labstack/echo/v4` — outer HTTP server and middleware ecosystem
+- `github.com/danielgtaylor/huma/v2` — typed API contract, OpenAPI generation, generated client workflow
+
 ---
 
 ## Key extensibility interfaces
@@ -124,3 +128,5 @@ Dinchy's solution operates at four layers:
 4. **Protection** — `oom_score_adj = -1000` ensures Dinchy itself is never OOM-killed
 
 Result: users see "Build aborted: insufficient memory" in the UI rather than a dead server.
+
+The Phase 1 implementation also introduces a small persistent scheduled-task foundation in SQLite so internal workers survive restart and do not rely on ephemeral in-memory loops alone.

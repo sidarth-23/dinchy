@@ -10,25 +10,29 @@
 
 **Backend:**
 - Go project structure (`cmd/dinchy/`, `internal/`, `web/`)
-- HTTP router + REST API skeleton
+- Echo + Huma API skeleton with generated OpenAPI and client support
 - SQLite setup with WAL mode (`modernc.org/sqlite`)
 - Database migrations (`pressly/goose`)
-- Initial schema: users, sessions, settings tables
+- Initial schema: users, sessions, app_settings, auth_audit_logs, scheduled_tasks
 - `embed.FS` serving the frontend build
+- Persistent internal scheduled task foundation for `session_cleanup`
 
 **Frontend:**
 - Vite + React + TypeScript scaffold
-- Tanstack Router with initial routes (login, dashboard)
+- TanStack Router with explicit startup branching and protected app layout
 - Shadcn/ui base layout (sidebar, header, content area)
 - Login page, first-user signup page
+- Generated API client from OpenAPI
 
 **Auth:**
 - Email/password login (argon2 hashing)
 - First-user signup (first visitor creates admin, registration locks)
 - Session management (HTTP-only cookies in SQLite)
-- CLI: `dinchy admin reset-password`
+- CSRF protection, request security middleware, and auth audit logging
 
 **Deliverable:** `go build` → start binary → open browser → create admin → log in → empty dashboard.
+
+**Detailed implementation docs:** See [`docs/implementation/phase-1/`](implementation/phase-1/README.md).
 
 ---
 

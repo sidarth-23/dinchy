@@ -64,6 +64,8 @@ Single-node, single binary. Caddy runs alongside as a sidecar and handles all ro
 
 See [docs/plan.md](docs/plan.md) for the full phased implementation plan.
 
+Detailed Phase 1 implementation docs live in [docs/implementation/phase-1/](docs/implementation/phase-1/README.md).
+
 **v2+:**
 - Multi-node support (gRPC master/agent architecture)
 - Plugin ecosystem (container-based plugins)
