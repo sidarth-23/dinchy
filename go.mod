@@ -1,6 +1,8 @@
 module github.com/sidarth-23/dinchy
 
-go 1.25.7
+go 1.26
+
+toolchain go1.26.3
 
 require (
 	github.com/danielgtaylor/huma/v2 v2.37.3

@@ -26,7 +26,9 @@ func NewInternal(addr string, db Pinger) *http.Server {
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			log.Printf("failed to write /healthz response: %v", err)
+		}
 	})
 
 	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {

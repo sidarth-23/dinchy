@@ -25,7 +25,7 @@ This is the source of truth for how Phase 1 should be built.
 - [`04-frontend-and-ux.md`](04-frontend-and-ux.md)
   - router structure, startup branching, pages, form strategy, generated client usage
 - [`05-testing-and-workflow.md`](05-testing-and-workflow.md)
-  - integration/E2E defaults, OpenAPI generation, Taskfile workflow, verification expectations
+  - integration/E2E defaults, OpenAPI generation, mise workflow, verification expectations
 
 ## Core Locked Decisions
 

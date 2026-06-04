@@ -65,32 +65,33 @@ Golden path:
 
 Prefer UI behavior assertions over direct cookie inspection in E2E.
 
-## OpenAPI And Client Generation
+## Mise Tasks
 
-OpenAPI generation should not require running the server.
+All development tooling is managed by [mise](https://mise.jdx.dev/) via `mise.toml` at the project root. Install mise, then run `mise install` to fetch pinned versions of Go, Bun, Node, sqlc, goose, and golangci-lint.
 
-Recommended pattern:
+Available tasks:
 
-- a dedicated Go command builds the Huma API and writes the spec
-- Taskfile runs spec generation and frontend client generation
-
-## Taskfile Expectations
-
-Planned tasks:
-
-- `task dev`
-- `task web:build`
-- `task api:generate`
-- `task build`
-- `task test`
+- `mise run dev` — run the Go backend in development mode
+- `mise run build` — build the production binary (`./dinchy`)
+- `mise run test` — run the full test stack (`go test ./...`)
+- `mise run lint` — run golangci-lint
+- `mise run fmt` — format Go code with golangci-lint
+- `mise run generate` — regenerate sqlc queries (`sqlc generate`)
+- `mise run db:migrate` — run SQLite migrations (`goose up`)
+- `mise run db:status` — check migration status
+- `mise run web:dev` — run the frontend dev server (Bun runtime)
+- `mise run web:build` — build production frontend assets
+- `mise run web:install` — install frontend dependencies via Bun
 
 Intent:
 
-- `task dev` runs backend plus frontend dev server flow
-- `task web:build` builds the frontend assets
-- `task api:generate` regenerates the OpenAPI-based frontend client
-- `task build` produces the production binary
-- `task test` runs the Phase 1 test stack
+- `mise run dev` starts the backend in dev mode; the frontend dev server is started separately with `mise run web:dev`
+- `mise run web:build` builds the frontend assets for embedding into the Go binary
+- `mise run generate` regenerates the OpenAPI-based frontend client
+- `mise run build` produces the production binary
+- `mise run test` runs the Phase 1 test stack
+
+Bun is the primary JS runtime. Node is available via mise for compatibility, but all frontend tasks run through Bun.
 
 ## Verification Checklist
 

@@ -84,13 +84,27 @@ curl -fsSL https://dinchy.com/install.sh | bash
 
 ## Development
 
-```bash
-# Run the Go backend
-go run main.go
+This project uses [mise](https://mise.jdx.dev/) to manage all tooling. Install it, then run:
 
-# (future) Run the frontend dev server
-cd web && npm run dev
+```bash
+mise install          # install pinned Go, Bun, Node, and dev tools
+mise run dev          # run the Go backend in development mode
+mise run test         # run the test suite
+mise run lint         # run the linter
+mise run build        # build the production binary
+mise run generate     # regenerate sqlc queries
+mise run db:migrate   # run database migrations
 ```
+
+When the frontend exists:
+
+```bash
+mise run web:install  # install frontend dependencies (via Bun)
+mise run web:dev      # run the frontend dev server (Bun runtime)
+mise run web:build    # build production frontend assets
+```
+
+Bun is the primary JS runtime for this project. Node is available via mise for compatibility, but all frontend tasks run through Bun.
 
 ## License
 
