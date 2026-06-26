@@ -1,5 +1,7 @@
 package errors
 
+//go:generate go run ../../cmd/errorgen -input meta.json -output generated.go
+
 import (
 	"encoding/json"
 	stdErrors "errors"
