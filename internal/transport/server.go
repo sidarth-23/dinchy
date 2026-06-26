@@ -14,7 +14,6 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -25,7 +24,7 @@ import (
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sr domain.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, sr bootstrap.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
 	// Override huma's error model so LocalizedError is returned as-is
 	// ({"code":"...","message":"..."}) instead of wrapped in huma's ErrorModel.
 	defaultNewError := huma.NewError

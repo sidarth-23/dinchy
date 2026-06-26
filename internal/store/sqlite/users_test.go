@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
 )
 
 func TestCreateFirstUser_Success(t *testing.T) {
@@ -21,7 +21,7 @@ func TestCreateFirstUser_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "admin@example.com", u.Email)
 	assert.Equal(t, "Admin", u.DisplayName)
-	assert.Equal(t, domain.RoleAdmin, u.Role)
+	assert.Equal(t, auth.RoleAdmin, u.Role)
 	assert.NotEmpty(t, u.ID)
 }
 
@@ -50,7 +50,7 @@ func TestCreateFirstUser_Concurrent(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			_, err := s.CreateFirstUser(ctx, domain.CreateUserInput{
+			_, err := s.CreateFirstUser(ctx, auth.CreateUserInput{
 				ID:           "01J00000000000000000000" + string(rune('0'+idx)),
 				Email:        "admin@example.com",
 				PasswordHash: "hash",

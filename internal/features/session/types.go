@@ -1,16 +1,18 @@
-package domain
+package session
 
 import (
 	"database/sql"
 	"time"
 )
 
-// Session represents a created session record.
+type Role string
+
+const RoleAdmin Role = "admin"
+
 type Session struct {
 	ID string
 }
 
-// SessionWithUser is a session joined with its owner's user info, used for request validation.
 type SessionWithUser struct {
 	SessionID     string
 	UserID        string
@@ -22,7 +24,6 @@ type SessionWithUser struct {
 	RevokedAt     sql.NullTime
 }
 
-// CreateSessionInput holds the parameters for creating a new session.
 type CreateSessionInput struct {
 	ID            string
 	UserID        string

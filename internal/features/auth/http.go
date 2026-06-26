@@ -7,7 +7,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
 	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/transport/apierr"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
@@ -66,12 +65,12 @@ type SetupOut struct {
 // API groups the auth handlers and their shared dependencies.
 type API struct {
 	auth         *Service
-	settings     domain.SettingsReader
+	settings     bootstrap.SettingsReader
 	requireHTTPS bool
 }
 
 // Register mounts the auth operations on the given huma.API instance.
-func Register(h huma.API, svc *Service, sr domain.SettingsReader, requireHTTPS bool) {
+func Register(h huma.API, svc *Service, sr bootstrap.SettingsReader, requireHTTPS bool) {
 	a := &API{auth: svc, settings: sr, requireHTTPS: requireHTTPS}
 
 	huma.Register(h, huma.Operation{

@@ -6,7 +6,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
 	"github.com/sidarth-23/dinchy/internal/transport/apierr"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -38,12 +37,12 @@ type BootstrapOut struct {
 
 // API groups the bootstrap handler and its shared dependencies.
 type API struct {
-	settings     domain.SettingsReader
+	settings     SettingsReader
 	requireHTTPS bool
 }
 
 // Register mounts the bootstrap operation on the given huma.API instance.
-func Register(h huma.API, sr domain.SettingsReader, requireHTTPS bool) {
+func Register(h huma.API, sr SettingsReader, requireHTTPS bool) {
 	a := &API{settings: sr, requireHTTPS: requireHTTPS}
 	huma.Register(h, huma.Operation{
 		OperationID: "get-bootstrap",

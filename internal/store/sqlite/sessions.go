@@ -6,12 +6,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
 // CreateSession inserts a new session record and returns its ID.
-func (s *Store) CreateSession(ctx context.Context, in domain.CreateSessionInput) (domain.Session, error) {
+func (s *Store) CreateSession(ctx context.Context, in session.CreateSessionInput) (session.Session, error) {
 	now := tsFormat(in.Now)
 	err := s.q.InsertSession(ctx, sqlcgen.InsertSessionParams{
 		ID:            in.ID,
@@ -25,11 +26,11 @@ func (s *Store) CreateSession(ctx context.Context, in domain.CreateSessionInput)
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	})
-	return domain.Session{ID: in.ID}, err
+	return session.Session{ID: in.ID}, err
 }
 
 // GetSessionByTokenHash retrieves an active session with its owner's user info.
-func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*domain.SessionWithUser, error) {
+func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*session.SessionWithUser, error) {
 	row, err := s.q.GetSessionByTokenHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -53,12 +54,12 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*d
 		}
 		revokedAt = sql.NullTime{Time: t, Valid: true}
 	}
-	return &domain.SessionWithUser{
+	return &session.SessionWithUser{
 		SessionID:     row.ID,
 		UserID:        row.UserID,
 		Email:         row.Email,
 		DisplayName:   row.DisplayName,
-		Role:          domain.Role(row.Role),
+		Role:          auth.Role(row.Role),
 		IdleExpiresAt: idle,
 		ExpiresAt:     exp,
 		RevokedAt:     revokedAt,

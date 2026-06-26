@@ -10,10 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
 	"github.com/sidarth-23/dinchy/internal/features/auth/errs"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/testutil"
 )
 
 var (
@@ -23,11 +22,19 @@ var (
 
 func newTestService(t *testing.T) (*Service, *MockStore) {
 	t.Helper()
-	ctrl := testutil.NewController(t)
+	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
-	clk := testutil.NewFakeClock(fixedTime)
+	clk := fakeClock{now: fixedTime}
 	svc := NewService(store, id.NewGenerator(), clk)
 	return svc, store
+}
+
+type fakeClock struct {
+	now time.Time
+}
+
+func (c fakeClock) Now() time.Time {
+	return c.now
 }
 
 func TestSetupFirstUser_Success(t *testing.T) {
@@ -36,15 +43,15 @@ func TestSetupFirstUser_Success(t *testing.T) {
 
 	store.EXPECT().
 		CreateFirstUser(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in domain.CreateUserInput) (domain.User, error) {
+		DoAndReturn(func(_ context.Context, in CreateUserInput) (User, error) {
 			assert.Equal(t, "admin@example.com", in.Email)
 			assert.Equal(t, "Admin", in.DisplayName)
 			assert.NotEmpty(t, in.PasswordHash)
-			return domain.User{ID: "user-1", Email: in.Email, DisplayName: in.DisplayName, Role: domain.RoleAdmin}, nil
+			return User{ID: "user-1", Email: in.Email, DisplayName: in.DisplayName, Role: RoleAdmin}, nil
 		})
 	store.EXPECT().
 		CreateSession(gomock.Any(), gomock.Any()).
-		Return(domain.Session{ID: "sess-1"}, nil)
+		Return(session.Session{ID: "sess-1"}, nil)
 
 	token, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "password123", "127.0.0.1", "ua")
 	require.NoError(t, err)
@@ -57,11 +64,11 @@ func TestSetupFirstUser_EmailNormalized(t *testing.T) {
 
 	store.EXPECT().
 		CreateFirstUser(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in domain.CreateUserInput) (domain.User, error) {
+		DoAndReturn(func(_ context.Context, in CreateUserInput) (User, error) {
 			assert.Equal(t, "admin@example.com", in.Email, "email must be normalized to lowercase")
-			return domain.User{ID: "user-1", Email: in.Email, Role: domain.RoleAdmin}, nil
+			return User{ID: "user-1", Email: in.Email, Role: RoleAdmin}, nil
 		})
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(domain.Session{ID: "sess-1"}, nil)
+	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(session.Session{ID: "sess-1"}, nil)
 
 	_, err := svc.SetupFirstUser(testCtx, "  ADMIN@EXAMPLE.COM  ", "Admin", "password123", "", "")
 	require.NoError(t, err)
@@ -71,7 +78,7 @@ func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(domain.User{}, errs.ErrSetupCompleted)
+	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, errs.ErrSetupCompleted)
 
 	_, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "pass", "", "")
 	require.ErrorIs(t, err, errs.ErrSetupCompleted)
@@ -84,8 +91,8 @@ func TestLogin_Success(t *testing.T) {
 	hashed := hashPassword("secret")
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&domain.User{ID: "u1", Email: "user@example.com", PasswordHash: hashed, Role: domain.RoleAdmin}, nil)
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(domain.Session{ID: "s1"}, nil)
+		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashed, Role: RoleAdmin}, nil)
+	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(session.Session{ID: "s1"}, nil)
 
 	token, err := svc.Login(testCtx, "user@example.com", "secret", "127.0.0.1", "ua")
 	require.NoError(t, err)
@@ -98,7 +105,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&domain.User{ID: "u1", Email: "user@example.com", PasswordHash: hashPassword("correct")}, nil)
+		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashPassword("correct")}, nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "")
 	require.ErrorIs(t, err, errs.ErrInvalidCredentials)
@@ -120,8 +127,8 @@ func TestLogin_EmailNormalized(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&domain.User{ID: "u1", PasswordHash: hashPassword("p")}, nil)
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(domain.Session{ID: "s1"}, nil)
+		Return(&User{ID: "u1", PasswordHash: hashPassword("p")}, nil)
+	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(session.Session{ID: "s1"}, nil)
 
 	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "")
 	require.NoError(t, err)
@@ -131,7 +138,7 @@ func TestSession_ValidToken(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &domain.SessionWithUser{
+	sess := &session.SessionWithUser{
 		SessionID:     "s1",
 		UserID:        "u1",
 		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
@@ -157,7 +164,7 @@ func TestSession_ExpiredIdle(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &domain.SessionWithUser{
+	sess := &session.SessionWithUser{
 		IdleExpiresAt: fixedTime.Add(-1 * time.Second), // expired
 		ExpiresAt:     fixedTime.Add(7 * 24 * time.Hour),
 	}
@@ -172,7 +179,7 @@ func TestSession_ExpiredAbsolute(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &domain.SessionWithUser{
+	sess := &session.SessionWithUser{
 		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
 		ExpiresAt:     fixedTime.Add(-1 * time.Second), // expired
 	}
@@ -187,7 +194,7 @@ func TestSession_Revoked(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &domain.SessionWithUser{
+	sess := &session.SessionWithUser{
 		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
 		ExpiresAt:     fixedTime.Add(7 * 24 * time.Hour),
 		RevokedAt:     sql.NullTime{Time: fixedTime.Add(-time.Hour), Valid: true},

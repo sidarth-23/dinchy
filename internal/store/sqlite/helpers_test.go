@@ -7,14 +7,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite"
 	"github.com/sidarth-23/dinchy/internal/testutil"
 )
 
-func createTestUser(ctx context.Context, t testing.TB, s *sqlite.Store) (domain.User, error) {
+func createTestUser(ctx context.Context, t testing.TB, s *sqlite.Store) (auth.User, error) {
 	t.Helper()
-	return s.CreateFirstUser(ctx, domain.CreateUserInput{
+	return s.CreateFirstUser(ctx, auth.CreateUserInput{
 		ID:           "01J0000000000000000000001",
 		Email:        "admin@example.com",
 		PasswordHash: "hashedpassword",
@@ -23,10 +24,10 @@ func createTestUser(ctx context.Context, t testing.TB, s *sqlite.Store) (domain.
 	})
 }
 
-func createTestSession(ctx context.Context, t testing.TB, s *sqlite.Store, userID string) domain.Session {
+func createTestSession(ctx context.Context, t testing.TB, s *sqlite.Store, userID string) session.Session {
 	t.Helper()
 	now := time.Now().UTC()
-	sess, err := s.CreateSession(ctx, domain.CreateSessionInput{
+	sess, err := s.CreateSession(ctx, session.CreateSessionInput{
 		ID:            "01J0000000000000000000002",
 		UserID:        userID,
 		TokenHash:     "tokenhashabcdef",

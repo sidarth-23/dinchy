@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/text/language"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 )
 
 type ctxKey int
@@ -19,13 +19,13 @@ const (
 )
 
 // WithSession attaches a validated session to the request context.
-func WithSession(ctx context.Context, s *domain.SessionWithUser) context.Context {
+func WithSession(ctx context.Context, s *session.SessionWithUser) context.Context {
 	return context.WithValue(ctx, ctxKeySession, s)
 }
 
 // SessionFrom retrieves the session from the context, or nil for anonymous requests.
-func SessionFrom(ctx context.Context) *domain.SessionWithUser {
-	s, _ := ctx.Value(ctxKeySession).(*domain.SessionWithUser)
+func SessionFrom(ctx context.Context) *session.SessionWithUser {
+	s, _ := ctx.Value(ctxKeySession).(*session.SessionWithUser)
 	return s
 }
 

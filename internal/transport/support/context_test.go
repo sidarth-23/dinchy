@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/text/language"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 func TestSession_RoundTrip(t *testing.T) {
 	t.Parallel()
-	sess := &domain.SessionWithUser{SessionID: "s1", Email: "a@b.com"}
+	sess := &session.SessionWithUser{SessionID: "s1", Email: "a@b.com"}
 	ctx := support.WithSession(context.Background(), sess)
 	assert.Equal(t, sess, support.SessionFrom(ctx))
 }

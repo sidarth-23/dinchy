@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
@@ -18,14 +18,14 @@ func (s *Store) ensureDefaultSettings(ctx context.Context) error {
 }
 
 // Bootstrap returns whether first-user setup is required and the current instance name.
-func (s *Store) Bootstrap(ctx context.Context) (domain.BootstrapState, error) {
+func (s *Store) Bootstrap(ctx context.Context) (bootstrap.BootstrapState, error) {
 	count, err := s.q.CountUsers(ctx)
 	if err != nil {
-		return domain.BootstrapState{}, err
+		return bootstrap.BootstrapState{}, err
 	}
 	name, err := s.q.GetInstanceName(ctx)
 	if err != nil {
-		return domain.BootstrapState{}, err
+		return bootstrap.BootstrapState{}, err
 	}
-	return domain.BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
+	return bootstrap.BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
 }

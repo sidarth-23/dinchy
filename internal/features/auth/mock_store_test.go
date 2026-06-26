@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	domain "github.com/sidarth-23/dinchy/internal/domain"
+	session "github.com/sidarth-23/dinchy/internal/features/session"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,10 +42,10 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 }
 
 // CreateFirstUser mocks base method.
-func (m *MockStore) CreateFirstUser(ctx context.Context, in domain.CreateUserInput) (domain.User, error) {
+func (m *MockStore) CreateFirstUser(ctx context.Context, in CreateUserInput) (User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateFirstUser", ctx, in)
-	ret0, _ := ret[0].(domain.User)
+	ret0, _ := ret[0].(User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -57,10 +57,10 @@ func (mr *MockStoreMockRecorder) CreateFirstUser(ctx, in any) *gomock.Call {
 }
 
 // CreateSession mocks base method.
-func (m *MockStore) CreateSession(ctx context.Context, in domain.CreateSessionInput) (domain.Session, error) {
+func (m *MockStore) CreateSession(ctx context.Context, in session.CreateSessionInput) (session.Session, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSession", ctx, in)
-	ret0, _ := ret[0].(domain.Session)
+	ret0, _ := ret[0].(session.Session)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -72,10 +72,10 @@ func (mr *MockStoreMockRecorder) CreateSession(ctx, in any) *gomock.Call {
 }
 
 // FindUserByEmail mocks base method.
-func (m *MockStore) FindUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+func (m *MockStore) FindUserByEmail(ctx context.Context, email string) (*User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindUserByEmail", ctx, email)
-	ret0, _ := ret[0].(*domain.User)
+	ret0, _ := ret[0].(*User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -87,10 +87,10 @@ func (mr *MockStoreMockRecorder) FindUserByEmail(ctx, email any) *gomock.Call {
 }
 
 // GetSessionByTokenHash mocks base method.
-func (m *MockStore) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*domain.SessionWithUser, error) {
+func (m *MockStore) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*session.SessionWithUser, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSessionByTokenHash", ctx, tokenHash)
-	ret0, _ := ret[0].(*domain.SessionWithUser)
+	ret0, _ := ret[0].(*session.SessionWithUser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

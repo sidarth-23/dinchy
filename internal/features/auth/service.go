@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/crypto/argon2"
 
-	"github.com/sidarth-23/dinchy/internal/domain"
 	"github.com/sidarth-23/dinchy/internal/features/auth/errs"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
@@ -35,7 +35,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, email, displayName, passwo
 	hash := hashPassword(password)
 	email = strings.ToLower(strings.TrimSpace(email))
 	now := s.clock.Now()
-	u, err := s.store.CreateFirstUser(ctx, domain.CreateUserInput{
+	u, err := s.store.CreateFirstUser(ctx, CreateUserInput{
 		ID:           s.idg.New(),
 		Email:        email,
 		PasswordHash: hash,
@@ -67,7 +67,7 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 
 // Session validates a raw token and returns the associated session and user if valid.
 // Returns nil without error for expired, revoked, or missing tokens.
-func (s *Service) Session(ctx context.Context, rawToken string) (*domain.SessionWithUser, error) {
+func (s *Service) Session(ctx context.Context, rawToken string) (*session.SessionWithUser, error) {
 	if rawToken == "" {
 		return nil, nil
 	}
@@ -96,7 +96,7 @@ func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string
 		return "", err
 	}
 	now := s.clock.Now()
-	_, err = s.store.CreateSession(ctx, domain.CreateSessionInput{
+	_, err = s.store.CreateSession(ctx, session.CreateSessionInput{
 		ID:            s.idg.New(),
 		UserID:        userID,
 		TokenHash:     tokenHash,
