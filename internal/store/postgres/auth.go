@@ -42,6 +42,18 @@ func (q *queries) FindUserByEmail(ctx context.Context, email string) (core.UserR
 	}, nil
 }
 
+func (q *queries) UpdateUserPasswordHash(ctx context.Context, arg core.UpdateUserPasswordHashParams) error {
+	id, err := parseUUID(arg.ID)
+	if err != nil {
+		return err
+	}
+	return q.q.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{
+		PasswordHash: arg.PasswordHash,
+		UpdatedAt:    arg.UpdatedAt.UTC(),
+		ID:           id,
+	})
+}
+
 func (q *queries) InsertSession(ctx context.Context, arg core.InsertSessionParams) error {
 	id, err := parseUUID(arg.ID)
 	if err != nil {

@@ -10,3 +10,7 @@ SELECT id, email, password_hash, display_name, role
 FROM users
 WHERE email = $1 AND disabled_at IS NULL;
 
+-- name: UpdateUserPasswordHash :exec
+UPDATE users
+SET password_hash = $1, updated_at = $2
+WHERE id = $3;

@@ -9,3 +9,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 SELECT id, email, password_hash, display_name, role
 FROM users
 WHERE email = ? AND disabled_at IS NULL;
+
+-- name: UpdateUserPasswordHash :exec
+UPDATE users
+SET password_hash = ?, updated_at = ?
+WHERE id = ?;

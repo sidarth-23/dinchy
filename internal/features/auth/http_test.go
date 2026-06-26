@@ -46,7 +46,7 @@ func TestAPILogin_Success(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		DoAndReturn(func(_ context.Context, email string) (*User, error) {
 			assert.Equal(t, "user@example.com", email)
-			return &User{ID: "u1", Email: email, PasswordHash: hashPassword("secret"), DisplayName: "User", Role: RoleAdmin}, nil
+			return &User{ID: "u1", Email: email, PasswordHash: TestHashPassword(t, "secret"), DisplayName: "User", Role: RoleAdmin}, nil
 		})
 	store.EXPECT().
 		CreateSession(gomock.Any(), gomock.Any()).
@@ -81,7 +81,7 @@ func TestAPILogin_WrongPassword(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashPassword("correct")}, nil)
+		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: TestHashPassword(t, "correct")}, nil)
 
 	_, err := api.login(ctx, &LoginIn{Body: LoginBody{Email: "user@example.com", Password: "wrong"}})
 	require.Error(t, err)

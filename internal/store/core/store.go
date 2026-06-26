@@ -16,6 +16,7 @@ type Queries interface {
 	CountUsers(ctx context.Context) (int64, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	FindUserByEmail(ctx context.Context, email string) (UserRow, error)
+	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (SessionRow, error)
 	RevokeSessionByTokenHash(ctx context.Context, arg RevokeSessionParams) error

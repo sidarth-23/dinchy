@@ -38,6 +38,14 @@ func (q *queries) FindUserByEmail(ctx context.Context, email string) (core.UserR
 	}, nil
 }
 
+func (q *queries) UpdateUserPasswordHash(ctx context.Context, arg core.UpdateUserPasswordHashParams) error {
+	return q.q.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{
+		PasswordHash: arg.PasswordHash,
+		UpdatedAt:    formatTime(arg.UpdatedAt),
+		ID:           arg.ID,
+	})
+}
+
 func (q *queries) InsertSession(ctx context.Context, arg core.InsertSessionParams) error {
 	return q.q.InsertSession(ctx, sqlcgen.InsertSessionParams{
 		ID:            arg.ID,

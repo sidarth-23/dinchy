@@ -43,6 +43,12 @@ type InsertUserParams struct {
 	UpdatedAt    time.Time
 }
 
+type UpdateUserPasswordHashParams struct {
+	ID           string
+	PasswordHash string
+	UpdatedAt    time.Time
+}
+
 type InsertSessionParams struct {
 	ID            string
 	UserID        string

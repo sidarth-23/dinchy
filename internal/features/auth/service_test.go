@@ -38,6 +38,13 @@ func (c fakeClock) Now() time.Time {
 	return c.now
 }
 
+func TestHashPassword(t *testing.T, password string) string {
+	t.Helper()
+	hash, err := hashPassword(password)
+	require.NoError(t, err)
+	return hash
+}
+
 func TestSetupFirstUser_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
@@ -89,7 +96,7 @@ func TestLogin_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	hashed := hashPassword("secret")
+	hashed := TestHashPassword(t, "secret")
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashed, Role: RoleAdmin}, nil)
@@ -106,7 +113,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashPassword("correct")}, nil)
+		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: TestHashPassword(t, "correct")}, nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
@@ -128,7 +135,7 @@ func TestLogin_EmailNormalized(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", PasswordHash: hashPassword("p")}, nil)
+		Return(&User{ID: "u1", PasswordHash: TestHashPassword(t, "p")}, nil)
 	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(session.Session{ID: "s1"}, nil)
 
 	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "")
@@ -225,7 +232,14 @@ func TestLogout_EmptyToken(t *testing.T) {
 
 func TestPasswordHash_RoundTrip(t *testing.T) {
 	t.Parallel()
-	hash := hashPassword("mysecret")
+	hash := TestHashPassword(t, "mysecret")
 	assert.True(t, verifyPassword("mysecret", hash))
 	assert.False(t, verifyPassword("wrong", hash))
+}
+
+func TestPasswordHash_SamePasswordDiffers(t *testing.T) {
+	t.Parallel()
+	hash1 := TestHashPassword(t, "samePassword")
+	hash2 := TestHashPassword(t, "samePassword")
+	assert.NotEqual(t, hash1, hash2)
 }

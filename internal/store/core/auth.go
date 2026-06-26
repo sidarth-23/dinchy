@@ -70,6 +70,18 @@ func (s *Store) FindUserByEmail(ctx context.Context, email string) (*auth.User, 
 	}, nil
 }
 
+// UpdateUserPasswordHash updates a user's password hash.
+func (s *Store) UpdateUserPasswordHash(ctx context.Context, in auth.UpdateUserPasswordHashInput) error {
+	if err := s.Query().UpdateUserPasswordHash(ctx, UpdateUserPasswordHashParams{
+		ID:           in.UserID,
+		PasswordHash: in.PasswordHash,
+		UpdatedAt:    in.Now.UTC(),
+	}); err != nil {
+		return apperrors.Annotate(err)
+	}
+	return nil
+}
+
 // CreateSession inserts a new session record and returns its ID.
 func (s *Store) CreateSession(ctx context.Context, in session.CreateSessionInput) (session.Session, error) {
 	if err := s.Query().InsertSession(ctx, InsertSessionParams{

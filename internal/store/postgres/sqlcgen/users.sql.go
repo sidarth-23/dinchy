@@ -50,6 +50,27 @@ func (q *Queries) FindUserByEmail(ctx context.Context, email string) (FindUserBy
 	return i, err
 }
 
+const updateUserPasswordHash = `-- name: UpdateUserPasswordHash :exec
+UPDATE users
+SET password_hash = $1, updated_at = $2
+WHERE id = $3;
+`
+
+type UpdateUserPasswordHashParams struct {
+	PasswordHash string
+	UpdatedAt    time.Time
+	ID           uuid.UUID
+}
+
+func (q *Queries) UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserPasswordHash,
+		arg.PasswordHash,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
 const insertUser = `-- name: InsertUser :exec
 INSERT INTO users (id, email, password_hash, display_name, role, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7);

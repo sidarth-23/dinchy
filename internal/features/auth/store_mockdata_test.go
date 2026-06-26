@@ -86,6 +86,20 @@ func (mr *MockStoreMockRecorder) FindUserByEmail(ctx, email any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByEmail", reflect.TypeOf((*MockStore)(nil).FindUserByEmail), ctx, email)
 }
 
+// UpdateUserPasswordHash mocks base method.
+func (m *MockStore) UpdateUserPasswordHash(ctx context.Context, in UpdateUserPasswordHashInput) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserPasswordHash", ctx, in)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUserPasswordHash indicates an expected call of UpdateUserPasswordHash.
+func (mr *MockStoreMockRecorder) UpdateUserPasswordHash(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserPasswordHash", reflect.TypeOf((*MockStore)(nil).UpdateUserPasswordHash), ctx, in)
+}
+
 // GetSessionByTokenHash mocks base method.
 func (m *MockStore) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*session.SessionWithUser, error) {
 	m.ctrl.T.Helper()
