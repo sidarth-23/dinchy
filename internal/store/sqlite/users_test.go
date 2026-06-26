@@ -13,6 +13,7 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
 
 func TestCreateFirstUser_Success(t *testing.T) {
@@ -54,7 +55,7 @@ func TestCreateFirstUser_Concurrent(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			_, err := s.CreateFirstUser(ctx, auth.CreateUserInput{
-				ID:           "01J00000000000000000000" + string(rune('0'+idx)),
+				ID:           id.NewGenerator().New(),
 				Email:        "admin@example.com",
 				PasswordHash: "hash",
 				DisplayName:  "Admin",

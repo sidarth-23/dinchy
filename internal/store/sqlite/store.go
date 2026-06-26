@@ -1,9 +1,3 @@
-// IMPORTANT: This file keeps a few startup-only diagnostic literals.
-// They are internal failure details only and are never returned to users.
-// Package sqlite implements persistence using SQLite via sqlc-generated queries.
-// It satisfies the consumer-defined interfaces in internal/features/auth/,
-// internal/features/tasks/, and internal/features/bootstrap/.
-// The single Store struct composes all feature method files.
 package sqlite
 
 import (
@@ -11,50 +5,37 @@ import (
 	"database/sql"
 	"embed"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
-	_ "modernc.org/sqlite" // register the sqlite3 driver with database/sql
+	_ "modernc.org/sqlite"
 
 	"github.com/pressly/goose/v3"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/store/core"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// Store is the SQLite-backed implementation of all persistence interfaces.
-// When db is nil, the Store is scoped to a transaction (backed by a *sql.Tx).
+// Store is the SQLite-backed persistence implementation.
 type Store struct {
-	db *sql.DB
-	q  *sqlcgen.Queries
+	*core.Store
 }
 
-func init() {
-	// Both SetDialect and SetBaseFS write goose global state; call once at init to avoid races.
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		panic(err)
-	}
-	goose.SetBaseFS(migrationsFS)
-}
-
-// Open creates a Store by opening the SQLite file at path, applying pragmas,
-// running embedded goose migrations, and seeding default settings.
+// Open creates a SQLite store, runs migrations, and seeds default settings.
 func Open(ctx context.Context, path string) (*Store, error) {
 	if err := ensureDir(path); err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithOperation(apperrors.OperationOpen),
-			apperrors.WithPath(apperrors.Path(path)),
-		)
+		return nil, err
 	}
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		return nil, err
+	}
+	goose.SetBaseFS(migrationsFS)
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationSQLOpen), apperrors.WithPath(apperrors.Path(path)))
+		return nil, err
 	}
 	if err := applyPragmas(ctx, db); err != nil {
 		return nil, closeWithErr(db, err)
@@ -62,67 +43,21 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err := goose.Up(db, "migrations"); err != nil {
 		return nil, closeWithErr(db, err)
 	}
-	s := &Store{db: db, q: sqlcgen.New(db)}
-	if err := s.ensureDefaultSettings(ctx); err != nil {
+
+	s := &Store{Store: core.New(db, "sqlite", func(dbtx core.DBTX) core.Queries {
+		return newQueries(sqlcgen.New(dbtx))
+	})}
+	if err := s.EnsureDefaultSettings(ctx); err != nil {
 		return nil, closeWithErr(db, err)
 	}
 	return s, nil
 }
 
-// PingContext verifies the database connection is alive. Satisfies server.Pinger.
-func (s *Store) PingContext(ctx context.Context) error {
-	if s.db == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot ping a transaction-scoped store")), apperrors.WithOperation(apperrors.OperationPingContext))
-	}
-	return s.db.PingContext(ctx)
-}
-
-// Close shuts down the database connection. It must not be called on a tx-scoped Store.
-func (s *Store) Close() error {
-	if s.db == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot close a transaction-scoped store")), apperrors.WithOperation(apperrors.OperationClose))
-	}
-	return s.db.Close()
-}
-
-// WithTx executes fn within a database transaction. If fn returns an error the
-// transaction is rolled back; otherwise it is committed. Calling WithTx on an
-// already-tx-scoped Store is a passthrough that prevents accidental nesting.
+// WithTx wraps the shared transaction helper so callers keep the concrete sqlite.Store type.
 func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
-	if s.db == nil {
-		if err := fn(s); err != nil {
-			return apperrors.Annotate(err,
-				apperrors.WithOperation(apperrors.OperationWithTx),
-				apperrors.WithStage(apperrors.StageTxPassthrough),
-			)
-		}
-		return nil
-	}
-	sqlTx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithOperation(apperrors.OperationBeginTx),
-		)
-	}
-	txStore := &Store{db: nil, q: sqlcgen.New(sqlTx)}
-	if err := fn(txStore); err != nil {
-		if rbErr := sqlTx.Rollback(); rbErr != nil {
-			return errors.Join(
-				apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationWithTx), apperrors.WithStage(apperrors.StageBody)),
-				apperrors.Annotate(rbErr, apperrors.WithOperation(apperrors.OperationRollback)),
-			)
-		}
-		return apperrors.Annotate(err,
-			apperrors.WithOperation(apperrors.OperationWithTx),
-			apperrors.WithStage(apperrors.StageBody),
-		)
-	}
-	if err := sqlTx.Commit(); err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithOperation(apperrors.OperationCommit),
-		)
-	}
-	return nil
+	return s.Store.WithTx(ctx, func(tx *core.Store) error {
+		return fn(&Store{Store: tx})
+	})
 }
 
 func ensureDir(path string) error {
@@ -131,7 +66,7 @@ func ensureDir(path string) error {
 		return nil
 	}
 	if err := os.MkdirAll(d, 0o755); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationMkdirAll), apperrors.WithPath(apperrors.Path(d)))
+		return err
 	}
 	return nil
 }
@@ -146,21 +81,10 @@ func applyPragmas(ctx context.Context, db *sql.DB) error {
 	}
 	for _, p := range pragmas {
 		if _, err := db.ExecContext(ctx, p); err != nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationApplyPragmas), apperrors.WithPragma(apperrors.Pragma(p)))
+			return err
 		}
 	}
 	return nil
-}
-
-func tsFormat(t time.Time) string {
-	return t.UTC().Format(time.RFC3339Nano)
-}
-
-func nullString(v string) sql.NullString {
-	if v == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: v, Valid: true}
 }
 
 func closeWithErr(c interface{ Close() error }, cause error) error {

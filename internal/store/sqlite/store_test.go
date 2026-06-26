@@ -10,6 +10,7 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite"
 	"github.com/sidarth-23/dinchy/internal/testutil"
 )
@@ -19,7 +20,7 @@ var errRollback = errors.New("intentional rollback")
 func createTestUser(ctx context.Context, t testing.TB, s *sqlite.Store) (auth.User, error) {
 	t.Helper()
 	return s.CreateFirstUser(ctx, auth.CreateUserInput{
-		ID:           "01J0000000000000000000001",
+		ID:           id.NewGenerator().New(),
 		Email:        "admin@example.com",
 		PasswordHash: "hashedpassword",
 		DisplayName:  "Admin",
@@ -31,7 +32,7 @@ func createTestSession(ctx context.Context, t testing.TB, s *sqlite.Store, userI
 	t.Helper()
 	now := time.Now().UTC()
 	sess, err := s.CreateSession(ctx, session.CreateSessionInput{
-		ID:            "01J0000000000000000000002",
+		ID:            id.NewGenerator().New(),
 		UserID:        userID,
 		TokenHash:     "tokenhashabcdef",
 		IP:            "127.0.0.1",

@@ -15,7 +15,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/sqlite"
+	"github.com/sidarth-23/dinchy/internal/store"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
@@ -39,7 +39,7 @@ func NewApp(cfg config.Config) (*App, error) {
 func (a *App) Start() error {
 	ctx := context.Background()
 
-	s, err := sqlite.Open(ctx, a.cfg.DBPath)
+	s, err := store.Open(ctx, a.cfg)
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageOpenStore),

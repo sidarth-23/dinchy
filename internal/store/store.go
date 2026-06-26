@@ -1,18 +1,36 @@
-// Package store defines shared persistence contracts.
-// Each database backend lives in its own sub-package (sqlite/, postgres/, etc.)
-// with its own sqlc queries, migrations, and generated code. All backends
-// implement the same consumer-defined interfaces in domain/, auth/, and tasks/.
+// Package store selects the concrete persistence backend.
 package store
 
 import (
 	"context"
-	"database/sql"
+	"fmt"
+	"io"
+
+	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
+	"github.com/sidarth-23/dinchy/internal/features/tasks"
+	"github.com/sidarth-23/dinchy/internal/store/postgres"
+	"github.com/sidarth-23/dinchy/internal/store/sqlite"
 )
 
-// DBTX is the common interface satisfied by both *sql.DB and *sql.Tx,
-// allowing store methods to execute within or outside a transaction.
-type DBTX interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+// Store is the application-facing persistence contract.
+type Store interface {
+	auth.Store
+	tasks.Store
+	bootstrap.SettingsReader
+	io.Closer
+	PingContext(ctx context.Context) error
+}
+
+// Open returns the configured backend implementation.
+func Open(ctx context.Context, cfg config.Config) (Store, error) {
+	switch cfg.DBBackend {
+	case "", "sqlite":
+		return sqlite.Open(ctx, cfg.DBPath)
+	case "postgres":
+		return postgres.Open(ctx, cfg.PostgresDSN)
+	default:
+		return nil, fmt.Errorf("unsupported database backend %q", cfg.DBBackend)
+	}
 }

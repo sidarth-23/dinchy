@@ -1,26 +1,23 @@
-// Package id provides monotonic ULID generation.
+// Package id provides UUIDv7 generation.
 package id
 
 import (
-	"sync"
-
-	"github.com/oklog/ulid/v2"
+	"github.com/google/uuid"
 )
 
-// Generator produces globally unique, monotonically ordered ULIDs.
-type Generator struct {
-	mu  sync.Mutex
-	ent *ulid.MonotonicEntropy
-}
+// Generator produces globally unique UUIDv7 identifiers.
+type Generator struct{}
 
-// NewGenerator creates a Generator with a monotonic entropy source.
+// NewGenerator creates a Generator.
 func NewGenerator() *Generator {
-	return &Generator{ent: ulid.Monotonic(nil, 0)}
+	return &Generator{}
 }
 
-// New returns a new ULID as a canonical 26-character string.
+// New returns a new UUIDv7 as a canonical string.
 func (g *Generator) New() string {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return ulid.Make().String()
+	id, err := uuid.NewV7()
+	if err != nil {
+		panic(err)
+	}
+	return id.String()
 }

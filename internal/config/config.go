@@ -21,8 +21,12 @@ type Config struct {
 	Addr string `env:"DINCHY_ADDR" validate:"required"`
 	// InternalAddr is the listen address for internal health/ready endpoints.
 	InternalAddr string `env:"DINCHY_INTERNAL_ADDR" validate:"required"`
+	// DBBackend selects the database implementation to use.
+	DBBackend string `env:"DINCHY_DB_BACKEND"`
 	// DBPath is the file path for the SQLite database.
-	DBPath string `env:"DINCHY_DB_PATH" validate:"required"`
+	DBPath string `env:"DINCHY_DB_PATH"`
+	// PostgresDSN is the connection string for the PostgreSQL backend.
+	PostgresDSN string `env:"DINCHY_POSTGRES_DSN"`
 	// DevMode enables development mode (relaxed CSP, frontend proxy).
 	DevMode bool `env:"DINCHY_DEV"`
 	// DevProxyURL is the Vite dev server URL to proxy frontend requests to in dev mode.
@@ -37,6 +41,7 @@ func defaultConfig() Config {
 	return Config{
 		Addr:         ":8080",
 		InternalAddr: ":9090",
+		DBBackend:    "sqlite",
 		DBPath:       "./dinchy.db",
 		DevProxyURL:  "http://127.0.0.1:5173",
 	}
@@ -57,6 +62,19 @@ func Load() (Config, error) {
 
 	if err := validator.New().Struct(cfg); err != nil {
 		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(err))
+	}
+
+	switch cfg.DBBackend {
+	case "", "sqlite":
+		if cfg.DBPath == "" {
+			return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(fmt.Errorf("DINCHY_DB_PATH is required for sqlite backend")))
+		}
+	case "postgres":
+		if cfg.PostgresDSN == "" {
+			return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(fmt.Errorf("DINCHY_POSTGRES_DSN is required for postgres backend")))
+		}
+	default:
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(fmt.Errorf("unsupported database backend %q", cfg.DBBackend)))
 	}
 
 	return cfg, nil
