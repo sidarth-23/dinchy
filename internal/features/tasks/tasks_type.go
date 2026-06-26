@@ -1,11 +1,11 @@
 package tasks
 
-//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/tasks -destination=store_mockdata_test.go -package=tasks . Store
-
 import (
 	"context"
 	"time"
 )
+
+//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/tasks -destination=store_mockdata_test.go -package=tasks . Store
 
 // Store is the data access contract required by the task runtime.
 type Store interface {

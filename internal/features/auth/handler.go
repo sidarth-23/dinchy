@@ -1,3 +1,4 @@
+// Package auth handles password hashing, session issuance, and session validation.
 package auth
 
 import (
@@ -11,56 +12,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
-
-// LoginBody contains the credentials required to authenticate.
-type LoginBody struct {
-	Email    string `json:"email" format:"email" minLength:"3" maxLength:"254" doc:"User email address"`
-	Password string `json:"password" minLength:"1" maxLength:"128" doc:"User password"`
-}
-
-// LoginIn is the huma input type for the login endpoint.
-type LoginIn struct {
-	Body LoginBody
-}
-
-// LoginOut returns the bootstrap state and sets the session cookie on success.
-type LoginOut struct {
-	SetCookie []http.Cookie `header:"Set-Cookie"`
-	Body      BootstrapBody
-}
-
-// LogoutIn reads the session cookie so the handler can revoke it.
-type LogoutIn struct {
-	DinchySession string `cookie:"dinchy_session"`
-}
-
-// LogoutOut clears the session cookie.
-type LogoutOut struct {
-	SetCookie http.Cookie `header:"Set-Cookie"`
-}
-
-// SessionOut returns the current bootstrap state (same shape as bootstrap).
-type SessionOut struct {
-	Body BootstrapBody
-}
-
-// SetupBody contains the fields required to create the first admin user.
-type SetupBody struct {
-	Email       string `json:"email" format:"email" minLength:"3" maxLength:"254" doc:"Admin email address"`
-	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" doc:"Display name for the admin user"`
-	Password    string `json:"password" minLength:"8" maxLength:"128" doc:"Password (minimum 8 characters)"`
-}
-
-// SetupIn is the huma input type for the first-user setup endpoint.
-type SetupIn struct {
-	Body SetupBody
-}
-
-// SetupOut returns the bootstrap state and sets the session cookie on success.
-type SetupOut struct {
-	SetCookie []http.Cookie `header:"Set-Cookie"`
-	Body      BootstrapBody
-}
 
 // API groups the auth handlers and their shared dependencies.
 type API struct {
