@@ -1,6 +1,6 @@
 package errors
 
-//go:generate go run ../../cmd/errorgen -input meta.json -output generated.go
+//go:generate go run ../../cmd/gen error -input meta.json -output generated.go
 
 import (
 	"encoding/json"

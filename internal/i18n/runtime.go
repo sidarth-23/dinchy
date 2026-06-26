@@ -1,6 +1,6 @@
 package i18n
 
-//go:generate go run ../../cmd/i18ngen
+//go:generate go run ../../cmd/gen i18n -input messages.json -output generated.go
 
 import (
 	"bytes"

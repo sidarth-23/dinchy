@@ -92,7 +92,7 @@ mise run dev          # run the Go backend in development mode
 mise run test         # run the test suite
 mise run lint         # run the linter
 mise run build        # build the production binary
-mise run generate     # regenerate sqlc queries
+mise run generate     # regenerate generated Go code and sqlc queries
 mise run db:migrate   # run database migrations
 ```
 

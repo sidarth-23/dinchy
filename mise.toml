@@ -7,12 +7,12 @@ node = "24.15.0"
 "github:golangci/golangci-lint" = "2.12.2"
 
 [tasks]
-dev = "go run ./cmd/dinchy"
-build = "go build -o dinchy ./cmd/dinchy"
-test = "go test ./..."
+dev = "go generate ./internal/errors ./internal/i18n && sqlc generate && go run ./cmd/dinchy"
+build = "go generate ./internal/errors ./internal/i18n && sqlc generate && go build -o dinchy ./cmd/dinchy"
+test = "go generate ./internal/errors ./internal/i18n && sqlc generate && go test ./..."
 lint = "golangci-lint run"
 fmt = "golangci-lint fmt"
-generate = "go run ./cmd/i18ngen && sqlc generate"
+generate = "go generate ./internal/errors ./internal/i18n && sqlc generate"
 "db:migrate" = "goose -dir internal/store/sqlite/migrations sqlite3 dinchy.db up"
 "db:status" = "goose -dir internal/store/sqlite/migrations sqlite3 dinchy.db status"
 "web:build" = { dir = "web", run = "bun run build" }
