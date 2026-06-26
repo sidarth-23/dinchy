@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
@@ -26,7 +27,10 @@ func (s *Store) CreateSession(ctx context.Context, in session.CreateSessionInput
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	})
-	return session.Session{ID: in.ID}, err
+	if err != nil {
+		return session.Session{}, apperrors.Internal(err, apperrors.WithMeta("operation", "CreateSession"))
+	}
+	return session.Session{ID: in.ID}, nil
 }
 
 // GetSessionByTokenHash retrieves an active session with its owner's user info.
@@ -36,21 +40,21 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*s
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"))
 	}
 	idle, err := time.Parse(time.RFC3339Nano, row.IdleExpiresAt)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "idle_expires_at"))
 	}
 	exp, err := time.Parse(time.RFC3339Nano, row.ExpiresAt)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "expires_at"))
 	}
 	var revokedAt sql.NullTime
 	if row.RevokedAt.Valid {
 		t, err := time.Parse(time.RFC3339Nano, row.RevokedAt.String)
 		if err != nil {
-			return nil, err
+			return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "revoked_at"))
 		}
 		revokedAt = sql.NullTime{Time: t, Valid: true}
 	}
@@ -85,7 +89,7 @@ func (s *Store) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time
 		UpdatedAt: cutoff,
 	})
 	if err != nil {
-		return 0, err
+		return 0, apperrors.Internal(err, apperrors.WithMeta("operation", "DeleteEndedSessionsOlderThan"))
 	}
 	return res.RowsAffected()
 }

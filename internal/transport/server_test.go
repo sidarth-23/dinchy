@@ -16,8 +16,8 @@ import (
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	transport "github.com/sidarth-23/dinchy/internal/transport"
 	"github.com/sidarth-23/dinchy/internal/testutil"
+	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
 // setupTestServer creates a fully wired handler backed by a real in-process SQLite database.
@@ -129,6 +129,11 @@ func TestSetupFirstUser_AlreadyDone(t *testing.T) {
 	resp2 := doRequest(t, handler, http.MethodPost, "/api/setup/first-user", body, headers)
 	defer func() { _ = resp2.Body.Close() }()
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode)
+
+	var errBody map[string]any
+	require.NoError(t, json.NewDecoder(resp2.Body).Decode(&errBody))
+	errPayload := errBody["error"].(map[string]any)
+	assert.Equal(t, "auth.setup_completed", errPayload["code"])
 }
 
 func TestLogin_GoldenPath(t *testing.T) {
@@ -173,8 +178,9 @@ func TestLogin_WrongPassword(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, loginResp.StatusCode)
 	var errBody map[string]any
 	require.NoError(t, json.NewDecoder(loginResp.Body).Decode(&errBody))
-	assert.Equal(t, "auth.invalid_credentials", errBody["code"])
-	assert.NotEmpty(t, errBody["message"])
+	errPayload := errBody["error"].(map[string]any)
+	assert.Equal(t, "auth.invalid_credentials", errPayload["code"])
+	assert.NotEmpty(t, errPayload["message"])
 }
 
 func TestCSRF_MissingToken_Returns400(t *testing.T) {
@@ -189,7 +195,8 @@ func TestCSRF_MissingToken_Returns400(t *testing.T) {
 
 	var errBody map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&errBody))
-	assert.Equal(t, "security.csrf_failed", errBody["code"])
+	errPayload := errBody["error"].(map[string]any)
+	assert.Equal(t, "security.csrf_failed", errPayload["code"])
 }
 
 func TestHealthz_NotOnPublicPort(t *testing.T) {

@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 )
 
@@ -35,7 +37,7 @@ func TestCreateFirstUser_SetupAlreadyCompleted(t *testing.T) {
 
 	_, err = createTestUser(ctx, t, s)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "setup already completed")
+	assert.True(t, errors.Is(err, apperrors.SetupCompleted()))
 }
 
 func TestCreateFirstUser_Concurrent(t *testing.T) {

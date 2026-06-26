@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
@@ -19,7 +20,10 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 			return err
 		}
 		if count > 0 {
-			return errors.New("setup already completed")
+			return apperrors.SetupCompleted(
+				apperrors.WithMeta("resource", "users"),
+				apperrors.WithMeta("count", count),
+			)
 		}
 		now := tsFormat(in.Now)
 		if err := tx.q.InsertUser(ctx, sqlcgen.InsertUserParams{
@@ -52,7 +56,7 @@ func (s *Store) FindUserByEmail(ctx context.Context, email string) (*auth.User, 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "FindUserByEmail"))
 	}
 	return &auth.User{
 		ID:           row.ID,

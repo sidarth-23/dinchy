@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/sidarth-23/dinchy/internal/features/auth/errs"
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
@@ -78,10 +78,10 @@ func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, errs.ErrSetupCompleted)
+	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, apperrors.SetupCompleted())
 
 	_, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "pass", "", "")
-	require.ErrorIs(t, err, errs.ErrSetupCompleted)
+	require.ErrorIs(t, err, apperrors.SetupCompleted())
 }
 
 func TestLogin_Success(t *testing.T) {
@@ -108,7 +108,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashPassword("correct")}, nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "")
-	require.ErrorIs(t, err, errs.ErrInvalidCredentials)
+	require.ErrorIs(t, err, apperrors.InvalidCredentials())
 }
 
 func TestLogin_UserNotFound(t *testing.T) {
@@ -118,7 +118,7 @@ func TestLogin_UserNotFound(t *testing.T) {
 	store.EXPECT().FindUserByEmail(gomock.Any(), "nobody@example.com").Return(nil, nil)
 
 	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "")
-	require.ErrorIs(t, err, errs.ErrInvalidCredentials)
+	require.ErrorIs(t, err, apperrors.InvalidCredentials())
 }
 
 func TestLogin_EmailNormalized(t *testing.T) {

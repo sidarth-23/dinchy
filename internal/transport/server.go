@@ -2,7 +2,6 @@
 package transport
 
 import (
-	"errors"
 	"io/fs"
 	"log"
 	"net/http"
@@ -13,29 +12,25 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/text/language"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/transport/apierr"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
 func New(addr string, dist fs.FS, authSvc *auth.Service, sr bootstrap.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
-	// Override huma's error model so LocalizedError is returned as-is
-	// ({"code":"...","message":"..."}) instead of wrapped in huma's ErrorModel.
-	defaultNewError := huma.NewError
 	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
-		for _, err := range errs {
-			var locErr *apierr.LocalizedError
-			if errors.As(err, &locErr) {
-				return locErr
-			}
-		}
-		return defaultNewError(status, msg, errs...)
+		return apperrors.ResponseFor(language.English, i18n.Default, status, msg, errs...)
+	}
+	huma.NewErrorWithContext = func(ctx huma.Context, status int, msg string, errs ...error) huma.StatusError {
+		return apperrors.ResponseFor(support.LangFrom(ctx.Context()), i18n.Default, status, msg, errs...)
 	}
 
 	r := chi.NewRouter()

@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/crypto/argon2"
 
-	"github.com/sidarth-23/dinchy/internal/features/auth/errs"
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -30,7 +30,7 @@ func NewService(s Store, idg *id.Generator, clk clock.Clock) *Service {
 }
 
 // SetupFirstUser creates the initial admin account and issues a session token.
-// Returns ErrSetupCompleted if any user already exists.
+// Returns the structured setup-completed error if any user already exists.
 func (s *Service) SetupFirstUser(ctx context.Context, email, displayName, password, ip, ua string) (string, error) {
 	hash := hashPassword(password)
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -43,16 +43,13 @@ func (s *Service) SetupFirstUser(ctx context.Context, email, displayName, passwo
 		Now:          now,
 	})
 	if err != nil {
-		if err.Error() == errs.ErrSetupCompleted.Error() {
-			return "", errs.ErrSetupCompleted
-		}
 		return "", err
 	}
 	return s.newSession(ctx, u.ID, ip, ua)
 }
 
 // Login validates credentials and issues a session token.
-// Returns ErrInvalidCredentials if the email is not found or the password is wrong.
+// Returns the structured invalid-credentials error if the email is not found or the password is wrong.
 func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (string, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	u, err := s.store.FindUserByEmail(ctx, email)
@@ -60,7 +57,7 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 		return "", err
 	}
 	if u == nil || !verifyPassword(password, u.PasswordHash) {
-		return "", errs.ErrInvalidCredentials
+		return "", apperrors.InvalidCredentials()
 	}
 	return s.newSession(ctx, u.ID, ip, ua)
 }

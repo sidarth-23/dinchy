@@ -8,7 +8,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/transport/apierr"
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -35,7 +36,7 @@ func CSRF() func(http.Handler) http.Handler {
 			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 				header := r.Header.Get("X-CSRF-Token")
 				if subtle.ConstantTimeCompare([]byte(token), []byte(header)) != 1 {
-					locErr := apierr.Localized(ctx, apierr.ErrCSRFFailed())
+					locErr := apperrors.Resolve(support.LangFrom(ctx), i18n.Default, apperrors.CSRFFailed())
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(locErr.GetStatus())
 					if err := json.NewEncoder(w).Encode(locErr); err != nil {

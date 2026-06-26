@@ -1,10 +1,13 @@
-// Package i18n provides a simple translation catalog for resolving error codes
-// to human-readable messages in a requested locale.
+// Package i18n provides a translation catalog for resolving error codes to
+// human-readable messages in a requested locale.
 package i18n
 
 import (
+	"bytes"
 	"fmt"
+	"reflect"
 	"sync"
+	"text/template"
 
 	"golang.org/x/text/language"
 )
@@ -12,7 +15,7 @@ import (
 // Catalog maps error codes to localized messages across multiple locales.
 type Catalog struct {
 	mu       sync.RWMutex
-	locales  map[language.Tag]Messages
+	locales  map[language.Tag]map[string]string
 	fallback language.Tag
 	matcher  language.Matcher
 }
@@ -20,7 +23,7 @@ type Catalog struct {
 // New creates a Catalog with the given fallback locale.
 func New(fallback language.Tag) *Catalog {
 	return &Catalog{
-		locales:  make(map[language.Tag]Messages),
+		locales:  make(map[language.Tag]map[string]string),
 		fallback: fallback,
 		matcher:  language.NewMatcher([]language.Tag{fallback}),
 	}
@@ -36,7 +39,7 @@ func (c *Catalog) Register(tag language.Tag, messages Messages) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.locales[tag] = messages
+	c.locales[tag] = messageMap(messages)
 
 	tags := make([]language.Tag, 0, len(c.locales))
 	for t := range c.locales {
@@ -61,25 +64,63 @@ func (c *Catalog) Match(acceptLanguage string) language.Tag {
 	return tag
 }
 
-// Resolve returns the message selected by fn in the requested locale, falling back to
-// the catalog's fallback locale, then to the msg tag string if no translation exists.
-func (c *Catalog) Resolve(tag language.Tag, fn MsgFunc) string {
+// Resolve returns the localized message for code in the requested locale.
+// It falls back to the catalog fallback locale, then to the code itself.
+func (c *Catalog) Resolve(tag language.Tag, code string, meta map[string]any) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if msgs, ok := c.locales[tag]; ok {
-		if msg := fn(msgs); msg != "" {
-			return msg
-		}
+	if msg, ok := c.lookup(tag, code); ok {
+		return render(msg, meta)
 	}
 
 	if tag != c.fallback {
-		if msgs, ok := c.locales[c.fallback]; ok {
-			if msg := fn(msgs); msg != "" {
-				return msg
-			}
+		if msg, ok := c.lookup(c.fallback, code); ok {
+			return render(msg, meta)
 		}
 	}
 
-	return MsgCode(fn)
+	return code
+}
+
+func (c *Catalog) lookup(tag language.Tag, code string) (string, bool) {
+	msgs, ok := c.locales[tag]
+	if !ok {
+		return "", false
+	}
+	msg, ok := msgs[code]
+	return msg, ok
+}
+
+func messageMap(messages Messages) map[string]string {
+	out := make(map[string]string)
+	v := reflect.ValueOf(messages)
+	t := v.Type()
+	for i := range t.NumField() {
+		field := t.Field(i)
+		tag := field.Tag.Get("msg")
+		if tag == "" {
+			continue
+		}
+		out[tag] = v.Field(i).String()
+	}
+	return out
+}
+
+func render(tpl string, meta map[string]any) string {
+	if tpl == "" {
+		return ""
+	}
+	if len(meta) == 0 {
+		return tpl
+	}
+	t, err := template.New("message").Option("missingkey=zero").Parse(tpl)
+	if err != nil {
+		return tpl
+	}
+	var b bytes.Buffer
+	if err := t.Execute(&b, meta); err != nil {
+		return tpl
+	}
+	return b.String()
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/sidarth-23/dinchy/internal/transport/apierr"
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -56,11 +56,11 @@ func Register(h huma.API, sr SettingsReader, requireHTTPS bool) {
 
 func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
+		return nil, apperrors.HTTPSRequired()
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+		return nil, err
 	}
 	out := &BootstrapOut{}
 	out.Body.SetupRequired = bs.SetupRequired

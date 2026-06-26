@@ -7,8 +7,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
-	"github.com/sidarth-23/dinchy/internal/transport/apierr"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -112,7 +112,7 @@ func Register(h huma.API, svc *Service, sr bootstrap.SettingsReader, requireHTTP
 
 func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
+		return nil, apperrors.HTTPSRequired()
 	}
 	token, err := a.auth.Login(
 		ctx,
@@ -122,15 +122,15 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 		support.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apierr.MapServiceError(ctx, err)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+		return nil, err
 	}
 	sess, err := a.auth.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+		return nil, apperrors.Internal(err)
 	}
 	secure := support.IsSecure(ctx)
 	out := &LoginOut{}
@@ -148,11 +148,11 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 
 func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
+		return nil, apperrors.HTTPSRequired()
 	}
 	if in.DinchySession != "" {
 		if err := a.auth.Logout(ctx, in.DinchySession); err != nil {
-			return nil, apierr.Localized(ctx, apierr.ErrInternal())
+			return nil, err
 		}
 	}
 	out := &LogoutOut{}
@@ -162,11 +162,11 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 
 func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
+		return nil, apperrors.HTTPSRequired()
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+		return nil, err
 	}
 	out := &SessionOut{}
 	out.Body.SetupRequired = bs.SetupRequired
@@ -184,7 +184,7 @@ func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 
 func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
+		return nil, apperrors.HTTPSRequired()
 	}
 	token, err := a.auth.SetupFirstUser(
 		ctx,
@@ -195,15 +195,15 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 		support.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apierr.MapServiceError(ctx, err)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+		return nil, err
 	}
 	sess, err := a.auth.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+		return nil, apperrors.Internal(err)
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}

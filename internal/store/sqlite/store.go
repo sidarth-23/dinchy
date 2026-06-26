@@ -18,6 +18,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
@@ -47,7 +48,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "sql.Open"), apperrors.WithMeta("path", path))
 	}
 	if err := applyPragmas(ctx, db); err != nil {
 		return nil, closeWithErr(db, err)
@@ -65,7 +66,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 // PingContext verifies the database connection is alive. Satisfies server.Pinger.
 func (s *Store) PingContext(ctx context.Context) error {
 	if s.db == nil {
-		return fmt.Errorf("sqlite: cannot ping a transaction-scoped store")
+		return apperrors.Internal(fmt.Errorf("sqlite: cannot ping a transaction-scoped store"), apperrors.WithMeta("operation", "PingContext"))
 	}
 	return s.db.PingContext(ctx)
 }
@@ -73,7 +74,7 @@ func (s *Store) PingContext(ctx context.Context) error {
 // Close shuts down the database connection. It must not be called on a tx-scoped Store.
 func (s *Store) Close() error {
 	if s.db == nil {
-		return fmt.Errorf("sqlite: cannot close a transaction-scoped store")
+		return apperrors.Internal(fmt.Errorf("sqlite: cannot close a transaction-scoped store"), apperrors.WithMeta("operation", "Close"))
 	}
 	return s.db.Close()
 }
@@ -87,12 +88,12 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 	}
 	sqlTx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return apperrors.Internal(err, apperrors.WithMeta("operation", "BeginTx"))
 	}
 	txStore := &Store{db: nil, q: sqlcgen.New(sqlTx)}
 	if err := fn(txStore); err != nil {
 		if rbErr := sqlTx.Rollback(); rbErr != nil {
-			return errors.Join(err, rbErr)
+			return errors.Join(err, apperrors.Internal(rbErr, apperrors.WithMeta("operation", "Rollback")))
 		}
 		return err
 	}
@@ -104,7 +105,10 @@ func ensureDir(path string) error {
 	if d == "." {
 		return nil
 	}
-	return os.MkdirAll(d, 0o755)
+	if err := os.MkdirAll(d, 0o755); err != nil {
+		return apperrors.Internal(err, apperrors.WithMeta("operation", "MkdirAll"), apperrors.WithMeta("path", d))
+	}
+	return nil
 }
 
 func applyPragmas(ctx context.Context, db *sql.DB) error {
@@ -117,7 +121,7 @@ func applyPragmas(ctx context.Context, db *sql.DB) error {
 	}
 	for _, p := range pragmas {
 		if _, err := db.ExecContext(ctx, p); err != nil {
-			return err
+			return apperrors.Internal(err, apperrors.WithMeta("operation", "applyPragmas"), apperrors.WithMeta("pragma", p))
 		}
 	}
 	return nil

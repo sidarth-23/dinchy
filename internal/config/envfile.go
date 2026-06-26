@@ -1,11 +1,12 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
+
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 )
 
 // loadEnvFile populates the process environment from a .env file.
@@ -20,7 +21,7 @@ import (
 func loadEnvFile() error {
 	if p := os.Getenv("DINCHY_ENV_FILE"); p != "" {
 		if err := godotenv.Load(p); err != nil {
-			return fmt.Errorf("loading env file %q: %w", p, err)
+			return apperrors.ConfigLoadFailed(err, apperrors.WithMeta("path", p))
 		}
 		return nil
 	}

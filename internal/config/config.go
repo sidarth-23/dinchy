@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 )
 
 // Config holds all startup configuration values for the Dinchy server.
@@ -42,7 +44,7 @@ func defaultConfig() Config {
 // or any required field fails validation.
 func Load() (Config, error) {
 	if err := loadEnvFile(); err != nil {
-		return Config{}, fmt.Errorf("config: %w", err)
+		return Config{}, apperrors.ConfigLoadFailed(err)
 	}
 
 	cfg := defaultConfig()
@@ -51,7 +53,7 @@ func Load() (Config, error) {
 	}
 
 	if err := validator.New().Struct(cfg); err != nil {
-		return Config{}, fmt.Errorf("config validation: %w", err)
+		return Config{}, apperrors.ConfigValidationFailed(err)
 	}
 
 	return cfg, nil
@@ -79,7 +81,7 @@ func loadFromEnv(cfg *Config) error {
 		case reflect.Bool:
 			v.Field(i).SetBool(parseBool(raw))
 		default:
-			return fmt.Errorf("config: unsupported field type %s for %s", field.Type.Kind(), field.Name)
+			return apperrors.ConfigLoadFailed(fmt.Errorf("unsupported field type %s for %s", field.Type.Kind(), field.Name))
 		}
 	}
 	return nil

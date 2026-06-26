@@ -5,18 +5,22 @@ import (
 	"database/sql"
 	"time"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
 // EnsureTask registers a task by name if it does not already exist.
 func (s *Store) EnsureTask(ctx context.Context, name string, intervalSeconds int64, now time.Time) error {
-	return s.q.EnsureTask(ctx, sqlcgen.EnsureTaskParams{
+	if err := s.q.EnsureTask(ctx, sqlcgen.EnsureTaskParams{
 		ID:                      "task_" + name,
 		TaskName:                name,
 		ScheduleIntervalSeconds: intervalSeconds,
 		NextRunAt:               sql.NullString{String: tsFormat(now), Valid: true},
 		UpdatedAt:               tsFormat(now),
-	})
+	}); err != nil {
+		return apperrors.Internal(err, apperrors.WithMeta("operation", "EnsureTask"), apperrors.WithMeta("task", name))
+	}
+	return nil
 }
 
 // ClaimTask atomically acquires the lease on a task that is due to run.
@@ -33,11 +37,11 @@ func (s *Store) ClaimTask(ctx context.Context, taskName, owner string, leaseUnti
 		NextRunAt:        sql.NullString{String: nowStr, Valid: true},
 	})
 	if err != nil {
-		return false, err
+		return false, apperrors.Internal(err, apperrors.WithMeta("operation", "ClaimTask"), apperrors.WithMeta("task", taskName))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return false, err
+		return false, apperrors.Internal(err, apperrors.WithMeta("operation", "ClaimTask"), apperrors.WithMeta("task", taskName), apperrors.WithMeta("stage", "rows_affected"))
 	}
 	return n > 0, nil
 }
@@ -49,7 +53,7 @@ func (s *Store) FinishTask(ctx context.Context, taskName string, now time.Time, 
 		status = "ok"
 	}
 	nowStr := tsFormat(now)
-	return s.q.FinishTask(ctx, sqlcgen.FinishTaskParams{
+	if err := s.q.FinishTask(ctx, sqlcgen.FinishTaskParams{
 		LastFinishedAt:   sql.NullString{String: nowStr, Valid: true},
 		NextRunAt:        sql.NullString{String: tsFormat(nextRun), Valid: true},
 		LastStatus:       sql.NullString{String: status, Valid: true},
@@ -57,5 +61,8 @@ func (s *Store) FinishTask(ctx context.Context, taskName string, now time.Time, 
 		LastErrorMessage: nullString(errMsg),
 		UpdatedAt:        nowStr,
 		TaskName:         taskName,
-	})
+	}); err != nil {
+		return apperrors.Internal(err, apperrors.WithMeta("operation", "FinishTask"), apperrors.WithMeta("task", taskName))
+	}
+	return nil
 }
