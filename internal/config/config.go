@@ -86,8 +86,8 @@ func loadFromEnv(cfg *Config) error {
 		default:
 			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),
-				apperrors.WithMeta("field", field.Name),
-				apperrors.WithMeta("kind", field.Type.Kind().String()),
+				apperrors.WithField(apperrors.FieldName(field.Name)),
+				apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
 			)
 		}
 	}

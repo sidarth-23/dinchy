@@ -12,7 +12,7 @@ import (
 
 func loadEnvPath(p string) error {
 	if err := godotenv.Load(p); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithMeta("path", p))
+		return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithPath(apperrors.Path(p)))
 	}
 	return nil
 }
@@ -52,7 +52,7 @@ func xdgEnvPath() (string, error) {
 	if xdg == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithMeta("stage", "resolve_xdg_config_home"))
+			return "", apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithStage(apperrors.StageResolveXDGConfigHome))
 		}
 		xdg = filepath.Join(home, ".config")
 	}

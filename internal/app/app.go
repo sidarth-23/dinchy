@@ -42,7 +42,7 @@ func (a *App) Start() error {
 	s, err := sqlite.Open(ctx, a.cfg.DBPath)
 	if err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("stage", "open_store"),
+			apperrors.WithStage(apperrors.StageOpenStore),
 		)
 	}
 	a.closer = s
@@ -53,7 +53,7 @@ func (a *App) Start() error {
 	dist, err := frontendFS(a.cfg.DevMode)
 	if err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("stage", "load_frontend_assets"),
+			apperrors.WithStage(apperrors.StageLoadFrontendAssets),
 		)
 	}
 
@@ -63,7 +63,7 @@ func (a *App) Start() error {
 	a.tasks = tasks.NewRuntime(s, clk, a.errCh)
 	if err := a.tasks.Start(ctx); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("stage", "start_task_runtime"),
+			apperrors.WithStage(apperrors.StageStartTaskRuntime),
 		)
 	}
 
@@ -120,7 +120,7 @@ func frontendFS(devMode bool) (fs.FS, error) {
 	dist, err := frontend.DistFS()
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("stage", "frontend_dist_fs"),
+			apperrors.WithStage(apperrors.StageFrontendDistFS),
 		)
 	}
 	return dist, nil

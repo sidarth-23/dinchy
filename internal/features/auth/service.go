@@ -45,8 +45,8 @@ func (s *Service) SetupFirstUser(ctx context.Context, email, displayName, passwo
 	})
 	if err != nil {
 		return "", apperrors.Annotate(err,
-			apperrors.WithMeta("flow", "setup_first_user"),
-			apperrors.WithMeta("stage", "create_first_user"),
+			apperrors.WithFlow(apperrors.FlowSetupFirstUser),
+			apperrors.WithStage(apperrors.StageCreateFirstUser),
 		)
 	}
 	return s.newSession(ctx, u.ID, ip, ua)
@@ -59,8 +59,8 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 	u, err := s.store.FindUserByEmail(ctx, email)
 	if err != nil {
 		return "", apperrors.Annotate(err,
-			apperrors.WithMeta("flow", "login"),
-			apperrors.WithMeta("stage", "find_user"),
+			apperrors.WithFlow(apperrors.FlowLogin),
+			apperrors.WithStage(apperrors.StageFindUser),
 		)
 	}
 	if u == nil || !verifyPassword(password, u.PasswordHash) {
@@ -78,8 +78,8 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*session.Sessio
 	sess, err := s.store.GetSessionByTokenHash(ctx, hashToken(rawToken))
 	if err != nil || sess == nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("flow", "session"),
-			apperrors.WithMeta("stage", "get_session"),
+			apperrors.WithFlow(apperrors.FlowSession),
+			apperrors.WithStage(apperrors.StageGetSession),
 		)
 	}
 	now := s.clock.Now()
@@ -97,8 +97,8 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	err := s.store.RevokeSessionByTokenHash(ctx, hashToken(rawToken))
 	if err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("flow", "logout"),
-			apperrors.WithMeta("stage", "revoke_session"),
+			apperrors.WithFlow(apperrors.FlowLogout),
+			apperrors.WithStage(apperrors.StageRevokeSession),
 		)
 	}
 	return nil
@@ -108,8 +108,8 @@ func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string
 	token, tokenHash, err := generateSessionToken()
 	if err != nil {
 		return "", apperrors.Annotate(err,
-			apperrors.WithMeta("flow", "new_session"),
-			apperrors.WithMeta("stage", "generate_token"),
+			apperrors.WithFlow(apperrors.FlowNewSession),
+			apperrors.WithStage(apperrors.StageGenerateToken),
 		)
 	}
 	now := s.clock.Now()
@@ -125,8 +125,8 @@ func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string
 	})
 	if err != nil {
 		return "", apperrors.Annotate(err,
-			apperrors.WithMeta("flow", "new_session"),
-			apperrors.WithMeta("stage", "create_session"),
+			apperrors.WithFlow(apperrors.FlowNewSession),
+			apperrors.WithStage(apperrors.StageCreateSession),
 		)
 	}
 	return token, nil

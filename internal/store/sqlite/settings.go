@@ -17,7 +17,7 @@ func (s *Store) ensureDefaultSettings(ctx context.Context) error {
 		UpdatedAt: now,
 	}); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "EnsureDefaultSettings"),
+			apperrors.WithOperation(apperrors.OperationEnsureDefaultSettings),
 		)
 	}
 	return nil
@@ -28,13 +28,13 @@ func (s *Store) Bootstrap(ctx context.Context) (bootstrap.BootstrapState, error)
 	count, err := s.q.CountUsers(ctx)
 	if err != nil {
 		return bootstrap.BootstrapState{}, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "CountUsers"),
+			apperrors.WithOperation(apperrors.OperationCountUsers),
 		)
 	}
 	name, err := s.q.GetInstanceName(ctx)
 	if err != nil {
 		return bootstrap.BootstrapState{}, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "GetInstanceName"),
+			apperrors.WithOperation(apperrors.OperationGetInstanceName),
 		)
 	}
 	return bootstrap.BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil

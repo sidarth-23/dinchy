@@ -48,13 +48,13 @@ func init() {
 func Open(ctx context.Context, path string) (*Store, error) {
 	if err := ensureDir(path); err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "Open"),
-			apperrors.WithMeta("path", path),
+			apperrors.WithOperation(apperrors.OperationOpen),
+			apperrors.WithPath(apperrors.Path(path)),
 		)
 	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "sql.Open"), apperrors.WithMeta("path", path))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationSQLOpen), apperrors.WithPath(apperrors.Path(path)))
 	}
 	if err := applyPragmas(ctx, db); err != nil {
 		return nil, closeWithErr(db, err)
@@ -72,7 +72,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 // PingContext verifies the database connection is alive. Satisfies server.Pinger.
 func (s *Store) PingContext(ctx context.Context) error {
 	if s.db == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot ping a transaction-scoped store")), apperrors.WithMeta("operation", "PingContext"))
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot ping a transaction-scoped store")), apperrors.WithOperation(apperrors.OperationPingContext))
 	}
 	return s.db.PingContext(ctx)
 }
@@ -80,7 +80,7 @@ func (s *Store) PingContext(ctx context.Context) error {
 // Close shuts down the database connection. It must not be called on a tx-scoped Store.
 func (s *Store) Close() error {
 	if s.db == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot close a transaction-scoped store")), apperrors.WithMeta("operation", "Close"))
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot close a transaction-scoped store")), apperrors.WithOperation(apperrors.OperationClose))
 	}
 	return s.db.Close()
 }
@@ -92,8 +92,8 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 	if s.db == nil {
 		if err := fn(s); err != nil {
 			return apperrors.Annotate(err,
-				apperrors.WithMeta("operation", "WithTx"),
-				apperrors.WithMeta("stage", "tx_passthrough"),
+				apperrors.WithOperation(apperrors.OperationWithTx),
+				apperrors.WithStage(apperrors.StageTxPassthrough),
 			)
 		}
 		return nil
@@ -101,25 +101,25 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 	sqlTx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "BeginTx"),
+			apperrors.WithOperation(apperrors.OperationBeginTx),
 		)
 	}
 	txStore := &Store{db: nil, q: sqlcgen.New(sqlTx)}
 	if err := fn(txStore); err != nil {
 		if rbErr := sqlTx.Rollback(); rbErr != nil {
 			return errors.Join(
-				apperrors.Annotate(err, apperrors.WithMeta("operation", "WithTx"), apperrors.WithMeta("stage", "body")),
-				apperrors.Annotate(rbErr, apperrors.WithMeta("operation", "Rollback")),
+				apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationWithTx), apperrors.WithStage(apperrors.StageBody)),
+				apperrors.Annotate(rbErr, apperrors.WithOperation(apperrors.OperationRollback)),
 			)
 		}
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "WithTx"),
-			apperrors.WithMeta("stage", "body"),
+			apperrors.WithOperation(apperrors.OperationWithTx),
+			apperrors.WithStage(apperrors.StageBody),
 		)
 	}
 	if err := sqlTx.Commit(); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "Commit"),
+			apperrors.WithOperation(apperrors.OperationCommit),
 		)
 	}
 	return nil
@@ -131,7 +131,7 @@ func ensureDir(path string) error {
 		return nil
 	}
 	if err := os.MkdirAll(d, 0o755); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "MkdirAll"), apperrors.WithMeta("path", d))
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationMkdirAll), apperrors.WithPath(apperrors.Path(d)))
 	}
 	return nil
 }
@@ -146,7 +146,7 @@ func applyPragmas(ctx context.Context, db *sql.DB) error {
 	}
 	for _, p := range pragmas {
 		if _, err := db.ExecContext(ctx, p); err != nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "applyPragmas"), apperrors.WithMeta("pragma", p))
+			return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationApplyPragmas), apperrors.WithPragma(apperrors.Pragma(p)))
 		}
 	}
 	return nil

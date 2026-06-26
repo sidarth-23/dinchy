@@ -63,16 +63,6 @@ func (e *AppError) Message() i18n.Message {
 // Option configures an AppError.
 type Option func(*AppError)
 
-// WithMeta adds a single metadata entry.
-func WithMeta(key string, value any) Option {
-	return func(e *AppError) {
-		if e.meta == nil {
-			e.meta = make(map[string]any)
-		}
-		e.meta[key] = value
-	}
-}
-
 // WithMetaMap copies the provided metadata map into the error.
 func WithMetaMap(meta map[string]any) Option {
 	return func(e *AppError) {

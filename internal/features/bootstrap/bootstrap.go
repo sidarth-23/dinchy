@@ -62,8 +62,8 @@ func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error)
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "bootstrap.get"),
-			apperrors.WithMeta("stage", "bootstrap"),
+			apperrors.WithHandler(apperrors.HandlerBootstrapGet),
+			apperrors.WithStage(apperrors.StageBootstrap),
 		)
 	}
 	out := &BootstrapOut{}

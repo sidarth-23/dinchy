@@ -53,8 +53,8 @@ func TestAppError_IsMatchesByCode(t *testing.T) {
 func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
 	t.Parallel()
 
-	base := apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2)), apperrors.WithMeta("stage", "setup"))
-	err := apperrors.Annotate(base, apperrors.WithMeta("stage", "setup"))
+	base := apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2)), apperrors.WithStage(apperrors.StageSetup))
+	err := apperrors.Annotate(base, apperrors.WithStage(apperrors.StageSetup))
 
 	var got *apperrors.AppError
 	require.ErrorAs(t, err, &got)

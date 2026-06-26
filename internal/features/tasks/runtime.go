@@ -29,8 +29,8 @@ func (r *Runtime) Start(ctx context.Context) error {
 	now := r.clock.Now()
 	if err := r.store.EnsureTask(ctx, "session_cleanup", 300, now); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("task", "session_cleanup"),
-			apperrors.WithMeta("stage", "ensure_task"),
+			apperrors.WithTask(apperrors.TaskSessionCleanup),
+			apperrors.WithStage(apperrors.StageEnsureTask),
 		)
 	}
 	cctx, cancel := context.WithCancel(ctx)
@@ -71,8 +71,8 @@ func (r *Runtime) runSessionCleanup(ctx context.Context) error {
 	ok, err := r.store.ClaimTask(ctx, "session_cleanup", r.owner, now.Add(15*time.Second), now)
 	if err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("task", "session_cleanup"),
-			apperrors.WithMeta("stage", "claim_task"),
+			apperrors.WithTask(apperrors.TaskSessionCleanup),
+			apperrors.WithStage(apperrors.StageClaimTask),
 		)
 	}
 	if !ok {
@@ -83,25 +83,25 @@ func (r *Runtime) runSessionCleanup(ctx context.Context) error {
 		if finishErr := r.store.FinishTask(ctx, "session_cleanup", now, false, "task.session_cleanup_failed", runErr.Error(), now.Add(5*time.Minute)); finishErr != nil {
 			return errors.Join(
 				apperrors.Annotate(runErr,
-					apperrors.WithMeta("task", "session_cleanup"),
-					apperrors.WithMeta("stage", "delete_ended_sessions"),
+					apperrors.WithTask(apperrors.TaskSessionCleanup),
+					apperrors.WithStage(apperrors.StageDeleteEndedSessions),
 				),
 				apperrors.Annotate(finishErr,
-					apperrors.WithMeta("task", "session_cleanup"),
-					apperrors.WithMeta("stage", "finish_failed_run"),
+					apperrors.WithTask(apperrors.TaskSessionCleanup),
+					apperrors.WithStage(apperrors.StageFinishFailedRun),
 				),
 			)
 		}
 		return apperrors.Annotate(runErr,
-			apperrors.WithMeta("task", "session_cleanup"),
-			apperrors.WithMeta("stage", "delete_ended_sessions"),
+			apperrors.WithTask(apperrors.TaskSessionCleanup),
+			apperrors.WithStage(apperrors.StageDeleteEndedSessions),
 		)
 	}
 	if err := r.store.FinishTask(ctx, "session_cleanup", now, true, "", "", now.Add(5*time.Minute)); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("task", "session_cleanup"),
-			apperrors.WithMeta("stage", "finish_success"),
-			apperrors.WithMeta("deleted_count", count),
+			apperrors.WithTask(apperrors.TaskSessionCleanup),
+			apperrors.WithStage(apperrors.StageFinishSuccess),
+			apperrors.WithDeletedCount(apperrors.DeletedCount(count)),
 		)
 	}
 	return nil

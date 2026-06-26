@@ -30,7 +30,7 @@ func (s *Store) CreateSession(ctx context.Context, in session.CreateSessionInput
 	})
 	if err != nil {
 		return session.Session{}, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "CreateSession"),
+			apperrors.WithOperation(apperrors.OperationCreateSession),
 		)
 	}
 	return session.Session{ID: in.ID}, nil
@@ -44,22 +44,22 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*s
 			return nil, nil
 		}
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "GetSessionByTokenHash"),
+			apperrors.WithOperation(apperrors.OperationGetSessionByTokenHash),
 		)
 	}
 	idle, err := time.Parse(time.RFC3339Nano, row.IdleExpiresAt)
 	if err != nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "idle_expires_at"))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationGetSessionByTokenHash), apperrors.WithField(apperrors.FieldName("idle_expires_at")))
 	}
 	exp, err := time.Parse(time.RFC3339Nano, row.ExpiresAt)
 	if err != nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "expires_at"))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationGetSessionByTokenHash), apperrors.WithField(apperrors.FieldName("expires_at")))
 	}
 	var revokedAt sql.NullTime
 	if row.RevokedAt.Valid {
 		t, err := time.Parse(time.RFC3339Nano, row.RevokedAt.String)
 		if err != nil {
-			return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "revoked_at"))
+			return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithOperation(apperrors.OperationGetSessionByTokenHash), apperrors.WithField(apperrors.FieldName("revoked_at")))
 		}
 		revokedAt = sql.NullTime{Time: t, Valid: true}
 	}
@@ -84,8 +84,8 @@ func (s *Store) RevokeSessionByTokenHash(ctx context.Context, tokenHash string) 
 		TokenHash: tokenHash,
 	}); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "RevokeSessionByTokenHash"),
-			apperrors.WithMeta("token_hash", tokenHash),
+			apperrors.WithOperation(apperrors.OperationRevokeSessionByTokenHash),
+			apperrors.WithTokenHash(apperrors.TokenHash(tokenHash)),
 		)
 	}
 	return nil
@@ -101,7 +101,7 @@ func (s *Store) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time
 	})
 	if err != nil {
 		return 0, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "DeleteEndedSessionsOlderThan"),
+			apperrors.WithOperation(apperrors.OperationDeleteEndedSessionsOlderThan),
 		)
 	}
 	return res.RowsAffected()

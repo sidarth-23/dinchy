@@ -1,0 +1,183 @@
+package errors
+
+import "reflect"
+
+// MetaKey is the canonical key used in structured error metadata.
+type MetaKey string
+
+const (
+	MetaKeyStage        MetaKey = "stage"
+	MetaKeyFlow         MetaKey = "flow"
+	MetaKeyHandler      MetaKey = "handler"
+	MetaKeyOperation    MetaKey = "operation"
+	MetaKeyTask         MetaKey = "task"
+	MetaKeyField        MetaKey = "field"
+	MetaKeyKind         MetaKey = "kind"
+	MetaKeyPath         MetaKey = "path"
+	MetaKeyPragma       MetaKey = "pragma"
+	MetaKeyDeletedCount MetaKey = "deleted_count"
+	MetaKeyTokenHash    MetaKey = "token_hash"
+)
+
+type metaValue interface {
+	metaKey() MetaKey
+	metaValue() any
+}
+
+func withMetaValue(v metaValue) Option {
+	return func(e *AppError) {
+		if e.meta == nil {
+			e.meta = make(map[string]any)
+		}
+		e.meta[string(v.metaKey())] = v.metaValue()
+	}
+}
+
+// Stage names a lifecycle step recorded in metadata.
+type Stage string
+
+const (
+	StageOpenStore            Stage = "open_store"
+	StageLoadFrontendAssets   Stage = "load_frontend_assets"
+	StageStartTaskRuntime     Stage = "start_task_runtime"
+	StageFrontendDistFS       Stage = "frontend_dist_fs"
+	StageCreateFirstUser      Stage = "create_first_user"
+	StageFindUser             Stage = "find_user"
+	StageGetSession           Stage = "get_session"
+	StageRevokeSession        Stage = "revoke_session"
+	StageGenerateToken        Stage = "generate_token"
+	StageCreateSession        Stage = "create_session"
+	StageLogin                Stage = "login"
+	StageBootstrap            Stage = "bootstrap"
+	StageSessionLookup        Stage = "session_lookup"
+	StageLogout               Stage = "logout"
+	StageSetup                Stage = "setup"
+	StageSetupFirstUser       Stage = "setup_first_user"
+	StageEnsureTask           Stage = "ensure_task"
+	StageClaimTask            Stage = "claim_task"
+	StageDeleteEndedSessions  Stage = "delete_ended_sessions"
+	StageFinishFailedRun      Stage = "finish_failed_run"
+	StageFinishSuccess        Stage = "finish_success"
+	StageTxPassthrough        Stage = "tx_passthrough"
+	StageBody                 Stage = "body"
+	StageRowsAffected         Stage = "rows_affected"
+	StageResolveXDGConfigHome Stage = "resolve_xdg_config_home"
+)
+
+func (s Stage) metaKey() MetaKey   { return MetaKeyStage }
+func (s Stage) metaValue() any     { return string(s) }
+func WithStage(stage Stage) Option { return withMetaValue(stage) }
+
+// Flow names a higher-level business flow recorded in metadata.
+type Flow string
+
+const (
+	FlowSetupFirstUser Flow = "setup_first_user"
+	FlowLogin          Flow = "login"
+	FlowSession        Flow = "session"
+	FlowLogout         Flow = "logout"
+	FlowNewSession     Flow = "new_session"
+)
+
+func (f Flow) metaKey() MetaKey { return MetaKeyFlow }
+func (f Flow) metaValue() any   { return string(f) }
+func WithFlow(flow Flow) Option { return withMetaValue(flow) }
+
+// Handler names a transport handler recorded in metadata.
+type Handler string
+
+const (
+	HandlerAuthLogin    Handler = "auth.login"
+	HandlerAuthLogout   Handler = "auth.logout"
+	HandlerAuthSession  Handler = "auth.session"
+	HandlerAuthSetup    Handler = "auth.setup"
+	HandlerBootstrapGet Handler = "bootstrap.get"
+)
+
+func (h Handler) metaKey() MetaKey       { return MetaKeyHandler }
+func (h Handler) metaValue() any         { return string(h) }
+func WithHandler(handler Handler) Option { return withMetaValue(handler) }
+
+// Operation names a storage/runtime operation recorded in metadata.
+type Operation string
+
+const (
+	OperationEnsureDefaultSettings        Operation = "EnsureDefaultSettings"
+	OperationCountUsers                   Operation = "CountUsers"
+	OperationGetInstanceName              Operation = "GetInstanceName"
+	OperationOpen                         Operation = "Open"
+	OperationSQLOpen                      Operation = "sql.Open"
+	OperationPingContext                  Operation = "PingContext"
+	OperationClose                        Operation = "Close"
+	OperationWithTx                       Operation = "WithTx"
+	OperationBeginTx                      Operation = "BeginTx"
+	OperationCommit                       Operation = "Commit"
+	OperationRollback                     Operation = "Rollback"
+	OperationMkdirAll                     Operation = "MkdirAll"
+	OperationApplyPragmas                 Operation = "applyPragmas"
+	OperationCreateSession                Operation = "CreateSession"
+	OperationGetSessionByTokenHash        Operation = "GetSessionByTokenHash"
+	OperationRevokeSessionByTokenHash     Operation = "RevokeSessionByTokenHash"
+	OperationDeleteEndedSessionsOlderThan Operation = "DeleteEndedSessionsOlderThan"
+	OperationEnsureTask                   Operation = "EnsureTask"
+	OperationClaimTask                    Operation = "ClaimTask"
+	OperationFinishTask                   Operation = "FinishTask"
+	OperationInsertUser                   Operation = "InsertUser"
+	OperationFindUserByEmail              Operation = "FindUserByEmail"
+)
+
+func (o Operation) metaKey() MetaKey           { return MetaKeyOperation }
+func (o Operation) metaValue() any             { return string(o) }
+func WithOperation(operation Operation) Option { return withMetaValue(operation) }
+
+// Task names a durable background task recorded in metadata.
+type Task string
+
+const TaskSessionCleanup Task = "session_cleanup"
+
+func (t Task) metaKey() MetaKey { return MetaKeyTask }
+func (t Task) metaValue() any   { return string(t) }
+func WithTask(task Task) Option { return withMetaValue(task) }
+
+// FieldName records a field name in metadata.
+type FieldName string
+
+func (f FieldName) metaKey() MetaKey  { return MetaKeyField }
+func (f FieldName) metaValue() any    { return string(f) }
+func WithField(name FieldName) Option { return withMetaValue(name) }
+
+// FieldKind records a reflected type kind in metadata.
+type FieldKind string
+
+func FieldKindOf(kind reflect.Kind) FieldKind { return FieldKind(kind.String()) }
+func (k FieldKind) metaKey() MetaKey          { return MetaKeyKind }
+func (k FieldKind) metaValue() any            { return string(k) }
+func WithKind(kind FieldKind) Option          { return withMetaValue(kind) }
+
+// Path records a filesystem path in metadata.
+type Path string
+
+func (p Path) metaKey() MetaKey { return MetaKeyPath }
+func (p Path) metaValue() any   { return string(p) }
+func WithPath(path Path) Option { return withMetaValue(path) }
+
+// Pragma records a SQLite pragma name in metadata.
+type Pragma string
+
+func (p Pragma) metaKey() MetaKey     { return MetaKeyPragma }
+func (p Pragma) metaValue() any       { return string(p) }
+func WithPragma(pragma Pragma) Option { return withMetaValue(pragma) }
+
+// DeletedCount records the number of deleted rows in metadata.
+type DeletedCount int
+
+func (d DeletedCount) metaKey() MetaKey          { return MetaKeyDeletedCount }
+func (d DeletedCount) metaValue() any            { return int(d) }
+func WithDeletedCount(count DeletedCount) Option { return withMetaValue(count) }
+
+// TokenHash records a token hash in metadata.
+type TokenHash string
+
+func (t TokenHash) metaKey() MetaKey           { return MetaKeyTokenHash }
+func (t TokenHash) metaValue() any             { return string(t) }
+func WithTokenHash(tokenHash TokenHash) Option { return withMetaValue(tokenHash) }

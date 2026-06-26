@@ -19,8 +19,8 @@ func (s *Store) EnsureTask(ctx context.Context, name string, intervalSeconds int
 		UpdatedAt:               tsFormat(now),
 	}); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "EnsureTask"),
-			apperrors.WithMeta("task", name),
+			apperrors.WithOperation(apperrors.OperationEnsureTask),
+			apperrors.WithTask(apperrors.Task(name)),
 		)
 	}
 	return nil
@@ -41,16 +41,16 @@ func (s *Store) ClaimTask(ctx context.Context, taskName, owner string, leaseUnti
 	})
 	if err != nil {
 		return false, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "ClaimTask"),
-			apperrors.WithMeta("task", taskName),
+			apperrors.WithOperation(apperrors.OperationClaimTask),
+			apperrors.WithTask(apperrors.Task(taskName)),
 		)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
 		return false, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "ClaimTask"),
-			apperrors.WithMeta("task", taskName),
-			apperrors.WithMeta("stage", "rows_affected"),
+			apperrors.WithOperation(apperrors.OperationClaimTask),
+			apperrors.WithTask(apperrors.Task(taskName)),
+			apperrors.WithStage(apperrors.StageRowsAffected),
 		)
 	}
 	return n > 0, nil
@@ -73,8 +73,8 @@ func (s *Store) FinishTask(ctx context.Context, taskName string, now time.Time, 
 		TaskName:         taskName,
 	}); err != nil {
 		return apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "FinishTask"),
-			apperrors.WithMeta("task", taskName),
+			apperrors.WithOperation(apperrors.OperationFinishTask),
+			apperrors.WithTask(apperrors.Task(taskName)),
 		)
 	}
 	return nil

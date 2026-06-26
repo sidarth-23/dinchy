@@ -19,8 +19,8 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 		count, err := tx.q.CountUsers(ctx)
 		if err != nil {
 			return apperrors.Annotate(err,
-				apperrors.WithMeta("operation", "CountUsers"),
-				apperrors.WithMeta("stage", "setup_first_user"),
+				apperrors.WithOperation(apperrors.OperationCountUsers),
+				apperrors.WithStage(apperrors.StageSetupFirstUser),
 			)
 		}
 		if count > 0 {
@@ -37,8 +37,8 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 			UpdatedAt:    now,
 		}); err != nil {
 			return apperrors.Annotate(err,
-				apperrors.WithMeta("operation", "InsertUser"),
-				apperrors.WithMeta("stage", "setup_first_user"),
+				apperrors.WithOperation(apperrors.OperationInsertUser),
+				apperrors.WithStage(apperrors.StageSetupFirstUser),
 			)
 		}
 		u = auth.User{
@@ -61,7 +61,7 @@ func (s *Store) FindUserByEmail(ctx context.Context, email string) (*auth.User, 
 			return nil, nil
 		}
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("operation", "FindUserByEmail"),
+			apperrors.WithOperation(apperrors.OperationFindUserByEmail),
 		)
 	}
 	return &auth.User{

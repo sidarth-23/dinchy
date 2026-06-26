@@ -124,22 +124,22 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	)
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "auth.login"),
-			apperrors.WithMeta("stage", "login"),
+			apperrors.WithHandler(apperrors.HandlerAuthLogin),
+			apperrors.WithStage(apperrors.StageLogin),
 		)
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "auth.login"),
-			apperrors.WithMeta("stage", "bootstrap"),
+			apperrors.WithHandler(apperrors.HandlerAuthLogin),
+			apperrors.WithStage(apperrors.StageBootstrap),
 		)
 	}
 	sess, err := a.auth.Session(ctx, token)
 	if err != nil || sess == nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "auth.login"),
-			apperrors.WithMeta("stage", "session_lookup"),
+			apperrors.WithHandler(apperrors.HandlerAuthLogin),
+			apperrors.WithStage(apperrors.StageSessionLookup),
 		)
 	}
 	secure := support.IsSecure(ctx)
@@ -163,8 +163,8 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 	if in.DinchySession != "" {
 		if err := a.auth.Logout(ctx, in.DinchySession); err != nil {
 			return nil, apperrors.Annotate(err,
-				apperrors.WithMeta("handler", "auth.logout"),
-				apperrors.WithMeta("stage", "logout"),
+				apperrors.WithHandler(apperrors.HandlerAuthLogout),
+				apperrors.WithStage(apperrors.StageLogout),
 			)
 		}
 	}
@@ -180,8 +180,8 @@ func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "auth.session"),
-			apperrors.WithMeta("stage", "bootstrap"),
+			apperrors.WithHandler(apperrors.HandlerAuthSession),
+			apperrors.WithStage(apperrors.StageBootstrap),
 		)
 	}
 	out := &SessionOut{}
@@ -212,22 +212,22 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	)
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "auth.setup"),
-			apperrors.WithMeta("stage", "setup_first_user"),
+			apperrors.WithHandler(apperrors.HandlerAuthSetup),
+			apperrors.WithStage(apperrors.StageSetupFirstUser),
 		)
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "auth.setup"),
-			apperrors.WithMeta("stage", "bootstrap"),
+			apperrors.WithHandler(apperrors.HandlerAuthSetup),
+			apperrors.WithStage(apperrors.StageBootstrap),
 		)
 	}
 	sess, err := a.auth.Session(ctx, token)
 	if err != nil || sess == nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithMeta("handler", "auth.setup"),
-			apperrors.WithMeta("stage", "session_lookup"),
+			apperrors.WithHandler(apperrors.HandlerAuthSetup),
+			apperrors.WithStage(apperrors.StageSessionLookup),
 		)
 	}
 	secure := support.IsSecure(ctx)
