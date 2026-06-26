@@ -1,6 +1,6 @@
 package auth
 
-//go:generate mockgen -destination=mock_store_test.go -package=auth . Store
+//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
 
 import (
 	"context"

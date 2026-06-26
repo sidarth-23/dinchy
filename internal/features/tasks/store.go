@@ -1,6 +1,6 @@
 package tasks
 
-//go:generate mockgen -destination=mock_store_test.go -package=tasks . Store
+//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/tasks -destination=store_mockdata_test.go -package=tasks . Store
 
 import (
 	"context"
