@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // Lang parses the Accept-Language request header, matches it against the catalog's

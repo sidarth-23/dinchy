@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/auth"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // Session reads the session cookie, validates it via the auth service, and injects

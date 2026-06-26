@@ -1,4 +1,4 @@
-package server_test
+package transport_test
 
 import (
 	"context"
@@ -13,49 +13,48 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sidarth-23/dinchy/internal/auth"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/server"
+	transport "github.com/sidarth-23/dinchy/internal/transport"
 	"github.com/sidarth-23/dinchy/internal/testutil"
 )
 
-// setupTestServer creates a fully wired server backed by a real in-process SQLite database.
-func setupTestServer(t *testing.T) *httptest.Server {
+// setupTestServer creates a fully wired handler backed by a real in-process SQLite database.
+func setupTestServer(t *testing.T) http.Handler {
 	t.Helper()
 	s := testutil.OpenTestDB(t)
 	clk := testutil.NewFakeClock(fixedTime)
 	authSvc := auth.NewService(s, id.NewGenerator(), clk)
 
 	dist := fstest.MapFS{"index.html": {Data: []byte("<html></html>")}}
-	srv := server.New(":0", dist, authSvc, s, false, false, "")
-	return httptest.NewServer(srv.Handler)
+	srv := transport.New(":0", dist, authSvc, s, false, false, "")
+	return srv.Handler
 }
 
 // doRequest is a convenience helper for making a JSON request to the test server.
-func doRequest(t *testing.T, ts *httptest.Server, method, path, body string, headers map[string]string) *http.Response {
+func doRequest(t *testing.T, handler http.Handler, method, path, body string, headers map[string]string) *http.Response {
 	t.Helper()
 	var bodyReader io.Reader
 	if body != "" {
 		bodyReader = strings.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(context.Background(), method, ts.URL+path, bodyReader)
-	require.NoError(t, err)
+	req := httptest.NewRequestWithContext(context.Background(), method, "http://example.test"+path, bodyReader)
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	return resp
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	return rr.Result()
 }
 
 // csrfToken fetches a CSRF token by making a GET request and extracting the cookie.
-func csrfToken(t *testing.T, ts *httptest.Server) (token, cookieHeader string) {
+func csrfToken(t *testing.T, handler http.Handler) (token, cookieHeader string) {
 	t.Helper()
-	resp := doRequest(t, ts, http.MethodGet, "/api/bootstrap", "", nil)
+	resp := doRequest(t, handler, http.MethodGet, "/api/bootstrap", "", nil)
 	defer func() { _ = resp.Body.Close() }()
 	for _, c := range resp.Cookies() {
 		if c.Name == "dinchy_csrf" {
@@ -68,10 +67,9 @@ func csrfToken(t *testing.T, ts *httptest.Server) (token, cookieHeader string) {
 
 func TestBootstrap_SetupRequired(t *testing.T) {
 	t.Parallel()
-	ts := setupTestServer(t)
-	defer ts.Close()
+	handler := setupTestServer(t)
 
-	resp := doRequest(t, ts, http.MethodGet, "/api/bootstrap", "", nil)
+	resp := doRequest(t, handler, http.MethodGet, "/api/bootstrap", "", nil)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -84,12 +82,11 @@ func TestBootstrap_SetupRequired(t *testing.T) {
 
 func TestSetupFirstUser_GoldenPath(t *testing.T) {
 	t.Parallel()
-	ts := setupTestServer(t)
-	defer ts.Close()
+	handler := setupTestServer(t)
 
-	csrf, csrfCookie := csrfToken(t, ts)
+	csrf, csrfCookie := csrfToken(t, handler)
 
-	resp := doRequest(t, ts, http.MethodPost, "/api/setup/first-user",
+	resp := doRequest(t, handler, http.MethodPost, "/api/setup/first-user",
 		`{"email":"admin@example.com","display_name":"Admin","password":"password123"}`,
 		map[string]string{
 			"X-CSRF-Token": csrf,
@@ -119,37 +116,35 @@ func TestSetupFirstUser_GoldenPath(t *testing.T) {
 
 func TestSetupFirstUser_AlreadyDone(t *testing.T) {
 	t.Parallel()
-	ts := setupTestServer(t)
-	defer ts.Close()
+	handler := setupTestServer(t)
 
-	csrf, csrfCookie := csrfToken(t, ts)
+	csrf, csrfCookie := csrfToken(t, handler)
 	headers := map[string]string{"X-CSRF-Token": csrf, "Cookie": csrfCookie}
 	body := `{"email":"admin@example.com","display_name":"Admin","password":"password123"}`
 
-	resp1 := doRequest(t, ts, http.MethodPost, "/api/setup/first-user", body, headers)
+	resp1 := doRequest(t, handler, http.MethodPost, "/api/setup/first-user", body, headers)
 	_ = resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode)
 
-	resp2 := doRequest(t, ts, http.MethodPost, "/api/setup/first-user", body, headers)
+	resp2 := doRequest(t, handler, http.MethodPost, "/api/setup/first-user", body, headers)
 	defer func() { _ = resp2.Body.Close() }()
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode)
 }
 
 func TestLogin_GoldenPath(t *testing.T) {
 	t.Parallel()
-	ts := setupTestServer(t)
-	defer ts.Close()
+	handler := setupTestServer(t)
 
 	// Setup user first.
-	csrf, csrfCookie := csrfToken(t, ts)
+	csrf, csrfCookie := csrfToken(t, handler)
 	headers := map[string]string{"X-CSRF-Token": csrf, "Cookie": csrfCookie}
-	setupResp := doRequest(t, ts, http.MethodPost, "/api/setup/first-user",
+	setupResp := doRequest(t, handler, http.MethodPost, "/api/setup/first-user",
 		`{"email":"admin@example.com","display_name":"Admin","password":"secret123"}`, headers)
 	_ = setupResp.Body.Close()
 	require.Equal(t, http.StatusOK, setupResp.StatusCode)
 
 	// Now login.
-	loginResp := doRequest(t, ts, http.MethodPost, "/api/auth/login",
+	loginResp := doRequest(t, handler, http.MethodPost, "/api/auth/login",
 		`{"email":"admin@example.com","password":"secret123"}`, headers)
 	defer func() { _ = loginResp.Body.Close() }()
 
@@ -161,18 +156,17 @@ func TestLogin_GoldenPath(t *testing.T) {
 
 func TestLogin_WrongPassword(t *testing.T) {
 	t.Parallel()
-	ts := setupTestServer(t)
-	defer ts.Close()
+	handler := setupTestServer(t)
 
-	csrf, csrfCookie := csrfToken(t, ts)
+	csrf, csrfCookie := csrfToken(t, handler)
 	headers := map[string]string{"X-CSRF-Token": csrf, "Cookie": csrfCookie}
 
 	// Setup user.
-	setupResp := doRequest(t, ts, http.MethodPost, "/api/setup/first-user",
+	setupResp := doRequest(t, handler, http.MethodPost, "/api/setup/first-user",
 		`{"email":"admin@example.com","display_name":"Admin","password":"correct"}`, headers)
 	_ = setupResp.Body.Close()
 
-	loginResp := doRequest(t, ts, http.MethodPost, "/api/auth/login",
+	loginResp := doRequest(t, handler, http.MethodPost, "/api/auth/login",
 		`{"email":"admin@example.com","password":"wrong"}`, headers)
 	defer func() { _ = loginResp.Body.Close() }()
 
@@ -185,11 +179,10 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 func TestCSRF_MissingToken_Returns400(t *testing.T) {
 	t.Parallel()
-	ts := setupTestServer(t)
-	defer ts.Close()
+	handler := setupTestServer(t)
 
 	// POST without CSRF token should fail.
-	resp := doRequest(t, ts, http.MethodPost, "/api/auth/login",
+	resp := doRequest(t, handler, http.MethodPost, "/api/auth/login",
 		`{"email":"a@b.com","password":"p"}`, nil)
 	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -201,10 +194,9 @@ func TestCSRF_MissingToken_Returns400(t *testing.T) {
 
 func TestHealthz_NotOnPublicPort(t *testing.T) {
 	t.Parallel()
-	ts := setupTestServer(t)
-	defer ts.Close()
+	handler := setupTestServer(t)
 
-	resp := doRequest(t, ts, http.MethodGet, "/healthz", "", nil)
+	resp := doRequest(t, handler, http.MethodGet, "/healthz", "", nil)
 	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

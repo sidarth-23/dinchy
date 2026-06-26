@@ -10,7 +10,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // DinchyError is a language-neutral structured error carrying an HTTP status code,

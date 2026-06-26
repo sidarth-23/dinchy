@@ -8,7 +8,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/sidarth-23/dinchy/internal/domain"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 func TestSession_RoundTrip(t *testing.T) {

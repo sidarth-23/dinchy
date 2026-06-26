@@ -1,5 +1,5 @@
-// Package server configures the Chi HTTP router, mounts middleware, and wires API routes.
-package server
+// Package transport configures the Chi HTTP router, mounts middleware, and wires API routes.
+package transport
 
 import (
 	"errors"
@@ -14,12 +14,12 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/sidarth-23/dinchy/internal/auth"
 	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	serverapi "github.com/sidarth-23/dinchy/internal/server/api"
-	"github.com/sidarth-23/dinchy/internal/server/apierr"
-	mw "github.com/sidarth-23/dinchy/internal/server/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/apierr"
+	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
 // New creates a fully configured http.Server with middleware, the Huma API,
@@ -58,7 +58,8 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sr domain.SettingsReade
 	cfg := huma.DefaultConfig("Dinchy API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
-	serverapi.Register(api, authSvc, sr, requireHTTPS)
+	bootstrap.Register(api, sr, requireHTTPS)
+	auth.Register(api, authSvc, sr, requireHTTPS)
 	r.Mount("/api", apiRouter)
 
 	if devMode {

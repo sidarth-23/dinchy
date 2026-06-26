@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/text/language"
 
-	"github.com/sidarth-23/dinchy/internal/auth"
-	"github.com/sidarth-23/dinchy/internal/server/apierr"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/features/auth/errs"
+	"github.com/sidarth-23/dinchy/internal/transport/apierr"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 func TestErrorConstructors_StatusCodes(t *testing.T) {
@@ -61,14 +61,14 @@ func TestLocalized_NoLangInContextDefaultsToEnglish(t *testing.T) {
 
 func TestMapServiceError_InvalidCredentials(t *testing.T) {
 	t.Parallel()
-	loc := apierr.MapServiceError(context.Background(), auth.ErrInvalidCredentials)
+	loc := apierr.MapServiceError(context.Background(), errs.ErrInvalidCredentials)
 	assert.Equal(t, http.StatusUnauthorized, loc.GetStatus())
 	assert.Equal(t, "auth.invalid_credentials", loc.Code)
 }
 
 func TestMapServiceError_SetupCompleted(t *testing.T) {
 	t.Parallel()
-	loc := apierr.MapServiceError(context.Background(), auth.ErrSetupCompleted)
+	loc := apierr.MapServiceError(context.Background(), errs.ErrSetupCompleted)
 	assert.Equal(t, http.StatusConflict, loc.GetStatus())
 }
 

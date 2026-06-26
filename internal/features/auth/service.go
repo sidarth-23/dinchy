@@ -6,22 +6,16 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/argon2"
 
 	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/auth/errs"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
-
-// ErrInvalidCredentials is returned when login credentials do not match any account.
-var ErrInvalidCredentials = errors.New("invalid credentials")
-
-// ErrSetupCompleted is returned when first-user setup has already been completed.
-var ErrSetupCompleted = errors.New("setup already completed")
 
 // Service provides authentication operations backed by a persistent store.
 type Service struct {
@@ -49,8 +43,8 @@ func (s *Service) SetupFirstUser(ctx context.Context, email, displayName, passwo
 		Now:          now,
 	})
 	if err != nil {
-		if err.Error() == ErrSetupCompleted.Error() {
-			return "", ErrSetupCompleted
+		if err.Error() == errs.ErrSetupCompleted.Error() {
+			return "", errs.ErrSetupCompleted
 		}
 		return "", err
 	}
@@ -66,7 +60,7 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 		return "", err
 	}
 	if u == nil || !verifyPassword(password, u.PasswordHash) {
-		return "", ErrInvalidCredentials
+		return "", errs.ErrInvalidCredentials
 	}
 	return s.newSession(ctx, u.ID, ip, ua)
 }

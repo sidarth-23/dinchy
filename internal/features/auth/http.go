@@ -1,13 +1,16 @@
-package api
+package auth
 
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/sidarth-23/dinchy/internal/server/apierr"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
+	"github.com/sidarth-23/dinchy/internal/transport/apierr"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // LoginBody contains the credentials required to authenticate.
@@ -24,7 +27,7 @@ type LoginIn struct {
 // LoginOut returns the bootstrap state and sets the session cookie on success.
 type LoginOut struct {
 	SetCookie []http.Cookie `header:"Set-Cookie"`
-	Body      BootstrapBody
+	Body      bootstrap.BootstrapBody
 }
 
 // LogoutIn reads the session cookie so the handler can revoke it.
@@ -39,10 +42,38 @@ type LogoutOut struct {
 
 // SessionOut returns the current bootstrap state (same shape as bootstrap).
 type SessionOut struct {
-	Body BootstrapBody
+	Body bootstrap.BootstrapBody
 }
 
-func (a *API) registerAuth(h huma.API) {
+// SetupBody contains the fields required to create the first admin user.
+type SetupBody struct {
+	Email       string `json:"email" format:"email" minLength:"3" maxLength:"254" doc:"Admin email address"`
+	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" doc:"Display name for the admin user"`
+	Password    string `json:"password" minLength:"8" maxLength:"128" doc:"Password (minimum 8 characters)"`
+}
+
+// SetupIn is the huma input type for the first-user setup endpoint.
+type SetupIn struct {
+	Body SetupBody
+}
+
+// SetupOut returns the bootstrap state and sets the session cookie on success.
+type SetupOut struct {
+	SetCookie []http.Cookie `header:"Set-Cookie"`
+	Body      bootstrap.BootstrapBody
+}
+
+// API groups the auth handlers and their shared dependencies.
+type API struct {
+	auth         *Service
+	settings     domain.SettingsReader
+	requireHTTPS bool
+}
+
+// Register mounts the auth operations on the given huma.API instance.
+func Register(h huma.API, svc *Service, sr domain.SettingsReader, requireHTTPS bool) {
+	a := &API{auth: svc, settings: sr, requireHTTPS: requireHTTPS}
+
 	huma.Register(h, huma.Operation{
 		OperationID: "auth-login",
 		Method:      http.MethodPost,
@@ -69,6 +100,15 @@ func (a *API) registerAuth(h huma.API) {
 		Description: "Returns bootstrap state for the current request. Used to validate that a session is still active.",
 		Tags:        []string{"Auth"},
 	}, a.session)
+
+	huma.Register(h, huma.Operation{
+		OperationID: "setup-first-user",
+		Method:      http.MethodPost,
+		Path:        "/setup/first-user",
+		Summary:     "Create the first admin user",
+		Description: "Creates the initial admin account. Returns 409 if setup has already been completed.",
+		Tags:        []string{"Setup"},
+	}, a.setup)
 }
 
 func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
@@ -99,7 +139,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
-	out.Body.Viewer = &ViewerOut{
+	out.Body.Viewer = &bootstrap.ViewerOut{
 		Email:       sess.Email,
 		DisplayName: sess.DisplayName,
 		Role:        string(sess.Role),
@@ -134,11 +174,48 @@ func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 	out.Body.App.InstanceName = bs.InstanceName
 	if sess := support.SessionFrom(ctx); sess != nil {
 		out.Body.Authenticated = true
-		out.Body.Viewer = &ViewerOut{
+		out.Body.Viewer = &bootstrap.ViewerOut{
 			Email:       sess.Email,
 			DisplayName: sess.DisplayName,
 			Role:        string(sess.Role),
 		}
+	}
+	return out, nil
+}
+
+func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
+	if a.requireHTTPS && !support.IsSecure(ctx) {
+		return nil, apierr.Localized(ctx, apierr.ErrHTTPSRequired())
+	}
+	token, err := a.auth.SetupFirstUser(
+		ctx,
+		strings.ToLower(in.Body.Email),
+		in.Body.DisplayName,
+		in.Body.Password,
+		support.RemoteIPFrom(ctx),
+		support.UserAgentFrom(ctx),
+	)
+	if err != nil {
+		return nil, apierr.MapServiceError(ctx, err)
+	}
+	bs, err := a.settings.Bootstrap(ctx)
+	if err != nil {
+		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+	}
+	sess, err := a.auth.Session(ctx, token)
+	if err != nil || sess == nil {
+		return nil, apierr.Localized(ctx, apierr.ErrInternal())
+	}
+	secure := support.IsSecure(ctx)
+	out := &SetupOut{}
+	out.SetCookie = []http.Cookie{*support.SessionCookie(token, secure)}
+	out.Body.SetupRequired = false
+	out.Body.Authenticated = true
+	out.Body.App.InstanceName = bs.InstanceName
+	out.Body.Viewer = &bootstrap.ViewerOut{
+		Email:       sess.Email,
+		DisplayName: sess.DisplayName,
+		Role:        string(sess.Role),
 	}
 	return out, nil
 }

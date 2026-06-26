@@ -1,5 +1,6 @@
 // Package sqlite implements persistence using SQLite via sqlc-generated queries.
-// It satisfies the consumer-defined interfaces in internal/auth/, internal/tasks/,
+// It satisfies the consumer-defined interfaces in internal/features/auth/,
+// internal/features/tasks/,
 // and internal/domain/. The single Store struct composes all domain method files.
 package sqlite
 

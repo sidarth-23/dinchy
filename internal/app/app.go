@@ -9,14 +9,14 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/auth"
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/features/tasks"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/server"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite"
-	"github.com/sidarth-23/dinchy/internal/tasks"
+	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
 // App is the top-level application container.
@@ -53,8 +53,8 @@ func (a *App) Start() error {
 		return err
 	}
 
-	a.public = server.New(a.cfg.Addr, dist, authSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL)
-	a.internal = server.NewInternal(a.cfg.InternalAddr, s)
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL)
+	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
 	a.tasks = tasks.NewRuntime(s, clk)
 	if err := a.tasks.Start(ctx); err != nil {

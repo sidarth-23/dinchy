@@ -1,4 +1,4 @@
-package server
+package transport
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	mw "github.com/sidarth-23/dinchy/internal/server/middleware"
+	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
 // Pinger verifies that a backing service is reachable.

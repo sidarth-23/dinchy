@@ -1,4 +1,4 @@
-package api
+package bootstrap
 
 import (
 	"context"
@@ -6,8 +6,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/sidarth-23/dinchy/internal/server/apierr"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/domain"
+	"github.com/sidarth-23/dinchy/internal/transport/apierr"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // ViewerOut is the current authenticated user projection returned in bootstrap responses.
@@ -35,7 +36,15 @@ type BootstrapOut struct {
 	Body BootstrapBody
 }
 
-func (a *API) registerBootstrap(h huma.API) {
+// API groups the bootstrap handler and its shared dependencies.
+type API struct {
+	settings     domain.SettingsReader
+	requireHTTPS bool
+}
+
+// Register mounts the bootstrap operation on the given huma.API instance.
+func Register(h huma.API, sr domain.SettingsReader, requireHTTPS bool) {
+	a := &API{settings: sr, requireHTTPS: requireHTTPS}
 	huma.Register(h, huma.Operation{
 		OperationID: "get-bootstrap",
 		Method:      http.MethodGet,

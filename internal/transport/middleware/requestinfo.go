@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // RequestInfo injects the resolved client IP address and User-Agent into the request context.

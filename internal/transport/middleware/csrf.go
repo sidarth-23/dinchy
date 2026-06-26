@@ -8,8 +8,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/server/apierr"
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/transport/apierr"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // CSRF returns middleware implementing the double-submit cookie pattern.

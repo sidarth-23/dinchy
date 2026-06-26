@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/server/support"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // SecureDetect injects whether the current request arrived over HTTPS into the context.
