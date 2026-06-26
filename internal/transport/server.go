@@ -43,7 +43,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sr bootstrap.SettingsRe
 	r.Use(mw.RequestInfo())
 	r.Use(mw.Lang(i18n.Default))
 	r.Use(mw.SecureHeaders(devMode))
-	r.Use(mw.CORS())
+	r.Use(mw.CORS(devMode, devProxyURL))
 	r.Use(mw.CSRF())
 	r.Use(mw.Session(authSvc))
 	r.Use(mw.Timeout(30 * time.Second))
