@@ -5,11 +5,7 @@ package testutil
 import (
 	"context"
 	"path/filepath"
-	"sync"
 	"testing"
-	"time"
-
-	"go.uber.org/mock/gomock"
 
 	"github.com/sidarth-23/dinchy/internal/store/sqlite"
 )
@@ -24,42 +20,4 @@ func OpenTestDB(t testing.TB) *sqlite.Store {
 	}
 	t.Cleanup(func() { _ = s.Close() })
 	return s
-}
-
-// NewController creates a gomock controller that calls Finish automatically via t.Cleanup.
-func NewController(t testing.TB) *gomock.Controller {
-	t.Helper()
-	return gomock.NewController(t)
-}
-
-// FakeClock is a controllable clock for use in tests.
-type FakeClock struct {
-	mu sync.Mutex
-	t  time.Time
-}
-
-// NewFakeClock returns a FakeClock set to the given time.
-func NewFakeClock(t time.Time) *FakeClock {
-	return &FakeClock{t: t}
-}
-
-// Now returns the current fake time.
-func (c *FakeClock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.t
-}
-
-// Advance moves the clock forward by d.
-func (c *FakeClock) Advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.t = c.t.Add(d)
-}
-
-// Set replaces the current fake time.
-func (c *FakeClock) Set(t time.Time) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.t = t
 }

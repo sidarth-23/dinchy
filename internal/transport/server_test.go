@@ -9,22 +9,32 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/testutil"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
+type fakeClock struct {
+	now time.Time
+}
+
+func (c fakeClock) Now() time.Time {
+	return c.now
+}
+
+var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+
 // setupTestServer creates a fully wired handler backed by a real in-process SQLite database.
 func setupTestServer(t *testing.T) http.Handler {
 	t.Helper()
 	s := testutil.OpenTestDB(t)
-	clk := testutil.NewFakeClock(fixedTime)
+	clk := fakeClock{now: fixedTime}
 	authSvc := auth.NewService(s, id.NewGenerator(), clk)
 
 	dist := fstest.MapFS{"index.html": {Data: []byte("<html></html>")}}
@@ -207,5 +217,3 @@ func TestHealthz_NotOnPublicPort(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
-
-var fixedTime = clock.RealClock{}.Now()
