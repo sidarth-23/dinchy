@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"net/http"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
@@ -63,7 +65,7 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 		)
 	}
 	if u == nil || !verifyPassword(password, u.PasswordHash) {
-		return "", apperrors.InvalidCredentials()
+		return "", apperrors.New(http.StatusUnauthorized, i18n.Msg(i18n.CodeAuthInvalidCredentials))
 	}
 	return s.newSession(ctx, u.ID, ip, ua)
 }

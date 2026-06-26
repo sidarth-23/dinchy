@@ -24,12 +24,12 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"InvalidCredentials", apperrors.InvalidCredentials(), http.StatusUnauthorized, i18n.CodeAuthInvalidCredentials},
-		{"SetupCompleted", apperrors.SetupCompleted("users", 3), http.StatusConflict, i18n.CodeAuthSetupCompleted},
-		{"Unauthenticated", apperrors.Unauthenticated(), http.StatusUnauthorized, i18n.CodeAuthUnauthenticated},
-		{"HTTPSRequired", apperrors.HTTPSRequired(), http.StatusForbidden, i18n.CodeSecurityHTTPSRequired},
-		{"CSRFFailed", apperrors.CSRFFailed(), http.StatusBadRequest, i18n.CodeSecurityCSRFFailed},
-		{"Internal", apperrors.Internal(assert.AnError), http.StatusInternalServerError, i18n.CodeServerInternalError},
+		{"InvalidCredentials", apperrors.New(http.StatusUnauthorized, i18n.Msg(i18n.CodeAuthInvalidCredentials)), http.StatusUnauthorized, i18n.CodeAuthInvalidCredentials},
+		{"SetupCompleted", apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 3))), http.StatusConflict, i18n.CodeAuthSetupCompleted},
+		{"Unauthenticated", apperrors.New(http.StatusUnauthorized, i18n.Msg(i18n.CodeAuthUnauthenticated)), http.StatusUnauthorized, i18n.CodeAuthUnauthenticated},
+		{"HTTPSRequired", apperrors.New(http.StatusForbidden, i18n.Msg(i18n.CodeSecurityHTTPSRequired)), http.StatusForbidden, i18n.CodeSecurityHTTPSRequired},
+		{"CSRFFailed", apperrors.New(http.StatusBadRequest, i18n.Msg(i18n.CodeSecurityCSRFFailed)), http.StatusBadRequest, i18n.CodeSecurityCSRFFailed},
+		{"Internal", apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(assert.AnError)), http.StatusInternalServerError, i18n.CodeServerInternalError},
 	}
 
 	for _, tc := range cases {
@@ -45,15 +45,15 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 func TestAppError_IsMatchesByCode(t *testing.T) {
 	t.Parallel()
 
-	err := apperrors.SetupCompleted("users", 1)
-	assert.True(t, stdErrors.Is(err, apperrors.SetupCompleted("users", 1)))
-	assert.False(t, stdErrors.Is(err, apperrors.InvalidCredentials()))
+	err := apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))
+	assert.True(t, stdErrors.Is(err, apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))))
+	assert.False(t, stdErrors.Is(err, apperrors.New(http.StatusUnauthorized, i18n.Msg(i18n.CodeAuthInvalidCredentials))))
 }
 
 func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
 	t.Parallel()
 
-	base := apperrors.SetupCompleted("users", 2, apperrors.WithMeta("stage", "setup"))
+	base := apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2)), apperrors.WithMeta("stage", "setup"))
 	err := apperrors.Annotate(base, apperrors.WithMeta("stage", "setup"))
 
 	var got *apperrors.AppError
@@ -62,14 +62,14 @@ func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
 	assert.Equal(t, "users", got.Meta()["resource"])
 	assert.Equal(t, 2, got.Meta()["count"])
 	assert.Equal(t, "setup", got.Meta()["stage"])
-	assert.True(t, stdErrors.Is(err, apperrors.SetupCompleted("users", 2)))
+	assert.True(t, stdErrors.Is(err, apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2)))))
 }
 
 func TestResolve_LocalizesAndPreservesMeta(t *testing.T) {
 	t.Parallel()
 
 	catalog := i18n.New(i18n.CatalogData)
-	resp := apperrors.Resolve(language.English, catalog, apperrors.SetupCompleted("users", 2))
+	resp := apperrors.Resolve(language.English, catalog, apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2))))
 
 	assert.Equal(t, http.StatusConflict, resp.GetStatus())
 	assert.Equal(t, i18n.CodeAuthSetupCompleted, resp.Payload.Code)

@@ -1,6 +1,6 @@
-// Package i18n provides a translation catalog for resolving typed error
-// messages to human-readable strings in a requested locale.
 package i18n
+
+//go:generate go run ../../cmd/i18ngen
 
 import (
 	"bytes"
@@ -10,25 +10,65 @@ import (
 	"golang.org/x/text/language"
 )
 
-// Catalog maps error messages to localized templates across supported locales.
+// Message carries a machine-readable code and optional interpolation metadata.
+type Message struct {
+	code string
+	meta map[string]any
+}
+
+// Code returns the stable identifier for the message.
+func (m Message) Code() string {
+	return m.code
+}
+
+// Meta returns a defensive copy of the message metadata.
+func (m Message) Meta() map[string]any {
+	return cloneMeta(m.meta)
+}
+
+// String returns the machine-readable code.
+func (m Message) String() string {
+	return m.code
+}
+
+// Param represents one interpolation parameter for a message.
+type Param struct {
+	Key   string
+	Value any
+}
+
+// P creates a typed interpolation parameter.
+func P(key string, value any) Param {
+	return Param{Key: key, Value: value}
+}
+
+// Msg builds a message descriptor from a code and optional params.
+func Msg(code string, params ...Param) Message {
+	if len(params) == 0 {
+		return Message{code: code}
+	}
+	meta := make(map[string]any, len(params))
+	for _, p := range params {
+		meta[p.Key] = p.Value
+	}
+	return Message{code: code, meta: cloneMeta(meta)}
+}
+
+// Catalog resolves message codes to localized templates.
 type Catalog struct {
 	locales map[language.Tag]map[string]string
 	tags    []language.Tag
 	matcher language.Matcher
 }
 
-// New creates a Catalog from a locale map.
+// New creates a catalog from locale data.
 func New(locales map[language.Tag]map[string]string) *Catalog {
 	cloned := cloneLocales(locales)
 	tags := sortedTags(cloned)
-	return &Catalog{
-		locales: cloned,
-		tags:    tags,
-		matcher: language.NewMatcher(tags),
-	}
+	return &Catalog{locales: cloned, tags: tags, matcher: language.NewMatcher(tags)}
 }
 
-// Match parses an Accept-Language header and returns the best supported tag.
+// Match returns the best supported locale tag for an Accept-Language value.
 func (c *Catalog) Match(acceptLanguage string) language.Tag {
 	if len(c.tags) == 0 {
 		return language.Und
@@ -44,8 +84,7 @@ func (c *Catalog) Match(acceptLanguage string) language.Tag {
 	return tag
 }
 
-// Resolve returns the localized message for msg in the requested locale.
-// It performs an exact lookup only. Missing locales or codes return empty.
+// Resolve returns the localized message text for msg in tag.
 func (c *Catalog) Resolve(tag language.Tag, msg Message) string {
 	if msg.Code() == "" {
 		return ""
@@ -71,14 +110,23 @@ func cloneLocales(locales map[language.Tag]map[string]string) map[language.Tag]m
 	return out
 }
 
+func cloneMeta(meta map[string]any) map[string]any {
+	if len(meta) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
+}
+
 func sortedTags(locales map[language.Tag]map[string]string) []language.Tag {
 	tags := make([]language.Tag, 0, len(locales))
 	for tag := range locales {
 		tags = append(tags, tag)
 	}
-	sort.Slice(tags, func(i, j int) bool {
-		return tags[i].String() < tags[j].String()
-	})
+	sort.Slice(tags, func(i, j int) bool { return tags[i].String() < tags[j].String() })
 	return tags
 }
 
@@ -99,3 +147,6 @@ func render(tpl string, meta map[string]any) string {
 	}
 	return b.String()
 }
+
+// Default is the package-level catalog pre-loaded with generated translations.
+var Default = New(CatalogData)

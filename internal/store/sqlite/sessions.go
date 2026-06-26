@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
@@ -48,17 +50,17 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*s
 	}
 	idle, err := time.Parse(time.RFC3339Nano, row.IdleExpiresAt)
 	if err != nil {
-		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "idle_expires_at"))
+		return nil, apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "idle_expires_at"))
 	}
 	exp, err := time.Parse(time.RFC3339Nano, row.ExpiresAt)
 	if err != nil {
-		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "expires_at"))
+		return nil, apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "expires_at"))
 	}
 	var revokedAt sql.NullTime
 	if row.RevokedAt.Valid {
 		t, err := time.Parse(time.RFC3339Nano, row.RevokedAt.String)
 		if err != nil {
-			return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "revoked_at"))
+			return nil, apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "GetSessionByTokenHash"), apperrors.WithMeta("field", "revoked_at"))
 		}
 		revokedAt = sql.NullTime{Time: t, Valid: true}
 	}

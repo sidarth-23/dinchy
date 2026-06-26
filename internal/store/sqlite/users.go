@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
@@ -23,7 +25,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 			)
 		}
 		if count > 0 {
-			return apperrors.SetupCompleted("users", int(count))
+			return apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", int(count))))
 		}
 		now := tsFormat(in.Now)
 		if err := tx.q.InsertUser(ctx, sqlcgen.InsertUserParams{

@@ -7,6 +7,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -56,7 +57,7 @@ func Register(h huma.API, sr SettingsReader, requireHTTPS bool) {
 
 func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.HTTPSRequired()
+		return nil, apperrors.New(http.StatusForbidden, i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {

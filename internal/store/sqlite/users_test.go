@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 )
 
 func TestCreateFirstUser_Success(t *testing.T) {
@@ -37,7 +39,7 @@ func TestCreateFirstUser_SetupAlreadyCompleted(t *testing.T) {
 
 	_, err = createTestUser(ctx, t, s)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, apperrors.SetupCompleted("users", 1)))
+	assert.True(t, errors.Is(err, apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))))
 }
 
 func TestCreateFirstUser_Concurrent(t *testing.T) {

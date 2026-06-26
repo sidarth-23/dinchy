@@ -2,24 +2,9 @@
 
 package i18n
 
-import "golang.org/x/text/language"
-
-type Message struct {
-	code string
-	meta map[string]any
-}
-
-func (m Message) Code() string {
-	return m.code
-}
-
-func (m Message) Meta() map[string]any {
-	return cloneMeta(m.meta)
-}
-
-func (m Message) String() string {
-	return m.code
-}
+import (
+	"golang.org/x/text/language"
+)
 
 var CatalogData = map[language.Tag]map[string]string{
 	language.English: {
@@ -37,57 +22,18 @@ var CatalogData = map[language.Tag]map[string]string{
 
 const CodeAuthInvalidCredentials = "auth.invalid_credentials"
 
-func AuthInvalidCredentials() Message {
-	return newMessage(CodeAuthInvalidCredentials, nil)
-}
-
 const CodeAuthSetupCompleted = "auth.setup_completed"
-
-func AuthSetupCompleted(resource string, count int) Message {
-	return newMessage(CodeAuthSetupCompleted, map[string]any{
-		"resource": resource,
-		"count":    count,
-	})
-}
 
 const CodeAuthUnauthenticated = "auth.unauthenticated"
 
-func AuthUnauthenticated() Message {
-	return newMessage(CodeAuthUnauthenticated, nil)
-}
-
 const CodeConfigLoadFailed = "config.load_failed"
-
-func ConfigLoadFailed() Message {
-	return newMessage(CodeConfigLoadFailed, nil)
-}
 
 const CodeConfigValidationFailed = "config.validation_failed"
 
-func ConfigValidationFailed() Message {
-	return newMessage(CodeConfigValidationFailed, nil)
-}
-
 const CodeRequestValidationFailed = "request.validation_failed"
-
-func RequestValidationFailed() Message {
-	return newMessage(CodeRequestValidationFailed, nil)
-}
 
 const CodeSecurityCSRFFailed = "security.csrf_failed"
 
-func SecurityCSRFFailed() Message {
-	return newMessage(CodeSecurityCSRFFailed, nil)
-}
-
 const CodeSecurityHTTPSRequired = "security.https_required"
 
-func SecurityHTTPSRequired() Message {
-	return newMessage(CodeSecurityHTTPSRequired, nil)
-}
-
 const CodeServerInternalError = "server.internal_error"
-
-func ServerInternalError() Message {
-	return newMessage(CodeServerInternalError, nil)
-}

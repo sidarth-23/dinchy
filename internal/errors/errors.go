@@ -104,54 +104,6 @@ func New(status int, msg i18n.Message, opts ...Option) *AppError {
 	return e
 }
 
-// InvalidCredentials returns the canonical auth failure for a bad login.
-func InvalidCredentials() *AppError {
-	return New(http.StatusUnauthorized, i18n.AuthInvalidCredentials())
-}
-
-// SetupCompleted returns the canonical auth failure when first-user setup has already happened.
-func SetupCompleted(resource string, count int, opts ...Option) *AppError {
-	return New(http.StatusConflict, i18n.AuthSetupCompleted(resource, count), opts...)
-}
-
-// Unauthenticated returns the canonical auth failure for unauthenticated requests.
-func Unauthenticated() *AppError {
-	return New(http.StatusUnauthorized, i18n.AuthUnauthenticated())
-}
-
-// HTTPSRequired returns the canonical security failure for insecure auth requests.
-func HTTPSRequired() *AppError {
-	return New(http.StatusForbidden, i18n.SecurityHTTPSRequired())
-}
-
-// CSRFFailed returns the canonical security failure for missing or invalid CSRF tokens.
-func CSRFFailed() *AppError {
-	return New(http.StatusBadRequest, i18n.SecurityCSRFFailed())
-}
-
-// ValidationFailed returns the canonical validation error.
-func ValidationFailed(opts ...Option) *AppError {
-	return New(http.StatusUnprocessableEntity, i18n.RequestValidationFailed(), opts...)
-}
-
-// ConfigLoadFailed returns a startup/configuration error.
-func ConfigLoadFailed(cause error, opts ...Option) *AppError {
-	opts = append([]Option{WithCause(cause)}, opts...)
-	return New(http.StatusInternalServerError, i18n.ConfigLoadFailed(), opts...)
-}
-
-// ConfigValidationFailed returns a startup/configuration validation error.
-func ConfigValidationFailed(cause error, opts ...Option) *AppError {
-	opts = append([]Option{WithCause(cause)}, opts...)
-	return New(http.StatusInternalServerError, i18n.ConfigValidationFailed(), opts...)
-}
-
-// Internal returns the canonical catch-all server error.
-func Internal(cause error, opts ...Option) *AppError {
-	opts = append([]Option{WithCause(cause)}, opts...)
-	return New(http.StatusInternalServerError, i18n.ServerInternalError(), opts...)
-}
-
 // Annotate preserves an existing structured error and adds more metadata.
 // If err is not already structured, it becomes a catch-all internal error.
 func Annotate(err error, opts ...Option) error {
@@ -164,7 +116,8 @@ func Annotate(err error, opts ...Option) error {
 		merged = append(merged, opts...)
 		return New(appErr.status, appErr.msg, merged...)
 	}
-	return Internal(err, opts...)
+	opts = append([]Option{WithCause(err)}, opts...)
+	return New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), opts...)
 }
 
 // ResponsePayload is the public error payload serialized by transport.
@@ -215,7 +168,7 @@ func ResponseFor(tag language.Tag, catalog *i18n.Catalog, status int, errs ...er
 		status: status,
 		Payload: ResponsePayload{
 			Code:    i18n.CodeServerInternalError,
-			Message: catalog.Resolve(tag, i18n.ServerInternalError()),
+			Message: catalog.Resolve(tag, i18n.Msg(i18n.CodeServerInternalError)),
 		},
 	}
 }
@@ -241,7 +194,7 @@ func validationResponse(tag language.Tag, catalog *i18n.Catalog, errs ...error) 
 		status: http.StatusUnprocessableEntity,
 		Payload: ResponsePayload{
 			Code:    i18n.CodeRequestValidationFailed,
-			Message: catalog.Resolve(tag, i18n.RequestValidationFailed()),
+			Message: catalog.Resolve(tag, i18n.Msg(i18n.CodeRequestValidationFailed)),
 			Meta:    meta,
 		},
 	}
@@ -323,5 +276,5 @@ func Resolve(tag language.Tag, catalog *i18n.Catalog, err error) *ErrorResponse 
 	if stdErrors.As(err, &appErr) {
 		return localizedResponse(tag, catalog, appErr)
 	}
-	return localizedResponse(tag, catalog, Internal(err))
+	return localizedResponse(tag, catalog, New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), WithCause(err)))
 }

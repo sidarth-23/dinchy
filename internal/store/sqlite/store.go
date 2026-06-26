@@ -12,6 +12,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/pressly/goose/v3"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
@@ -53,7 +55,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
-		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "sql.Open"), apperrors.WithMeta("path", path))
+		return nil, apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "sql.Open"), apperrors.WithMeta("path", path))
 	}
 	if err := applyPragmas(ctx, db); err != nil {
 		return nil, closeWithErr(db, err)
@@ -71,7 +73,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 // PingContext verifies the database connection is alive. Satisfies server.Pinger.
 func (s *Store) PingContext(ctx context.Context) error {
 	if s.db == nil {
-		return apperrors.Internal(fmt.Errorf("sqlite cannot ping a transaction-scoped store"), apperrors.WithMeta("operation", "PingContext"))
+		return apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot ping a transaction-scoped store")), apperrors.WithMeta("operation", "PingContext"))
 	}
 	return s.db.PingContext(ctx)
 }
@@ -79,7 +81,7 @@ func (s *Store) PingContext(ctx context.Context) error {
 // Close shuts down the database connection. It must not be called on a tx-scoped Store.
 func (s *Store) Close() error {
 	if s.db == nil {
-		return apperrors.Internal(fmt.Errorf("sqlite cannot close a transaction-scoped store"), apperrors.WithMeta("operation", "Close"))
+		return apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("sqlite cannot close a transaction-scoped store")), apperrors.WithMeta("operation", "Close"))
 	}
 	return s.db.Close()
 }
@@ -130,7 +132,7 @@ func ensureDir(path string) error {
 		return nil
 	}
 	if err := os.MkdirAll(d, 0o755); err != nil {
-		return apperrors.Internal(err, apperrors.WithMeta("operation", "MkdirAll"), apperrors.WithMeta("path", d))
+		return apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "MkdirAll"), apperrors.WithMeta("path", d))
 	}
 	return nil
 }
@@ -145,7 +147,7 @@ func applyPragmas(ctx context.Context, db *sql.DB) error {
 	}
 	for _, p := range pragmas {
 		if _, err := db.ExecContext(ctx, p); err != nil {
-			return apperrors.Internal(err, apperrors.WithMeta("operation", "applyPragmas"), apperrors.WithMeta("pragma", p))
+			return apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(err), apperrors.WithMeta("operation", "applyPragmas"), apperrors.WithMeta("pragma", p))
 		}
 	}
 	return nil

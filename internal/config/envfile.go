@@ -1,17 +1,19 @@
 package config
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 )
 
 func loadEnvPath(p string) error {
 	if err := godotenv.Load(p); err != nil {
-		return apperrors.ConfigLoadFailed(err, apperrors.WithMeta("path", p))
+		return apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithMeta("path", p))
 	}
 	return nil
 }
@@ -51,7 +53,7 @@ func xdgEnvPath() (string, error) {
 	if xdg == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", apperrors.ConfigLoadFailed(err, apperrors.WithMeta("stage", "resolve_xdg_config_home"))
+			return "", apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithMeta("stage", "resolve_xdg_config_home"))
 		}
 		xdg = filepath.Join(home, ".config")
 	}

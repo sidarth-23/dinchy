@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
 
@@ -78,10 +80,10 @@ func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, apperrors.SetupCompleted("users", 1))
+	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1))))
 
 	_, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "pass", "", "")
-	require.ErrorIs(t, err, apperrors.SetupCompleted("users", 1))
+	require.ErrorIs(t, err, apperrors.New(http.StatusConflict, i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1))))
 }
 
 func TestLogin_Success(t *testing.T) {
@@ -108,7 +110,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashPassword("correct")}, nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "")
-	require.ErrorIs(t, err, apperrors.InvalidCredentials())
+	require.ErrorIs(t, err, apperrors.New(http.StatusUnauthorized, i18n.Msg(i18n.CodeAuthInvalidCredentials)))
 }
 
 func TestLogin_UserNotFound(t *testing.T) {
@@ -118,7 +120,7 @@ func TestLogin_UserNotFound(t *testing.T) {
 	store.EXPECT().FindUserByEmail(gomock.Any(), "nobody@example.com").Return(nil, nil)
 
 	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "")
-	require.ErrorIs(t, err, apperrors.InvalidCredentials())
+	require.ErrorIs(t, err, apperrors.New(http.StatusUnauthorized, i18n.Msg(i18n.CodeAuthInvalidCredentials)))
 }
 
 func TestLogin_EmailNormalized(t *testing.T) {
