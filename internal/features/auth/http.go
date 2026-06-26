@@ -8,7 +8,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -27,7 +26,7 @@ type LoginIn struct {
 // LoginOut returns the bootstrap state and sets the session cookie on success.
 type LoginOut struct {
 	SetCookie []http.Cookie `header:"Set-Cookie"`
-	Body      bootstrap.BootstrapBody
+	Body      BootstrapBody
 }
 
 // LogoutIn reads the session cookie so the handler can revoke it.
@@ -42,7 +41,7 @@ type LogoutOut struct {
 
 // SessionOut returns the current bootstrap state (same shape as bootstrap).
 type SessionOut struct {
-	Body bootstrap.BootstrapBody
+	Body BootstrapBody
 }
 
 // SetupBody contains the fields required to create the first admin user.
@@ -60,19 +59,28 @@ type SetupIn struct {
 // SetupOut returns the bootstrap state and sets the session cookie on success.
 type SetupOut struct {
 	SetCookie []http.Cookie `header:"Set-Cookie"`
-	Body      bootstrap.BootstrapBody
+	Body      BootstrapBody
 }
 
 // API groups the auth handlers and their shared dependencies.
 type API struct {
 	auth         *Service
-	settings     bootstrap.SettingsReader
+	settings     SettingsReader
 	requireHTTPS bool
 }
 
 // Register mounts the auth operations on the given huma.API instance.
-func Register(h huma.API, svc *Service, sr bootstrap.SettingsReader, requireHTTPS bool) {
+func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 	a := &API{auth: svc, settings: sr, requireHTTPS: requireHTTPS}
+
+	huma.Register(h, huma.Operation{
+		OperationID: "get-bootstrap",
+		Method:      http.MethodGet,
+		Path:        "/bootstrap",
+		Summary:     "Get application bootstrap state",
+		Description: "Returns setup status, authentication state, app metadata, and current user info. Called by the frontend on initial load.",
+		Tags:        []string{"Bootstrap"},
+	}, a.bootstrap)
 
 	huma.Register(h, huma.Operation{
 		OperationID: "auth-login",
@@ -111,6 +119,31 @@ func Register(h huma.API, svc *Service, sr bootstrap.SettingsReader, requireHTTP
 	}, a.setup)
 }
 
+func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
+	if a.requireHTTPS && !support.IsSecure(ctx) {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+	}
+	bs, err := a.settings.Bootstrap(ctx)
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerBootstrapGet),
+			apperrors.WithStage(apperrors.StageBootstrap),
+		)
+	}
+	out := &BootstrapOut{}
+	out.Body.SetupRequired = bs.SetupRequired
+	out.Body.App.InstanceName = bs.InstanceName
+	if sess := SessionFrom(ctx); sess != nil {
+		out.Body.Authenticated = true
+		out.Body.Viewer = &ViewerOut{
+			Email:       sess.Email,
+			DisplayName: sess.DisplayName,
+			Role:        string(sess.Role),
+		}
+	}
+	return out, nil
+}
+
 func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
@@ -144,11 +177,11 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &LoginOut{}
-	out.SetCookie = []http.Cookie{*support.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*SessionCookie(token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
-	out.Body.Viewer = &bootstrap.ViewerOut{
+	out.Body.Viewer = &ViewerOut{
 		Email:       sess.Email,
 		DisplayName: sess.DisplayName,
 		Role:        string(sess.Role),
@@ -169,7 +202,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 		}
 	}
 	out := &LogoutOut{}
-	out.SetCookie = *support.ClearSessionCookie(support.IsSecure(ctx))
+	out.SetCookie = *ClearSessionCookie(support.IsSecure(ctx))
 	return out, nil
 }
 
@@ -187,9 +220,9 @@ func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 	out := &SessionOut{}
 	out.Body.SetupRequired = bs.SetupRequired
 	out.Body.App.InstanceName = bs.InstanceName
-	if sess := support.SessionFrom(ctx); sess != nil {
+	if sess := SessionFrom(ctx); sess != nil {
 		out.Body.Authenticated = true
-		out.Body.Viewer = &bootstrap.ViewerOut{
+		out.Body.Viewer = &ViewerOut{
 			Email:       sess.Email,
 			DisplayName: sess.DisplayName,
 			Role:        string(sess.Role),
@@ -232,11 +265,11 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}
-	out.SetCookie = []http.Cookie{*support.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*SessionCookie(token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
-	out.Body.Viewer = &bootstrap.ViewerOut{
+	out.Body.Viewer = &ViewerOut{
 		Email:       sess.Email,
 		DisplayName: sess.DisplayName,
 		Role:        string(sess.Role),

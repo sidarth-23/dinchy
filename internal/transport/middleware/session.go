@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // Session reads the session cookie, validates it via the auth service, and injects
@@ -13,7 +12,7 @@ import (
 func Session(svc *auth.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(support.SessionCookieName)
+			cookie, err := r.Cookie(auth.SessionCookieName)
 			if err != nil || cookie.Value == "" {
 				next.ServeHTTP(w, r)
 				return
@@ -23,7 +22,7 @@ func Session(svc *auth.Service) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(support.WithSession(r.Context(), sess)))
+			next.ServeHTTP(w, r.WithContext(auth.WithSession(r.Context(), sess)))
 		})
 	}
 }

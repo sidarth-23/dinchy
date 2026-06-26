@@ -15,7 +15,6 @@ import (
 	"golang.org/x/crypto/argon2"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -135,7 +134,7 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 
 // Session validates a raw token and returns the associated session and user if valid.
 // Returns nil without error for expired, revoked, or missing tokens.
-func (s *Service) Session(ctx context.Context, rawToken string) (*session.SessionWithUser, error) {
+func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUser, error) {
 	if rawToken == "" {
 		return nil, nil
 	}
@@ -177,7 +176,7 @@ func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string
 		)
 	}
 	now := s.clock.Now()
-	_, err = s.store.CreateSession(ctx, session.CreateSessionInput{
+	_, err = s.store.CreateSession(ctx, CreateSessionInput{
 		ID:            s.idg.New(),
 		UserID:        userID,
 		TokenHash:     tokenHash,

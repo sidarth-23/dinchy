@@ -8,7 +8,6 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 )
 
@@ -83,7 +82,7 @@ func (s *Store) UpdateUserPasswordHash(ctx context.Context, in auth.UpdateUserPa
 }
 
 // CreateSession inserts a new session record and returns its ID.
-func (s *Store) CreateSession(ctx context.Context, in session.CreateSessionInput) (session.Session, error) {
+func (s *Store) CreateSession(ctx context.Context, in auth.CreateSessionInput) (auth.Session, error) {
 	if err := s.Query().InsertSession(ctx, InsertSessionParams{
 		ID:            in.ID,
 		UserID:        in.UserID,
@@ -96,13 +95,13 @@ func (s *Store) CreateSession(ctx context.Context, in session.CreateSessionInput
 		CreatedAt:     in.Now.UTC(),
 		UpdatedAt:     in.Now.UTC(),
 	}); err != nil {
-		return session.Session{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCreateSession))
+		return auth.Session{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCreateSession))
 	}
-	return session.Session{ID: in.ID}, nil
+	return auth.Session{ID: in.ID}, nil
 }
 
 // GetSessionByTokenHash retrieves an active session with its owner's user info.
-func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*session.SessionWithUser, error) {
+func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*auth.SessionWithUser, error) {
 	row, err := s.Query().GetSessionByTokenHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -110,12 +109,12 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*s
 		}
 		return nil, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationGetSessionByTokenHash))
 	}
-	return &session.SessionWithUser{
+	return &auth.SessionWithUser{
 		SessionID:     row.ID,
 		UserID:        row.UserID,
 		Email:         row.Email,
 		DisplayName:   row.DisplayName,
-		Role:          session.Role(row.Role),
+		Role:          auth.Role(row.Role),
 		IdleExpiresAt: row.IdleExpiresAt.UTC(),
 		ExpiresAt:     row.ExpiresAt.UTC(),
 		RevokedAt:     row.RevokedAt,

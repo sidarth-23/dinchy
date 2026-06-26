@@ -7,21 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/text/language"
 
-	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
-
-func TestSession_RoundTrip(t *testing.T) {
-	t.Parallel()
-	sess := &session.SessionWithUser{SessionID: "s1", Email: "a@b.com"}
-	ctx := support.WithSession(context.Background(), sess)
-	assert.Equal(t, sess, support.SessionFrom(ctx))
-}
-
-func TestSessionFrom_Empty(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, support.SessionFrom(context.Background()))
-}
 
 func TestSecure_RoundTrip(t *testing.T) {
 	t.Parallel()

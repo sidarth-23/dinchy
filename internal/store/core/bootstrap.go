@@ -5,7 +5,7 @@ import (
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
 )
 
 // EnsureDefaultSettings seeds singleton settings if they are missing.
@@ -18,14 +18,14 @@ func (s *Store) EnsureDefaultSettings(ctx context.Context) error {
 }
 
 // Bootstrap returns whether setup is required and the configured instance name.
-func (s *Store) Bootstrap(ctx context.Context) (bootstrap.BootstrapState, error) {
+func (s *Store) Bootstrap(ctx context.Context) (auth.BootstrapState, error) {
 	count, err := s.Query().CountUsers(ctx)
 	if err != nil {
-		return bootstrap.BootstrapState{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCountUsers))
+		return auth.BootstrapState{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCountUsers))
 	}
 	name, err := s.Query().GetInstanceName(ctx)
 	if err != nil {
-		return bootstrap.BootstrapState{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationGetInstanceName))
+		return auth.BootstrapState{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationGetInstanceName))
 	}
-	return bootstrap.BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
+	return auth.BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
 }

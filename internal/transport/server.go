@@ -16,7 +16,6 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
@@ -25,7 +24,7 @@ import (
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sr bootstrap.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
 	huma.NewError = func(status int, _ string, errs ...error) huma.StatusError {
 		return apperrors.ResponseFor(language.English, i18n.Default, status, errs...)
 	}
@@ -52,7 +51,6 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sr bootstrap.SettingsRe
 	cfg := huma.DefaultConfig("Dinchy API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
-	bootstrap.Register(api, sr, requireHTTPS)
 	auth.Register(api, authSvc, sr, requireHTTPS)
 	r.Mount("/api", apiRouter)
 

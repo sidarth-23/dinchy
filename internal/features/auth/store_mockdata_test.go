@@ -13,7 +13,6 @@ import (
 	context "context"
 	reflect "reflect"
 
-	session "github.com/sidarth-23/dinchy/internal/features/session"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -57,10 +56,10 @@ func (mr *MockStoreMockRecorder) CreateFirstUser(ctx, in any) *gomock.Call {
 }
 
 // CreateSession mocks base method.
-func (m *MockStore) CreateSession(ctx context.Context, in session.CreateSessionInput) (session.Session, error) {
+func (m *MockStore) CreateSession(ctx context.Context, in CreateSessionInput) (Session, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSession", ctx, in)
-	ret0, _ := ret[0].(session.Session)
+	ret0, _ := ret[0].(Session)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -101,10 +100,10 @@ func (mr *MockStoreMockRecorder) UpdateUserPasswordHash(ctx, in any) *gomock.Cal
 }
 
 // GetSessionByTokenHash mocks base method.
-func (m *MockStore) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*session.SessionWithUser, error) {
+func (m *MockStore) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*SessionWithUser, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSessionByTokenHash", ctx, tokenHash)
-	ret0, _ := ret[0].(*session.SessionWithUser)
+	ret0, _ := ret[0].(*SessionWithUser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

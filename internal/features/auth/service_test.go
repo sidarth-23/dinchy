@@ -11,7 +11,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
@@ -38,7 +37,7 @@ func (c fakeClock) Now() time.Time {
 	return c.now
 }
 
-func TestHashPassword(t *testing.T, password string) string {
+func HashPasswordForTest(t *testing.T, password string) string {
 	t.Helper()
 	hash, err := hashPassword(password)
 	require.NoError(t, err)
@@ -59,7 +58,7 @@ func TestSetupFirstUser_Success(t *testing.T) {
 		})
 	store.EXPECT().
 		CreateSession(gomock.Any(), gomock.Any()).
-		Return(session.Session{ID: "sess-1"}, nil)
+		Return(Session{ID: "sess-1"}, nil)
 
 	token, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "password123", "127.0.0.1", "ua")
 	require.NoError(t, err)
@@ -76,7 +75,7 @@ func TestSetupFirstUser_EmailNormalized(t *testing.T) {
 			assert.Equal(t, "admin@example.com", in.Email, "email must be normalized to lowercase")
 			return User{ID: "user-1", Email: in.Email, Role: RoleAdmin}, nil
 		})
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(session.Session{ID: "sess-1"}, nil)
+	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "sess-1"}, nil)
 
 	_, err := svc.SetupFirstUser(testCtx, "  ADMIN@EXAMPLE.COM  ", "Admin", "password123", "", "")
 	require.NoError(t, err)
@@ -96,11 +95,11 @@ func TestLogin_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	hashed := TestHashPassword(t, "secret")
+	hashed := HashPasswordForTest(t, "secret")
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashed, Role: RoleAdmin}, nil)
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(session.Session{ID: "s1"}, nil)
+	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "s1"}, nil)
 
 	token, err := svc.Login(testCtx, "user@example.com", "secret", "127.0.0.1", "ua")
 	require.NoError(t, err)
@@ -113,7 +112,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: TestHashPassword(t, "correct")}, nil)
+		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: HashPasswordForTest(t, "correct")}, nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
@@ -135,8 +134,8 @@ func TestLogin_EmailNormalized(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", PasswordHash: TestHashPassword(t, "p")}, nil)
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(session.Session{ID: "s1"}, nil)
+		Return(&User{ID: "u1", PasswordHash: HashPasswordForTest(t, "p")}, nil)
+	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "s1"}, nil)
 
 	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "")
 	require.NoError(t, err)
@@ -146,7 +145,7 @@ func TestSession_ValidToken(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &session.SessionWithUser{
+	sess := &SessionWithUser{
 		SessionID:     "s1",
 		UserID:        "u1",
 		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
@@ -172,7 +171,7 @@ func TestSession_ExpiredIdle(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &session.SessionWithUser{
+	sess := &SessionWithUser{
 		IdleExpiresAt: fixedTime.Add(-1 * time.Second), // expired
 		ExpiresAt:     fixedTime.Add(7 * 24 * time.Hour),
 	}
@@ -187,7 +186,7 @@ func TestSession_ExpiredAbsolute(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &session.SessionWithUser{
+	sess := &SessionWithUser{
 		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
 		ExpiresAt:     fixedTime.Add(-1 * time.Second), // expired
 	}
@@ -202,7 +201,7 @@ func TestSession_Revoked(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &session.SessionWithUser{
+	sess := &SessionWithUser{
 		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
 		ExpiresAt:     fixedTime.Add(7 * 24 * time.Hour),
 		RevokedAt:     sql.NullTime{Time: fixedTime.Add(-time.Hour), Valid: true},
@@ -232,14 +231,14 @@ func TestLogout_EmptyToken(t *testing.T) {
 
 func TestPasswordHash_RoundTrip(t *testing.T) {
 	t.Parallel()
-	hash := TestHashPassword(t, "mysecret")
+	hash := HashPasswordForTest(t, "mysecret")
 	assert.True(t, verifyPassword("mysecret", hash))
 	assert.False(t, verifyPassword("wrong", hash))
 }
 
 func TestPasswordHash_SamePasswordDiffers(t *testing.T) {
 	t.Parallel()
-	hash1 := TestHashPassword(t, "samePassword")
-	hash2 := TestHashPassword(t, "samePassword")
+	hash1 := HashPasswordForTest(t, "samePassword")
+	hash2 := HashPasswordForTest(t, "samePassword")
 	assert.NotEqual(t, hash1, hash2)
 }

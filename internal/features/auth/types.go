@@ -1,14 +1,13 @@
 package auth
 
 import (
+	"database/sql"
 	"time"
-
-	"github.com/sidarth-23/dinchy/internal/features/session"
 )
 
-type Role = session.Role
+type Role string
 
-const RoleAdmin = session.RoleAdmin
+const RoleAdmin Role = "admin"
 
 type User struct {
 	ID           string
@@ -24,4 +23,30 @@ type CreateUserInput struct {
 	PasswordHash string
 	DisplayName  string
 	Now          time.Time
+}
+
+type Session struct {
+	ID string
+}
+
+type SessionWithUser struct {
+	SessionID     string
+	UserID        string
+	Email         string
+	DisplayName   string
+	Role          Role
+	IdleExpiresAt time.Time
+	ExpiresAt     time.Time
+	RevokedAt     sql.NullTime
+}
+
+type CreateSessionInput struct {
+	ID            string
+	UserID        string
+	TokenHash     string
+	IP            string
+	UserAgent     string
+	Now           time.Time
+	IdleExpiresAt time.Time
+	ExpiresAt     time.Time
 }

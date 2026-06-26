@@ -8,7 +8,6 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/features/bootstrap"
 	"github.com/sidarth-23/dinchy/internal/features/tasks"
 	"github.com/sidarth-23/dinchy/internal/store/postgres"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite"
@@ -18,7 +17,7 @@ import (
 type Store interface {
 	auth.Store
 	tasks.Store
-	bootstrap.SettingsReader
+	auth.SettingsReader
 	io.Closer
 	PingContext(ctx context.Context) error
 }
