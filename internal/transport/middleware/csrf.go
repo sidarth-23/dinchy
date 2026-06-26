@@ -1,5 +1,8 @@
 package middleware
 
+// IMPORTANT: This file keeps a few startup-only diagnostic literals.
+// They are internal failure details only and are never returned to users.
+
 import (
 	"crypto/rand"
 	"crypto/subtle"
@@ -54,7 +57,7 @@ func CSRF() func(http.Handler) http.Handler {
 func generateToken() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic("csrf: rand.Read failed: " + err.Error())
+		panic(err)
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }

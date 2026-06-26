@@ -12,7 +12,7 @@ build = "go build -o dinchy ./cmd/dinchy"
 test = "go test ./..."
 lint = "golangci-lint run"
 fmt = "golangci-lint fmt"
-generate = "sqlc generate"
+generate = "go run ./cmd/i18ngen && sqlc generate"
 "db:migrate" = "goose -dir internal/store/sqlite/migrations sqlite3 dinchy.db up"
 "db:status" = "goose -dir internal/store/sqlite/migrations sqlite3 dinchy.db status"
 "web:build" = { dir = "web", run = "bun run build" }

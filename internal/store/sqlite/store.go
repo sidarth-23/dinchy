@@ -1,3 +1,5 @@
+// IMPORTANT: This file keeps a few startup-only diagnostic literals.
+// They are internal failure details only and are never returned to users.
 // Package sqlite implements persistence using SQLite via sqlc-generated queries.
 // It satisfies the consumer-defined interfaces in internal/features/auth/,
 // internal/features/tasks/, and internal/features/bootstrap/.
@@ -35,7 +37,7 @@ type Store struct {
 func init() {
 	// Both SetDialect and SetBaseFS write goose global state; call once at init to avoid races.
 	if err := goose.SetDialect("sqlite3"); err != nil {
-		panic("sqlite: goose.SetDialect: " + err.Error())
+		panic(err)
 	}
 	goose.SetBaseFS(migrationsFS)
 }

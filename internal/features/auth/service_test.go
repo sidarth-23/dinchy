@@ -78,10 +78,10 @@ func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, apperrors.SetupCompleted())
+	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, apperrors.SetupCompleted("users", 1))
 
 	_, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "pass", "", "")
-	require.ErrorIs(t, err, apperrors.SetupCompleted())
+	require.ErrorIs(t, err, apperrors.SetupCompleted("users", 1))
 }
 
 func TestLogin_Success(t *testing.T) {

@@ -1,110 +1,85 @@
-// Package i18n provides a translation catalog for resolving error codes to
-// human-readable messages in a requested locale.
+// Package i18n provides a translation catalog for resolving typed error
+// messages to human-readable strings in a requested locale.
 package i18n
 
 import (
 	"bytes"
-	"fmt"
-	"reflect"
-	"sync"
+	"sort"
 	"text/template"
 
 	"golang.org/x/text/language"
 )
 
-// Catalog maps error codes to localized messages across multiple locales.
+// Catalog maps error messages to localized templates across supported locales.
 type Catalog struct {
-	mu       sync.RWMutex
-	locales  map[language.Tag]map[string]string
-	fallback language.Tag
-	matcher  language.Matcher
+	locales map[language.Tag]map[string]string
+	tags    []language.Tag
+	matcher language.Matcher
 }
 
-// New creates a Catalog with the given fallback locale.
-func New(fallback language.Tag) *Catalog {
+// New creates a Catalog from a locale map.
+func New(locales map[language.Tag]map[string]string) *Catalog {
+	cloned := cloneLocales(locales)
+	tags := sortedTags(cloned)
 	return &Catalog{
-		locales:  make(map[language.Tag]map[string]string),
-		fallback: fallback,
-		matcher:  language.NewMatcher([]language.Tag{fallback}),
+		locales: cloned,
+		tags:    tags,
+		matcher: language.NewMatcher(tags),
 	}
 }
 
-// Register adds a locale's Messages to the catalog and rebuilds the matcher.
-// Panics if any field in messages is empty (missing translation).
-func (c *Catalog) Register(tag language.Tag, messages Messages) {
-	if err := Validate(messages); err != nil {
-		panic(fmt.Sprintf("i18n: registering %s: %v", tag, err))
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.locales[tag] = messageMap(messages)
-
-	tags := make([]language.Tag, 0, len(c.locales))
-	for t := range c.locales {
-		tags = append(tags, t)
-	}
-	c.matcher = language.NewMatcher(tags)
-}
-
-// Match parses an Accept-Language header value and returns the best supported tag.
+// Match parses an Accept-Language header and returns the best supported tag.
 func (c *Catalog) Match(acceptLanguage string) language.Tag {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
+	if len(c.tags) == 0 {
+		return language.Und
+	}
 	if acceptLanguage == "" {
-		return c.fallback
+		return c.tags[0]
 	}
 	tags, _, err := language.ParseAcceptLanguage(acceptLanguage)
 	if err != nil || len(tags) == 0 {
-		return c.fallback
+		return c.tags[0]
 	}
 	tag, _, _ := c.matcher.Match(tags...)
 	return tag
 }
 
-// Resolve returns the localized message for code in the requested locale.
-// It falls back to the catalog fallback locale, then to the code itself.
-func (c *Catalog) Resolve(tag language.Tag, code string, meta map[string]any) string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if msg, ok := c.lookup(tag, code); ok {
-		return render(msg, meta)
+// Resolve returns the localized message for msg in the requested locale.
+// It performs an exact lookup only. Missing locales or codes return empty.
+func (c *Catalog) Resolve(tag language.Tag, msg Message) string {
+	if msg.Code() == "" {
+		return ""
 	}
-
-	if tag != c.fallback {
-		if msg, ok := c.lookup(c.fallback, code); ok {
-			return render(msg, meta)
-		}
+	if locale, ok := c.locales[tag]; ok {
+		return render(locale[msg.Code()], msg.Meta())
 	}
-
-	return code
+	return ""
 }
 
-func (c *Catalog) lookup(tag language.Tag, code string) (string, bool) {
-	msgs, ok := c.locales[tag]
-	if !ok {
-		return "", false
+func cloneLocales(locales map[language.Tag]map[string]string) map[language.Tag]map[string]string {
+	if len(locales) == 0 {
+		return map[language.Tag]map[string]string{}
 	}
-	msg, ok := msgs[code]
-	return msg, ok
-}
-
-func messageMap(messages Messages) map[string]string {
-	out := make(map[string]string)
-	v := reflect.ValueOf(messages)
-	t := v.Type()
-	for i := range t.NumField() {
-		field := t.Field(i)
-		tag := field.Tag.Get("msg")
-		if tag == "" {
-			continue
+	out := make(map[language.Tag]map[string]string, len(locales))
+	for tag, messages := range locales {
+		cloned := make(map[string]string, len(messages))
+		for code, text := range messages {
+			cloned[code] = text
 		}
-		out[tag] = v.Field(i).String()
+		out[tag] = cloned
 	}
 	return out
+}
+
+func sortedTags(locales map[language.Tag]map[string]string) []language.Tag {
+	tags := make([]language.Tag, 0, len(locales))
+	for tag := range locales {
+		tags = append(tags, tag)
+	}
+	sort.Slice(tags, func(i, j int) bool {
+		return tags[i].String() < tags[j].String()
+	})
+	return tags
 }
 
 func render(tpl string, meta map[string]any) string {
@@ -116,11 +91,11 @@ func render(tpl string, meta map[string]any) string {
 	}
 	t, err := template.New("message").Option("missingkey=zero").Parse(tpl)
 	if err != nil {
-		return tpl
+		return ""
 	}
 	var b bytes.Buffer
 	if err := t.Execute(&b, meta); err != nil {
-		return tpl
+		return ""
 	}
 	return b.String()
 }

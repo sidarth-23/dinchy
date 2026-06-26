@@ -24,12 +24,12 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"InvalidCredentials", apperrors.InvalidCredentials(), http.StatusUnauthorized, apperrors.CodeAuthInvalidCredentials},
-		{"SetupCompleted", apperrors.SetupCompleted(), http.StatusConflict, apperrors.CodeAuthSetupCompleted},
-		{"Unauthenticated", apperrors.Unauthenticated(), http.StatusUnauthorized, apperrors.CodeAuthUnauthenticated},
-		{"HTTPSRequired", apperrors.HTTPSRequired(), http.StatusForbidden, apperrors.CodeSecurityHTTPSRequired},
-		{"CSRFFailed", apperrors.CSRFFailed(), http.StatusBadRequest, apperrors.CodeSecurityCSRFFailed},
-		{"Internal", apperrors.Internal(assert.AnError), http.StatusInternalServerError, apperrors.CodeServerInternalError},
+		{"InvalidCredentials", apperrors.InvalidCredentials(), http.StatusUnauthorized, i18n.CodeAuthInvalidCredentials},
+		{"SetupCompleted", apperrors.SetupCompleted("users", 3), http.StatusConflict, i18n.CodeAuthSetupCompleted},
+		{"Unauthenticated", apperrors.Unauthenticated(), http.StatusUnauthorized, i18n.CodeAuthUnauthenticated},
+		{"HTTPSRequired", apperrors.HTTPSRequired(), http.StatusForbidden, i18n.CodeSecurityHTTPSRequired},
+		{"CSRFFailed", apperrors.CSRFFailed(), http.StatusBadRequest, i18n.CodeSecurityCSRFFailed},
+		{"Internal", apperrors.Internal(assert.AnError), http.StatusInternalServerError, i18n.CodeServerInternalError},
 	}
 
 	for _, tc := range cases {
@@ -45,49 +45,35 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 func TestAppError_IsMatchesByCode(t *testing.T) {
 	t.Parallel()
 
-	err := apperrors.SetupCompleted()
-	assert.True(t, stdErrors.Is(err, apperrors.SetupCompleted()))
+	err := apperrors.SetupCompleted("users", 1)
+	assert.True(t, stdErrors.Is(err, apperrors.SetupCompleted("users", 1)))
 	assert.False(t, stdErrors.Is(err, apperrors.InvalidCredentials()))
 }
 
 func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
 	t.Parallel()
 
-	base := apperrors.SetupCompleted(apperrors.WithMeta("resource", "users"))
+	base := apperrors.SetupCompleted("users", 2, apperrors.WithMeta("stage", "setup"))
 	err := apperrors.Annotate(base, apperrors.WithMeta("stage", "setup"))
 
 	var got *apperrors.AppError
 	require.ErrorAs(t, err, &got)
-	assert.Equal(t, apperrors.CodeAuthSetupCompleted, got.Code())
+	assert.Equal(t, i18n.CodeAuthSetupCompleted, got.Code())
 	assert.Equal(t, "users", got.Meta()["resource"])
+	assert.Equal(t, 2, got.Meta()["count"])
 	assert.Equal(t, "setup", got.Meta()["stage"])
-	assert.True(t, stdErrors.Is(err, apperrors.SetupCompleted()))
+	assert.True(t, stdErrors.Is(err, apperrors.SetupCompleted("users", 2)))
 }
 
 func TestResolve_LocalizesAndPreservesMeta(t *testing.T) {
 	t.Parallel()
 
-	catalog := i18n.New(language.English)
-	catalog.Register(language.English, i18n.Messages{
-		AuthInvalidCredentials:  "Invalid email or password.",
-		AuthSetupCompleted:      "Setup has already been completed.",
-		AuthUnauthenticated:     "Authentication required.",
-		SecurityHTTPSRequired:   "This endpoint requires a secure (HTTPS) connection.",
-		SecurityCSRFFailed:      "Missing or invalid CSRF token.",
-		RequestValidationFailed: "Some fields need attention.",
-		ConfigLoadFailed:        "Failed to load configuration.",
-		ConfigValidationFailed:  "Configuration is invalid.",
-		ServerInternalError:     "An unexpected error occurred.",
-	})
-
-	resp := apperrors.Resolve(language.English, catalog, apperrors.SetupCompleted(
-		apperrors.WithMeta("resource", "users"),
-		apperrors.WithMeta("count", 2),
-	))
+	catalog := i18n.New(i18n.CatalogData)
+	resp := apperrors.Resolve(language.English, catalog, apperrors.SetupCompleted("users", 2))
 
 	assert.Equal(t, http.StatusConflict, resp.GetStatus())
-	assert.Equal(t, "auth.setup_completed", resp.Payload.Code)
-	assert.Equal(t, "Setup has already been completed.", resp.Payload.Message)
+	assert.Equal(t, i18n.CodeAuthSetupCompleted, resp.Payload.Code)
+	assert.Equal(t, "Setup has already been completed for users (2 users).", resp.Payload.Message)
 	assert.Equal(t, map[string]any{"resource": "users", "count": 2}, resp.Payload.Meta)
 }
 
@@ -96,10 +82,10 @@ func TestResponseFor_ValidationDetails(t *testing.T) {
 
 	catalog := i18n.Default
 	detail := &huma.ErrorDetail{Message: "expected string", Location: "body.email", Value: "x"}
-	resp := apperrors.ResponseFor(language.English, catalog, http.StatusUnprocessableEntity, "validation failed", detail)
+	resp := apperrors.ResponseFor(language.English, catalog, http.StatusUnprocessableEntity, detail)
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.GetStatus())
-	assert.Equal(t, apperrors.CodeRequestValidationFailed, resp.Payload.Code)
+	assert.Equal(t, i18n.CodeRequestValidationFailed, resp.Payload.Code)
 
 	raw, err := json.Marshal(resp)
 	require.NoError(t, err)

@@ -12,42 +12,16 @@ import (
 func TestCatalogResolve_InterpolatesMetadata(t *testing.T) {
 	t.Parallel()
 
-	catalog := i18n.New(language.English)
-	catalog.Register(language.English, i18n.Messages{
-		AuthInvalidCredentials:  "Invalid email or password.",
-		AuthSetupCompleted:      "Setup has already been completed for {{.resource}} ({{.count}} users).",
-		AuthUnauthenticated:     "Authentication required.",
-		SecurityHTTPSRequired:   "This endpoint requires a secure (HTTPS) connection.",
-		SecurityCSRFFailed:      "Missing or invalid CSRF token.",
-		RequestValidationFailed: "Some fields need attention.",
-		ConfigLoadFailed:        "Failed to load configuration.",
-		ConfigValidationFailed:  "Configuration is invalid.",
-		ServerInternalError:     "An unexpected error occurred.",
-	})
-
-	got := catalog.Resolve(language.English, "auth.setup_completed", map[string]any{
-		"resource": "users",
-		"count":    3,
-	})
+	catalog := i18n.New(i18n.CatalogData)
+	got := catalog.Resolve(language.English, i18n.AuthSetupCompleted("users", 3))
 
 	assert.Equal(t, "Setup has already been completed for users (3 users).", got)
 }
 
-func TestCatalogResolve_FallsBackToCode(t *testing.T) {
+func TestCatalogResolve_IsExactOnly(t *testing.T) {
 	t.Parallel()
 
-	catalog := i18n.New(language.English)
-	catalog.Register(language.English, i18n.Messages{
-		AuthInvalidCredentials:  "Invalid email or password.",
-		AuthSetupCompleted:      "Setup has already been completed.",
-		AuthUnauthenticated:     "Authentication required.",
-		SecurityHTTPSRequired:   "This endpoint requires a secure (HTTPS) connection.",
-		SecurityCSRFFailed:      "Missing or invalid CSRF token.",
-		RequestValidationFailed: "Some fields need attention.",
-		ConfigLoadFailed:        "Failed to load configuration.",
-		ConfigValidationFailed:  "Configuration is invalid.",
-		ServerInternalError:     "An unexpected error occurred.",
-	})
-
-	assert.Equal(t, "missing.code", catalog.Resolve(language.English, "missing.code", nil))
+	catalog := i18n.New(i18n.CatalogData)
+	assert.Equal(t, "", catalog.Resolve(language.German, i18n.AuthInvalidCredentials()))
+	assert.Equal(t, "", catalog.Resolve(language.English, i18n.Message{}))
 }

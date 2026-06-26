@@ -1,3 +1,5 @@
+// IMPORTANT: This file keeps a few startup-only diagnostic literals.
+// They are internal failure details only and are never returned to users.
 // Package config loads application startup configuration from environment variables.
 package config
 

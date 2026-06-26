@@ -26,11 +26,11 @@ import (
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
 func New(addr string, dist fs.FS, authSvc *auth.Service, sr bootstrap.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
-	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
-		return apperrors.ResponseFor(language.English, i18n.Default, status, msg, errs...)
+	huma.NewError = func(status int, _ string, errs ...error) huma.StatusError {
+		return apperrors.ResponseFor(language.English, i18n.Default, status, errs...)
 	}
-	huma.NewErrorWithContext = func(ctx huma.Context, status int, msg string, errs ...error) huma.StatusError {
-		return apperrors.ResponseFor(support.LangFrom(ctx.Context()), i18n.Default, status, msg, errs...)
+	huma.NewErrorWithContext = func(ctx huma.Context, status int, _ string, errs ...error) huma.StatusError {
+		return apperrors.ResponseFor(support.LangFrom(ctx.Context()), i18n.Default, status, errs...)
 	}
 
 	r := chi.NewRouter()

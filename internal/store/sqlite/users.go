@@ -23,10 +23,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 			)
 		}
 		if count > 0 {
-			return apperrors.SetupCompleted(
-				apperrors.WithMeta("resource", "users"),
-				apperrors.WithMeta("count", count),
-			)
+			return apperrors.SetupCompleted("users", int(count))
 		}
 		now := tsFormat(in.Now)
 		if err := tx.q.InsertUser(ctx, sqlcgen.InsertUserParams{

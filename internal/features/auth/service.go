@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
 	"strings"
 	"time"
 
@@ -145,7 +144,7 @@ func verifyPassword(password, encoded string) bool {
 func generateSessionToken() (raw, tokenHash string, err error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
-		return "", "", fmt.Errorf("generate session token: %w", err)
+		return "", "", err
 	}
 	raw = base64.RawURLEncoding.EncodeToString(buf)
 	return raw, hashToken(raw), nil

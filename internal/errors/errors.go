@@ -12,18 +12,18 @@ import (
 )
 
 // AppError is the source-layer error type returned by business, store, and
-// infrastructure packages. It carries a stable code plus metadata, while the
-// transport layer turns it into a localized response.
+// infrastructure packages. It carries a stable typed message plus metadata,
+// while the transport layer turns it into a localized response.
 type AppError struct {
 	status int
-	code   string
+	msg    i18n.Message
 	meta   map[string]any
 	cause  error
 }
 
 // Error implements the error interface.
 func (e *AppError) Error() string {
-	return e.code
+	return e.Code()
 }
 
 // Unwrap returns the underlying cause, if one was attached.
@@ -37,7 +37,7 @@ func (e *AppError) Is(target error) bool {
 	if !stdErrors.As(target, &appErr) {
 		return false
 	}
-	return e.code == appErr.code
+	return e.Code() == appErr.Code()
 }
 
 // Status returns the HTTP status associated with the error.
@@ -47,12 +47,17 @@ func (e *AppError) Status() int {
 
 // Code returns the stable machine-readable error code.
 func (e *AppError) Code() string {
-	return e.code
+	return e.msg.Code()
 }
 
 // Meta returns a defensive copy of the metadata associated with the error.
 func (e *AppError) Meta() map[string]any {
-	return cloneMeta(e.meta)
+	return mergeMeta(e.msg.Meta(), e.meta)
+}
+
+// Message returns the localized message descriptor associated with the error.
+func (e *AppError) Message() i18n.Message {
+	return e.msg
 }
 
 // Option configures an AppError.
@@ -91,8 +96,8 @@ func WithCause(err error) Option {
 }
 
 // New creates a new source-layer app error.
-func New(status int, code string, opts ...Option) *AppError {
-	e := &AppError{status: status, code: code}
+func New(status int, msg i18n.Message, opts ...Option) *AppError {
+	e := &AppError{status: status, msg: msg}
 	for _, opt := range opts {
 		opt(e)
 	}
@@ -101,50 +106,50 @@ func New(status int, code string, opts ...Option) *AppError {
 
 // InvalidCredentials returns the canonical auth failure for a bad login.
 func InvalidCredentials() *AppError {
-	return New(http.StatusUnauthorized, CodeAuthInvalidCredentials)
+	return New(http.StatusUnauthorized, i18n.AuthInvalidCredentials())
 }
 
 // SetupCompleted returns the canonical auth failure when first-user setup has already happened.
-func SetupCompleted(opts ...Option) *AppError {
-	return New(http.StatusConflict, CodeAuthSetupCompleted, opts...)
+func SetupCompleted(resource string, count int, opts ...Option) *AppError {
+	return New(http.StatusConflict, i18n.AuthSetupCompleted(resource, count), opts...)
 }
 
 // Unauthenticated returns the canonical auth failure for unauthenticated requests.
 func Unauthenticated() *AppError {
-	return New(http.StatusUnauthorized, CodeAuthUnauthenticated)
+	return New(http.StatusUnauthorized, i18n.AuthUnauthenticated())
 }
 
 // HTTPSRequired returns the canonical security failure for insecure auth requests.
 func HTTPSRequired() *AppError {
-	return New(http.StatusForbidden, CodeSecurityHTTPSRequired)
+	return New(http.StatusForbidden, i18n.SecurityHTTPSRequired())
 }
 
 // CSRFFailed returns the canonical security failure for missing or invalid CSRF tokens.
 func CSRFFailed() *AppError {
-	return New(http.StatusBadRequest, CodeSecurityCSRFFailed)
+	return New(http.StatusBadRequest, i18n.SecurityCSRFFailed())
 }
 
 // ValidationFailed returns the canonical validation error.
 func ValidationFailed(opts ...Option) *AppError {
-	return New(http.StatusUnprocessableEntity, CodeRequestValidationFailed, opts...)
+	return New(http.StatusUnprocessableEntity, i18n.RequestValidationFailed(), opts...)
 }
 
 // ConfigLoadFailed returns a startup/configuration error.
 func ConfigLoadFailed(cause error, opts ...Option) *AppError {
 	opts = append([]Option{WithCause(cause)}, opts...)
-	return New(http.StatusInternalServerError, CodeConfigLoadFailed, opts...)
+	return New(http.StatusInternalServerError, i18n.ConfigLoadFailed(), opts...)
 }
 
 // ConfigValidationFailed returns a startup/configuration validation error.
 func ConfigValidationFailed(cause error, opts ...Option) *AppError {
 	opts = append([]Option{WithCause(cause)}, opts...)
-	return New(http.StatusInternalServerError, CodeConfigValidationFailed, opts...)
+	return New(http.StatusInternalServerError, i18n.ConfigValidationFailed(), opts...)
 }
 
 // Internal returns the canonical catch-all server error.
 func Internal(cause error, opts ...Option) *AppError {
 	opts = append([]Option{WithCause(cause)}, opts...)
-	return New(http.StatusInternalServerError, CodeServerInternalError, opts...)
+	return New(http.StatusInternalServerError, i18n.ServerInternalError(), opts...)
 }
 
 // Annotate preserves an existing structured error and adds more metadata.
@@ -153,10 +158,11 @@ func Annotate(err error, opts ...Option) error {
 	if err == nil {
 		return nil
 	}
-	if appErr, ok := stdErrors.AsType[*AppError](err); ok {
+	var appErr *AppError
+	if stdErrors.As(err, &appErr) {
 		merged := []Option{WithCause(appErr.cause), WithMetaMap(appErr.meta)}
 		merged = append(merged, opts...)
-		return New(appErr.status, appErr.code, merged...)
+		return New(appErr.status, appErr.msg, merged...)
 	}
 	return Internal(err, opts...)
 }
@@ -196,7 +202,7 @@ func (e *ErrorResponse) MarshalJSON() ([]byte, error) {
 // ResponseFor converts any error into a localized transport error response.
 // If the error already is an AppError, the code and metadata are preserved.
 // Otherwise a generic internal error is returned.
-func ResponseFor(tag language.Tag, catalog *i18n.Catalog, status int, msg string, errs ...error) *ErrorResponse {
+func ResponseFor(tag language.Tag, catalog *i18n.Catalog, status int, errs ...error) *ErrorResponse {
 	if appErr := findAppError(errs...); appErr != nil {
 		return localizedResponse(tag, catalog, appErr)
 	}
@@ -205,20 +211,11 @@ func ResponseFor(tag language.Tag, catalog *i18n.Catalog, status int, msg string
 		return validationResponse(tag, catalog, errs...)
 	}
 
-	if appErr := findAppError(stdErrors.Join(errs...)); appErr != nil {
-		return localizedResponse(tag, catalog, appErr)
-	}
-
-	code := codeFor(status, msg)
-	if code == "" {
-		code = CodeServerInternalError
-		status = http.StatusInternalServerError
-	}
 	return &ErrorResponse{
 		status: status,
 		Payload: ResponsePayload{
-			Code:    code,
-			Message: catalog.Resolve(tag, code, nil),
+			Code:    i18n.CodeServerInternalError,
+			Message: catalog.Resolve(tag, i18n.ServerInternalError()),
 		},
 	}
 }
@@ -228,8 +225,8 @@ func localizedResponse(tag language.Tag, catalog *i18n.Catalog, err *AppError) *
 	return &ErrorResponse{
 		status: err.status,
 		Payload: ResponsePayload{
-			Code:    err.code,
-			Message: catalog.Resolve(tag, err.code, meta),
+			Code:    err.Code(),
+			Message: catalog.Resolve(tag, err.Message()),
 			Meta:    meta,
 		},
 	}
@@ -243,8 +240,8 @@ func validationResponse(tag language.Tag, catalog *i18n.Catalog, errs ...error) 
 	return &ErrorResponse{
 		status: http.StatusUnprocessableEntity,
 		Payload: ResponsePayload{
-			Code:    CodeRequestValidationFailed,
-			Message: catalog.Resolve(tag, CodeRequestValidationFailed, meta),
+			Code:    i18n.CodeRequestValidationFailed,
+			Message: catalog.Resolve(tag, i18n.RequestValidationFailed()),
 			Meta:    meta,
 		},
 	}
@@ -293,40 +290,15 @@ func findAppError(errs ...error) *AppError {
 	return nil
 }
 
-func codeFor(status int, msg string) string {
-	switch status {
-	case http.StatusUnauthorized:
-		switch msg {
-		case "authentication required":
-			return CodeAuthUnauthenticated
-		}
-	case http.StatusForbidden:
-		switch msg {
-		case "this endpoint requires a secure (HTTPS) connection":
-			return CodeSecurityHTTPSRequired
-		}
-	case http.StatusBadRequest:
-		switch msg {
-		case "missing or invalid CSRF token":
-			return CodeSecurityCSRFFailed
-		}
-	case http.StatusUnprocessableEntity:
-		return CodeRequestValidationFailed
-	case http.StatusConflict:
-		switch msg {
-		case "setup has already been completed":
-			return CodeAuthSetupCompleted
-		}
-	}
-	return CodeServerInternalError
-}
-
-func cloneMeta(meta map[string]any) map[string]any {
-	if len(meta) == 0 {
+func mergeMeta(base, extra map[string]any) map[string]any {
+	if len(base) == 0 && len(extra) == 0 {
 		return nil
 	}
-	out := make(map[string]any, len(meta))
-	for k, v := range meta {
+	out := make(map[string]any, len(base)+len(extra))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range extra {
 		out[k] = v
 	}
 	return out
@@ -335,8 +307,8 @@ func cloneMeta(meta map[string]any) map[string]any {
 // Render resolves a localized message for an application error.
 func Render(tag language.Tag, catalog *i18n.Catalog, err *AppError) ResponsePayload {
 	return ResponsePayload{
-		Code:    err.code,
-		Message: catalog.Resolve(tag, err.code, err.Meta()),
+		Code:    err.Code(),
+		Message: catalog.Resolve(tag, err.Message()),
 		Meta:    err.Meta(),
 	}
 }

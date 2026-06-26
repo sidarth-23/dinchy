@@ -37,7 +37,7 @@ func TestCreateFirstUser_SetupAlreadyCompleted(t *testing.T) {
 
 	_, err = createTestUser(ctx, t, s)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, apperrors.SetupCompleted()))
+	assert.True(t, errors.Is(err, apperrors.SetupCompleted("users", 1)))
 }
 
 func TestCreateFirstUser_Concurrent(t *testing.T) {
