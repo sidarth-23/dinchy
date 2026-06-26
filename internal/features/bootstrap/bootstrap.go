@@ -57,7 +57,7 @@ func Register(h huma.API, sr SettingsReader, requireHTTPS bool) {
 
 func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.New(http.StatusForbidden, i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {

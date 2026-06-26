@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"net/http"
 	"strings"
 	"time"
 
@@ -65,7 +64,7 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 		)
 	}
 	if u == nil || !verifyPassword(password, u.PasswordHash) {
-		return "", apperrors.New(http.StatusUnauthorized, i18n.Msg(i18n.CodeAuthInvalidCredentials))
+		return "", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 	}
 	return s.newSession(ctx, u.ID, ip, ua)
 }

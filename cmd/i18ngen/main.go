@@ -124,18 +124,20 @@ func render(mf manifest) ([]byte, error) {
 	b.WriteString("import (\n")
 	b.WriteString("\t\"golang.org/x/text/language\"\n")
 	b.WriteString(")\n\n")
-	b.WriteString("var CatalogData = map[language.Tag]map[string]string{\n")
+	b.WriteString("type Code string\n\n")
+	b.WriteString("const (\n")
+	for _, msg := range mf.Messages {
+		fmt.Fprintf(&b, "\tCode%s Code = %q\n", msg.Name, msg.Code)
+	}
+	b.WriteString(")\n\n")
+	b.WriteString("var CatalogData = map[language.Tag]map[Code]string{\n")
 	b.WriteString("\tlanguage.English: {\n")
 	for _, msg := range mf.Messages {
 		translation := msg.Translations["en"]
-		fmt.Fprintf(&b, "\t\t%q: %q,\n", msg.Code, translation)
+		fmt.Fprintf(&b, "\t\tCode%s: %q,\n", msg.Name, translation)
 	}
 	b.WriteString("\t},\n")
 	b.WriteString("}\n\n")
-
-	for _, msg := range mf.Messages {
-		fmt.Fprintf(&b, "const Code%s = %q\n\n", msg.Name, msg.Code)
-	}
 
 	formatted, err := format.Source([]byte(b.String()))
 	if err != nil {

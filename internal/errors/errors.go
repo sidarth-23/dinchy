@@ -23,7 +23,7 @@ type AppError struct {
 
 // Error implements the error interface.
 func (e *AppError) Error() string {
-	return e.Code()
+	return string(e.Code())
 }
 
 // Unwrap returns the underlying cause, if one was attached.
@@ -46,7 +46,7 @@ func (e *AppError) Status() int {
 }
 
 // Code returns the stable machine-readable error code.
-func (e *AppError) Code() string {
+func (e *AppError) Code() i18n.Code {
 	return e.msg.Code()
 }
 
@@ -104,6 +104,36 @@ func New(status int, msg i18n.Message, opts ...Option) *AppError {
 	return e
 }
 
+// BadRequest creates a 400 AppError.
+func BadRequest(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusBadRequest, msg, opts...)
+}
+
+// Unauthorized creates a 401 AppError.
+func Unauthorized(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusUnauthorized, msg, opts...)
+}
+
+// Forbidden creates a 403 AppError.
+func Forbidden(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusForbidden, msg, opts...)
+}
+
+// Conflict creates a 409 AppError.
+func Conflict(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusConflict, msg, opts...)
+}
+
+// UnprocessableEntity creates a 422 AppError.
+func UnprocessableEntity(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusUnprocessableEntity, msg, opts...)
+}
+
+// Internal creates a 500 AppError.
+func Internal(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusInternalServerError, msg, opts...)
+}
+
 // Annotate preserves an existing structured error and adds more metadata.
 // If err is not already structured, it becomes a catch-all internal error.
 func Annotate(err error, opts ...Option) error {
@@ -117,7 +147,7 @@ func Annotate(err error, opts ...Option) error {
 		return New(appErr.status, appErr.msg, merged...)
 	}
 	opts = append([]Option{WithCause(err)}, opts...)
-	return New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), opts...)
+	return Internal(i18n.Msg(i18n.CodeServerInternalError), opts...)
 }
 
 // ResponsePayload is the public error payload serialized by transport.
@@ -167,7 +197,7 @@ func ResponseFor(tag language.Tag, catalog *i18n.Catalog, status int, errs ...er
 	return &ErrorResponse{
 		status: status,
 		Payload: ResponsePayload{
-			Code:    i18n.CodeServerInternalError,
+			Code:    string(i18n.CodeServerInternalError),
 			Message: catalog.Resolve(tag, i18n.Msg(i18n.CodeServerInternalError)),
 		},
 	}
@@ -178,7 +208,7 @@ func localizedResponse(tag language.Tag, catalog *i18n.Catalog, err *AppError) *
 	return &ErrorResponse{
 		status: err.status,
 		Payload: ResponsePayload{
-			Code:    err.Code(),
+			Code:    string(err.Code()),
 			Message: catalog.Resolve(tag, err.Message()),
 			Meta:    meta,
 		},
@@ -193,7 +223,7 @@ func validationResponse(tag language.Tag, catalog *i18n.Catalog, errs ...error) 
 	return &ErrorResponse{
 		status: http.StatusUnprocessableEntity,
 		Payload: ResponsePayload{
-			Code:    i18n.CodeRequestValidationFailed,
+			Code:    string(i18n.CodeRequestValidationFailed),
 			Message: catalog.Resolve(tag, i18n.Msg(i18n.CodeRequestValidationFailed)),
 			Meta:    meta,
 		},
@@ -260,7 +290,7 @@ func mergeMeta(base, extra map[string]any) map[string]any {
 // Render resolves a localized message for an application error.
 func Render(tag language.Tag, catalog *i18n.Catalog, err *AppError) ResponsePayload {
 	return ResponsePayload{
-		Code:    err.Code(),
+		Code:    string(err.Code()),
 		Message: catalog.Resolve(tag, err.Message()),
 		Meta:    err.Meta(),
 	}
@@ -276,5 +306,5 @@ func Resolve(tag language.Tag, catalog *i18n.Catalog, err error) *ErrorResponse 
 	if stdErrors.As(err, &appErr) {
 		return localizedResponse(tag, catalog, appErr)
 	}
-	return localizedResponse(tag, catalog, New(http.StatusInternalServerError, i18n.Msg(i18n.CodeServerInternalError), WithCause(err)))
+	return localizedResponse(tag, catalog, Internal(i18n.Msg(i18n.CodeServerInternalError), WithCause(err)))
 }

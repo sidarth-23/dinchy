@@ -113,7 +113,7 @@ func Register(h huma.API, svc *Service, sr bootstrap.SettingsReader, requireHTTP
 
 func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.New(http.StatusForbidden, i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
 	token, err := a.auth.Login(
 		ctx,
@@ -158,7 +158,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 
 func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.New(http.StatusForbidden, i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
 	if in.DinchySession != "" {
 		if err := a.auth.Logout(ctx, in.DinchySession); err != nil {
@@ -175,7 +175,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 
 func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.New(http.StatusForbidden, i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
@@ -200,7 +200,7 @@ func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 
 func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.New(http.StatusForbidden, i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
 	token, err := a.auth.SetupFirstUser(
 		ctx,

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
-	"net/http"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -48,7 +47,7 @@ func defaultConfig() Config {
 // or any required field fails validation.
 func Load() (Config, error) {
 	if err := loadEnvFile(); err != nil {
-		return Config{}, apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
 	}
 
 	cfg := defaultConfig()
@@ -57,7 +56,7 @@ func Load() (Config, error) {
 	}
 
 	if err := validator.New().Struct(cfg); err != nil {
-		return Config{}, apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(err))
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(err))
 	}
 
 	return cfg, nil
@@ -85,7 +84,7 @@ func loadFromEnv(cfg *Config) error {
 		case reflect.Bool:
 			v.Field(i).SetBool(parseBool(raw))
 		default:
-			return apperrors.New(http.StatusInternalServerError, i18n.Msg(i18n.CodeConfigLoadFailed),
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),
 				apperrors.WithMeta("field", field.Name),
 				apperrors.WithMeta("kind", field.Type.Kind().String()),

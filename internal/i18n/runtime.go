@@ -12,12 +12,12 @@ import (
 
 // Message carries a machine-readable code and optional interpolation metadata.
 type Message struct {
-	code string
+	code Code
 	meta map[string]any
 }
 
 // Code returns the stable identifier for the message.
-func (m Message) Code() string {
+func (m Message) Code() Code {
 	return m.code
 }
 
@@ -28,7 +28,7 @@ func (m Message) Meta() map[string]any {
 
 // String returns the machine-readable code.
 func (m Message) String() string {
-	return m.code
+	return string(m.code)
 }
 
 // Param represents one interpolation parameter for a message.
@@ -43,7 +43,7 @@ func P(key string, value any) Param {
 }
 
 // Msg builds a message descriptor from a code and optional params.
-func Msg(code string, params ...Param) Message {
+func Msg(code Code, params ...Param) Message {
 	if len(params) == 0 {
 		return Message{code: code}
 	}
@@ -56,13 +56,13 @@ func Msg(code string, params ...Param) Message {
 
 // Catalog resolves message codes to localized templates.
 type Catalog struct {
-	locales map[language.Tag]map[string]string
+	locales map[language.Tag]map[Code]string
 	tags    []language.Tag
 	matcher language.Matcher
 }
 
 // New creates a catalog from locale data.
-func New(locales map[language.Tag]map[string]string) *Catalog {
+func New(locales map[language.Tag]map[Code]string) *Catalog {
 	cloned := cloneLocales(locales)
 	tags := sortedTags(cloned)
 	return &Catalog{locales: cloned, tags: tags, matcher: language.NewMatcher(tags)}
@@ -95,13 +95,13 @@ func (c *Catalog) Resolve(tag language.Tag, msg Message) string {
 	return ""
 }
 
-func cloneLocales(locales map[language.Tag]map[string]string) map[language.Tag]map[string]string {
+func cloneLocales(locales map[language.Tag]map[Code]string) map[language.Tag]map[Code]string {
 	if len(locales) == 0 {
-		return map[language.Tag]map[string]string{}
+		return map[language.Tag]map[Code]string{}
 	}
-	out := make(map[language.Tag]map[string]string, len(locales))
+	out := make(map[language.Tag]map[Code]string, len(locales))
 	for tag, messages := range locales {
-		cloned := make(map[string]string, len(messages))
+		cloned := make(map[Code]string, len(messages))
 		for code, text := range messages {
 			cloned[code] = text
 		}
@@ -121,7 +121,7 @@ func cloneMeta(meta map[string]any) map[string]any {
 	return out
 }
 
-func sortedTags(locales map[language.Tag]map[string]string) []language.Tag {
+func sortedTags(locales map[language.Tag]map[Code]string) []language.Tag {
 	tags := make([]language.Tag, 0, len(locales))
 	for tag := range locales {
 		tags = append(tags, tag)

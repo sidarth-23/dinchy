@@ -6,34 +6,30 @@ import (
 	"golang.org/x/text/language"
 )
 
-var CatalogData = map[language.Tag]map[string]string{
+type Code string
+
+const (
+	CodeAuthInvalidCredentials  Code = "auth.invalid_credentials"
+	CodeAuthSetupCompleted      Code = "auth.setup_completed"
+	CodeAuthUnauthenticated     Code = "auth.unauthenticated"
+	CodeConfigLoadFailed        Code = "config.load_failed"
+	CodeConfigValidationFailed  Code = "config.validation_failed"
+	CodeRequestValidationFailed Code = "request.validation_failed"
+	CodeSecurityCSRFFailed      Code = "security.csrf_failed"
+	CodeSecurityHTTPSRequired   Code = "security.https_required"
+	CodeServerInternalError     Code = "server.internal_error"
+)
+
+var CatalogData = map[language.Tag]map[Code]string{
 	language.English: {
-		"auth.invalid_credentials":  "Invalid email or password.",
-		"auth.setup_completed":      "Setup has already been completed for {{.resource}} ({{.count}} users).",
-		"auth.unauthenticated":      "Authentication required.",
-		"config.load_failed":        "Failed to load configuration.",
-		"config.validation_failed":  "Configuration is invalid.",
-		"request.validation_failed": "Some fields need attention.",
-		"security.csrf_failed":      "Missing or invalid CSRF token.",
-		"security.https_required":   "This endpoint requires a secure (HTTPS) connection.",
-		"server.internal_error":     "An unexpected error occurred.",
+		CodeAuthInvalidCredentials:  "Invalid email or password.",
+		CodeAuthSetupCompleted:      "Setup has already been completed for {{.resource}} ({{.count}} users).",
+		CodeAuthUnauthenticated:     "Authentication required.",
+		CodeConfigLoadFailed:        "Failed to load configuration.",
+		CodeConfigValidationFailed:  "Configuration is invalid.",
+		CodeRequestValidationFailed: "Some fields need attention.",
+		CodeSecurityCSRFFailed:      "Missing or invalid CSRF token.",
+		CodeSecurityHTTPSRequired:   "This endpoint requires a secure (HTTPS) connection.",
+		CodeServerInternalError:     "An unexpected error occurred.",
 	},
 }
-
-const CodeAuthInvalidCredentials = "auth.invalid_credentials"
-
-const CodeAuthSetupCompleted = "auth.setup_completed"
-
-const CodeAuthUnauthenticated = "auth.unauthenticated"
-
-const CodeConfigLoadFailed = "config.load_failed"
-
-const CodeConfigValidationFailed = "config.validation_failed"
-
-const CodeRequestValidationFailed = "request.validation_failed"
-
-const CodeSecurityCSRFFailed = "security.csrf_failed"
-
-const CodeSecurityHTTPSRequired = "security.https_required"
-
-const CodeServerInternalError = "server.internal_error"
