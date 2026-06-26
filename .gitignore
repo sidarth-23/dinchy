@@ -10,7 +10,6 @@
 *.out
 /vendor/
 /dist/
-go.sum
 
 # Frontend
 web/node_modules/

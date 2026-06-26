@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"time"
 
@@ -43,7 +44,10 @@ func (s *Service) SetupFirstUser(ctx context.Context, email, displayName, passwo
 		Now:          now,
 	})
 	if err != nil {
-		return "", err
+		return "", apperrors.Annotate(err,
+			apperrors.WithMeta("flow", "setup_first_user"),
+			apperrors.WithMeta("stage", "create_first_user"),
+		)
 	}
 	return s.newSession(ctx, u.ID, ip, ua)
 }
@@ -54,7 +58,10 @@ func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (st
 	email = strings.ToLower(strings.TrimSpace(email))
 	u, err := s.store.FindUserByEmail(ctx, email)
 	if err != nil {
-		return "", err
+		return "", apperrors.Annotate(err,
+			apperrors.WithMeta("flow", "login"),
+			apperrors.WithMeta("stage", "find_user"),
+		)
 	}
 	if u == nil || !verifyPassword(password, u.PasswordHash) {
 		return "", apperrors.InvalidCredentials()
@@ -70,7 +77,10 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*session.Sessio
 	}
 	sess, err := s.store.GetSessionByTokenHash(ctx, hashToken(rawToken))
 	if err != nil || sess == nil {
-		return nil, err
+		return nil, apperrors.Annotate(err,
+			apperrors.WithMeta("flow", "session"),
+			apperrors.WithMeta("stage", "get_session"),
+		)
 	}
 	now := s.clock.Now()
 	if sess.RevokedAt.Valid || now.After(sess.IdleExpiresAt) || now.After(sess.ExpiresAt) {
@@ -84,13 +94,23 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return nil
 	}
-	return s.store.RevokeSessionByTokenHash(ctx, hashToken(rawToken))
+	err := s.store.RevokeSessionByTokenHash(ctx, hashToken(rawToken))
+	if err != nil {
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("flow", "logout"),
+			apperrors.WithMeta("stage", "revoke_session"),
+		)
+	}
+	return nil
 }
 
 func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string, error) {
 	token, tokenHash, err := generateSessionToken()
 	if err != nil {
-		return "", err
+		return "", apperrors.Annotate(err,
+			apperrors.WithMeta("flow", "new_session"),
+			apperrors.WithMeta("stage", "generate_token"),
+		)
 	}
 	now := s.clock.Now()
 	_, err = s.store.CreateSession(ctx, session.CreateSessionInput{
@@ -104,7 +124,10 @@ func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string
 		ExpiresAt:     now.Add(7 * 24 * time.Hour),
 	})
 	if err != nil {
-		return "", err
+		return "", apperrors.Annotate(err,
+			apperrors.WithMeta("flow", "new_session"),
+			apperrors.WithMeta("stage", "create_session"),
+		)
 	}
 	return token, nil
 }
@@ -122,7 +145,7 @@ func verifyPassword(password, encoded string) bool {
 func generateSessionToken() (raw, tokenHash string, err error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("generate session token: %w", err)
 	}
 	raw = base64.RawURLEncoding.EncodeToString(buf)
 	return raw, hashToken(raw), nil

@@ -18,7 +18,10 @@ func (s *Store) EnsureTask(ctx context.Context, name string, intervalSeconds int
 		NextRunAt:               sql.NullString{String: tsFormat(now), Valid: true},
 		UpdatedAt:               tsFormat(now),
 	}); err != nil {
-		return apperrors.Internal(err, apperrors.WithMeta("operation", "EnsureTask"), apperrors.WithMeta("task", name))
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "EnsureTask"),
+			apperrors.WithMeta("task", name),
+		)
 	}
 	return nil
 }
@@ -37,11 +40,18 @@ func (s *Store) ClaimTask(ctx context.Context, taskName, owner string, leaseUnti
 		NextRunAt:        sql.NullString{String: nowStr, Valid: true},
 	})
 	if err != nil {
-		return false, apperrors.Internal(err, apperrors.WithMeta("operation", "ClaimTask"), apperrors.WithMeta("task", taskName))
+		return false, apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "ClaimTask"),
+			apperrors.WithMeta("task", taskName),
+		)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return false, apperrors.Internal(err, apperrors.WithMeta("operation", "ClaimTask"), apperrors.WithMeta("task", taskName), apperrors.WithMeta("stage", "rows_affected"))
+		return false, apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "ClaimTask"),
+			apperrors.WithMeta("task", taskName),
+			apperrors.WithMeta("stage", "rows_affected"),
+		)
 	}
 	return n > 0, nil
 }
@@ -62,7 +72,10 @@ func (s *Store) FinishTask(ctx context.Context, taskName string, now time.Time, 
 		UpdatedAt:        nowStr,
 		TaskName:         taskName,
 	}); err != nil {
-		return apperrors.Internal(err, apperrors.WithMeta("operation", "FinishTask"), apperrors.WithMeta("task", taskName))
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "FinishTask"),
+			apperrors.WithMeta("task", taskName),
+		)
 	}
 	return nil
 }

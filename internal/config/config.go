@@ -81,7 +81,11 @@ func loadFromEnv(cfg *Config) error {
 		case reflect.Bool:
 			v.Field(i).SetBool(parseBool(raw))
 		default:
-			return apperrors.ConfigLoadFailed(fmt.Errorf("unsupported field type %s for %s", field.Type.Kind(), field.Name))
+			return apperrors.ConfigLoadFailed(
+				fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name),
+				apperrors.WithMeta("field", field.Name),
+				apperrors.WithMeta("kind", field.Type.Kind().String()),
+			)
 		}
 	}
 	return nil

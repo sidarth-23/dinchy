@@ -6,10 +6,10 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"log"
 	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/config"
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/tasks"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
@@ -31,7 +31,7 @@ type App struct {
 
 // NewApp creates an App with the given configuration. Heavy initialization is deferred to Start.
 func NewApp(cfg config.Config) (*App, error) {
-	return &App{cfg: cfg, errCh: make(chan error, 2)}, nil
+	return &App{cfg: cfg, errCh: make(chan error, 3)}, nil
 }
 
 // Start initializes all dependencies, starts the task runtime, and begins listening
@@ -41,7 +41,9 @@ func (a *App) Start() error {
 
 	s, err := sqlite.Open(ctx, a.cfg.DBPath)
 	if err != nil {
-		return err
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("stage", "open_store"),
+		)
 	}
 	a.closer = s
 
@@ -50,15 +52,19 @@ func (a *App) Start() error {
 
 	dist, err := frontendFS(a.cfg.DevMode)
 	if err != nil {
-		return err
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("stage", "load_frontend_assets"),
+		)
 	}
 
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
-	a.tasks = tasks.NewRuntime(s, clk)
+	a.tasks = tasks.NewRuntime(s, clk, a.errCh)
 	if err := a.tasks.Start(ctx); err != nil {
-		return err
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("stage", "start_task_runtime"),
+		)
 	}
 
 	go func() { a.errCh <- a.public.ListenAndServe() }()
@@ -89,28 +95,33 @@ func (a *App) Shutdown(ctx context.Context) error {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
-	if shutdownErr != nil {
-		log.Printf("app shutdown encountered errors: %v", shutdownErr)
-	}
 	return shutdownErr
 }
 
 // Wait blocks until both servers exit and returns the first fatal error encountered.
 func (a *App) Wait() error {
-	var firstErr error
-	for range 2 {
-		if err := <-a.errCh; err != nil && err != http.ErrServerClosed {
-			if firstErr == nil {
-				firstErr = err
-			}
+	closed := 0
+	for {
+		err := <-a.errCh
+		if err != nil && err != http.ErrServerClosed {
+			return apperrors.Annotate(err)
+		}
+		closed++
+		if closed >= 2 {
+			return nil
 		}
 	}
-	return firstErr
 }
 
 func frontendFS(devMode bool) (fs.FS, error) {
 	if devMode {
 		return nil, nil
 	}
-	return frontend.DistFS()
+	dist, err := frontend.DistFS()
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithMeta("stage", "frontend_dist_fs"),
+		)
+	}
+	return dist, nil
 }

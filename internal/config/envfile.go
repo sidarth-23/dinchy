@@ -9,6 +9,13 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 )
 
+func loadEnvPath(p string) error {
+	if err := godotenv.Load(p); err != nil {
+		return apperrors.ConfigLoadFailed(err, apperrors.WithMeta("path", p))
+	}
+	return nil
+}
+
 // loadEnvFile populates the process environment from a .env file.
 // Resolution order:
 //  1. DINCHY_ENV_FILE (explicit path — fatal if set but missing)
@@ -20,34 +27,33 @@ import (
 // so explicit Environment= entries in systemd units take precedence over the file.
 func loadEnvFile() error {
 	if p := os.Getenv("DINCHY_ENV_FILE"); p != "" {
-		if err := godotenv.Load(p); err != nil {
-			return apperrors.ConfigLoadFailed(err, apperrors.WithMeta("path", p))
-		}
-		return nil
+		return loadEnvPath(p)
 	}
 
-	if p := xdgEnvPath(); p != "" {
+	if p, err := xdgEnvPath(); err != nil {
+		return apperrors.Annotate(err)
+	} else if p != "" {
 		if _, err := os.Stat(p); err == nil {
-			return godotenv.Load(p)
+			return loadEnvPath(p)
 		}
 	}
 
 	const systemPath = "/etc/dinchy/dinchy.env"
 	if _, err := os.Stat(systemPath); err == nil {
-		return godotenv.Load(systemPath)
+		return loadEnvPath(systemPath)
 	}
 
 	return nil
 }
 
-func xdgEnvPath() string {
+func xdgEnvPath() (string, error) {
 	xdg := os.Getenv("XDG_CONFIG_HOME")
 	if xdg == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return ""
+			return "", apperrors.ConfigLoadFailed(err, apperrors.WithMeta("stage", "resolve_xdg_config_home"))
 		}
 		xdg = filepath.Join(home, ".config")
 	}
-	return filepath.Join(xdg, "dinchy", "dinchy.env")
+	return filepath.Join(xdg, "dinchy", "dinchy.env"), nil
 }

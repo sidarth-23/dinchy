@@ -50,6 +50,20 @@ func TestAppError_IsMatchesByCode(t *testing.T) {
 	assert.False(t, stdErrors.Is(err, apperrors.InvalidCredentials()))
 }
 
+func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
+	t.Parallel()
+
+	base := apperrors.SetupCompleted(apperrors.WithMeta("resource", "users"))
+	err := apperrors.Annotate(base, apperrors.WithMeta("stage", "setup"))
+
+	var got *apperrors.AppError
+	require.ErrorAs(t, err, &got)
+	assert.Equal(t, apperrors.CodeAuthSetupCompleted, got.Code())
+	assert.Equal(t, "users", got.Meta()["resource"])
+	assert.Equal(t, "setup", got.Meta()["stage"])
+	assert.True(t, stdErrors.Is(err, apperrors.SetupCompleted()))
+}
+
 func TestResolve_LocalizesAndPreservesMeta(t *testing.T) {
 	t.Parallel()
 

@@ -28,7 +28,9 @@ func (s *Store) CreateSession(ctx context.Context, in session.CreateSessionInput
 		UpdatedAt:     now,
 	})
 	if err != nil {
-		return session.Session{}, apperrors.Internal(err, apperrors.WithMeta("operation", "CreateSession"))
+		return session.Session{}, apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "CreateSession"),
+		)
 	}
 	return session.Session{ID: in.ID}, nil
 }
@@ -40,7 +42,9 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*s
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, apperrors.Internal(err, apperrors.WithMeta("operation", "GetSessionByTokenHash"))
+		return nil, apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "GetSessionByTokenHash"),
+		)
 	}
 	idle, err := time.Parse(time.RFC3339Nano, row.IdleExpiresAt)
 	if err != nil {
@@ -73,11 +77,17 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*s
 // RevokeSessionByTokenHash marks the matching session as revoked.
 func (s *Store) RevokeSessionByTokenHash(ctx context.Context, tokenHash string) error {
 	now := tsFormat(time.Now().UTC())
-	return s.q.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{
+	if err := s.q.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{
 		RevokedAt: sql.NullString{String: now, Valid: true},
 		UpdatedAt: now,
 		TokenHash: tokenHash,
-	})
+	}); err != nil {
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "RevokeSessionByTokenHash"),
+			apperrors.WithMeta("token_hash", tokenHash),
+		)
+	}
+	return nil
 }
 
 // DeleteEndedSessionsOlderThan deletes sessions that have ended (revoked or expired)
@@ -89,7 +99,9 @@ func (s *Store) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time
 		UpdatedAt: cutoff,
 	})
 	if err != nil {
-		return 0, apperrors.Internal(err, apperrors.WithMeta("operation", "DeleteEndedSessionsOlderThan"))
+		return 0, apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "DeleteEndedSessionsOlderThan"),
+		)
 	}
 	return res.RowsAffected()
 }

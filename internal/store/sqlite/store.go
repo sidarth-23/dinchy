@@ -44,7 +44,10 @@ func init() {
 // running embedded goose migrations, and seeding default settings.
 func Open(ctx context.Context, path string) (*Store, error) {
 	if err := ensureDir(path); err != nil {
-		return nil, err
+		return nil, apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "Open"),
+			apperrors.WithMeta("path", path),
+		)
 	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -66,7 +69,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 // PingContext verifies the database connection is alive. Satisfies server.Pinger.
 func (s *Store) PingContext(ctx context.Context) error {
 	if s.db == nil {
-		return apperrors.Internal(fmt.Errorf("sqlite: cannot ping a transaction-scoped store"), apperrors.WithMeta("operation", "PingContext"))
+		return apperrors.Internal(fmt.Errorf("sqlite cannot ping a transaction-scoped store"), apperrors.WithMeta("operation", "PingContext"))
 	}
 	return s.db.PingContext(ctx)
 }
@@ -74,7 +77,7 @@ func (s *Store) PingContext(ctx context.Context) error {
 // Close shuts down the database connection. It must not be called on a tx-scoped Store.
 func (s *Store) Close() error {
 	if s.db == nil {
-		return apperrors.Internal(fmt.Errorf("sqlite: cannot close a transaction-scoped store"), apperrors.WithMeta("operation", "Close"))
+		return apperrors.Internal(fmt.Errorf("sqlite cannot close a transaction-scoped store"), apperrors.WithMeta("operation", "Close"))
 	}
 	return s.db.Close()
 }
@@ -84,20 +87,39 @@ func (s *Store) Close() error {
 // already-tx-scoped Store is a passthrough that prevents accidental nesting.
 func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 	if s.db == nil {
-		return fn(s)
+		if err := fn(s); err != nil {
+			return apperrors.Annotate(err,
+				apperrors.WithMeta("operation", "WithTx"),
+				apperrors.WithMeta("stage", "tx_passthrough"),
+			)
+		}
+		return nil
 	}
 	sqlTx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return apperrors.Internal(err, apperrors.WithMeta("operation", "BeginTx"))
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "BeginTx"),
+		)
 	}
 	txStore := &Store{db: nil, q: sqlcgen.New(sqlTx)}
 	if err := fn(txStore); err != nil {
 		if rbErr := sqlTx.Rollback(); rbErr != nil {
-			return errors.Join(err, apperrors.Internal(rbErr, apperrors.WithMeta("operation", "Rollback")))
+			return errors.Join(
+				apperrors.Annotate(err, apperrors.WithMeta("operation", "WithTx"), apperrors.WithMeta("stage", "body")),
+				apperrors.Annotate(rbErr, apperrors.WithMeta("operation", "Rollback")),
+			)
 		}
-		return err
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "WithTx"),
+			apperrors.WithMeta("stage", "body"),
+		)
 	}
-	return sqlTx.Commit()
+	if err := sqlTx.Commit(); err != nil {
+		return apperrors.Annotate(err,
+			apperrors.WithMeta("operation", "Commit"),
+		)
+	}
+	return nil
 }
 
 func ensureDir(path string) error {

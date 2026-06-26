@@ -20,12 +20,12 @@ func Validate(msgs Messages) error {
 		}
 		if v.Field(i).String() == "" {
 			tag := field.Tag.Get("msg")
-			missing = append(missing, fmt.Sprintf("%s (msg:%q)", field.Name, tag))
+			missing = append(missing, fmt.Sprintf("%q (msg:%q)", field.Name, tag))
 		}
 	}
 
 	if len(missing) > 0 {
-		return fmt.Errorf("i18n: missing translations: %s", strings.Join(missing, ", "))
+		return fmt.Errorf("i18n missing translations: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }

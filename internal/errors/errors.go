@@ -147,6 +147,20 @@ func Internal(cause error, opts ...Option) *AppError {
 	return New(http.StatusInternalServerError, CodeServerInternalError, opts...)
 }
 
+// Annotate preserves an existing structured error and adds more metadata.
+// If err is not already structured, it becomes a catch-all internal error.
+func Annotate(err error, opts ...Option) error {
+	if err == nil {
+		return nil
+	}
+	if appErr, ok := stdErrors.AsType[*AppError](err); ok {
+		merged := []Option{WithCause(appErr.cause), WithMetaMap(appErr.meta)}
+		merged = append(merged, opts...)
+		return New(appErr.status, appErr.code, merged...)
+	}
+	return Internal(err, opts...)
+}
+
 // ResponsePayload is the public error payload serialized by transport.
 type ResponsePayload struct {
 	Code    string         `json:"code"`

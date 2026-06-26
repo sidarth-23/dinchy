@@ -60,7 +60,10 @@ func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error)
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.Annotate(err,
+			apperrors.WithMeta("handler", "bootstrap.get"),
+			apperrors.WithMeta("stage", "bootstrap"),
+		)
 	}
 	out := &BootstrapOut{}
 	out.Body.SetupRequired = bs.SetupRequired
