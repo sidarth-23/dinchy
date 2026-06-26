@@ -1,64 +1,29 @@
 package transport
 
 import (
-	"context"
-	"encoding/json"
-	"log"
 	"net/http"
 
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
+	"github.com/sidarth-23/dinchy/internal/features/health"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
-// Pinger verifies that a backing service is reachable.
-type Pinger interface {
-	PingContext(ctx context.Context) error
-}
-
 // NewInternal creates a minimal http.Server for liveness and readiness probes.
-// It exposes only /healthz and /readyz with no auth, CSRF, or CORS middleware.
-// This server should be bound to an internal-only address.
-func NewInternal(addr string, db Pinger) *http.Server {
+// It serves a separate internal listener and mounts the probes as Huma routes.
+func NewInternal(addr string, db health.Pinger) *http.Server {
 	r := chi.NewRouter()
 	r.Use(mw.RequestID())
 	r.Use(mw.Recover())
 
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte("ok")); err != nil {
-			log.Printf("failed to write /healthz response: %v", err)
-		}
-	})
-
-	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		dbErr := db.PingContext(r.Context())
-
-		checks := map[string]string{}
-		ready := true
-
-		if dbErr != nil {
-			checks["database"] = dbErr.Error()
-			ready = false
-		} else {
-			checks["database"] = "ok"
-		}
-
-		status := http.StatusOK
-		if !ready {
-			status = http.StatusServiceUnavailable
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
-		if err := json.NewEncoder(w).Encode(map[string]any{
-			"ready":   ready,
-			"version": "dev",
-			"checks":  checks,
-		}); err != nil {
-			log.Printf("failed to encode /readyz response: %v", err)
-		}
-	})
+	apiRouter := chi.NewRouter()
+	cfg := huma.DefaultConfig("Dinchy Internal API", "0.1.0")
+	cfg.Servers = []*huma.Server{{URL: "/"}}
+	api := humachi.New(apiRouter, cfg)
+	health.Register(api, db)
+	r.Mount("/", apiRouter)
 
 	return &http.Server{
 		Addr:    addr,
