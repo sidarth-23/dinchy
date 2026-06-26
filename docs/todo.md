@@ -1,0 +1,13 @@
+- logging standard and function need to be checked
+- setup proper observability support with basic support in application
+- check all the rules are followed
+  - mockdata test file is not followed in clock
+- we want platform to named properly something like package now that nothing platform-specific is there
+  - move frontend function to web with the go file and reference routing from there
+- all files need to have test files
+  - see if the current tests are actually useful
+- file conventions needs to be set for most of the modules
+- potentially adding todo md in the root with checkboxes for features
+- see the working of mockdata properly and how to set function
+- cleanup mise toml
+- setup dev setup with debugger setup and not add godotenv
