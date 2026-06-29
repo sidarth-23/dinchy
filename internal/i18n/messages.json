@@ -32,6 +32,102 @@
       }
     },
     {
+      "name": "AuthOrganisationRequired",
+      "code": "auth.organisation_required",
+      "translations": {
+        "en": "Choose an organisation to continue."
+      }
+    },
+    {
+      "name": "AuthOrganisationNotFound",
+      "code": "auth.organisation_not_found",
+      "translations": {
+        "en": "The selected organisation is not available."
+      }
+    },
+    {
+      "name": "AuthTOTPRequired",
+      "code": "auth.totp_required",
+      "translations": {
+        "en": "Two-factor authentication code required."
+      }
+    },
+    {
+      "name": "AuthInvalidTOTP",
+      "code": "auth.invalid_totp",
+      "translations": {
+        "en": "Invalid two-factor authentication code."
+      }
+    },
+    {
+      "name": "AuthInvalidResetToken",
+      "code": "auth.invalid_reset_token",
+      "translations": {
+        "en": "The password reset token is invalid or has expired."
+      }
+    },
+    {
+      "name": "EmailNotConfigured",
+      "code": "email.not_configured",
+      "translations": {
+        "en": "Email delivery is not configured."
+      }
+    },
+    {
+      "name": "AuthOIDCProviderNotFound",
+      "code": "auth.oidc_provider_not_found",
+      "params": [
+        {
+          "name": "provider",
+          "type": "string"
+        }
+      ],
+      "translations": {
+        "en": "The selected OIDC provider is not available."
+      }
+    },
+    {
+      "name": "AuthOIDCInvalidState",
+      "code": "auth.oidc_invalid_state",
+      "translations": {
+        "en": "The OIDC login flow is invalid or has expired."
+      }
+    },
+    {
+      "name": "AuthOIDCLoginFailed",
+      "code": "auth.oidc_login_failed",
+      "translations": {
+        "en": "Unable to sign in with that OIDC provider."
+      }
+    },
+    {
+      "name": "AuthSSOProviderNotFound",
+      "code": "auth.sso_provider_not_found",
+      "params": [
+        {
+          "name": "provider",
+          "type": "string"
+        }
+      ],
+      "translations": {
+        "en": "The selected SSO provider is not available."
+      }
+    },
+    {
+      "name": "AuthSSOInvalidState",
+      "code": "auth.sso_invalid_state",
+      "translations": {
+        "en": "The SSO login flow is invalid or has expired."
+      }
+    },
+    {
+      "name": "AuthSSOLoginFailed",
+      "code": "auth.sso_login_failed",
+      "translations": {
+        "en": "Unable to sign in with that SSO provider."
+      }
+    },
+    {
       "name": "SecurityHTTPSRequired",
       "code": "security.https_required",
       "translations": {

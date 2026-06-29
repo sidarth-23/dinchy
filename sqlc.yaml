@@ -10,14 +10,13 @@ sql:
         emit_json_tags: false
         emit_exact_table_names: false
         emit_empty_slices: true
-  # To add PostgreSQL in the future, uncomment and configure:
-  # - engine: "postgresql"
-  #   queries: "internal/store/postgres/queries"
-  #   schema: "internal/store/postgres/migrations"
-  #   gen:
-  #     go:
-  #       package: "sqlcgen"
-  #       out: "internal/store/postgres/sqlcgen"
-  #       emit_json_tags: false
-  #       emit_exact_table_names: false
-  #       emit_empty_slices: true
+  - engine: "postgresql"
+    queries: "internal/store/postgres/queries"
+    schema: "internal/store/postgres/migrations"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "internal/store/postgres/sqlcgen"
+        emit_json_tags: false
+        emit_exact_table_names: false
+        emit_empty_slices: true

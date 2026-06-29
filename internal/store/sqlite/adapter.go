@@ -38,6 +38,31 @@ func nullString(v string) sql.NullString {
 	return sql.NullString{String: v, Valid: true}
 }
 
+func nullStringValid(v string, valid bool) sql.NullString {
+	if !valid {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: v, Valid: true}
+}
+
+func nullStringTime(t time.Time, valid bool) sql.NullString {
+	if !valid {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: formatTime(t), Valid: true}
+}
+
+func parseNullTime(v sql.NullString, field string) (time.Time, bool, error) {
+	if !v.Valid {
+		return time.Time{}, false, nil
+	}
+	t, err := parseTime(v.String)
+	if err != nil {
+		return time.Time{}, false, wrapParseErr(field, err)
+	}
+	return t, true, nil
+}
+
 func wrapParseErr(field string, err error) error {
 	return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("invalid sqlite timestamp for %s: %w", field, err)))
 }

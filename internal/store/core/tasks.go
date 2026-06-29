@@ -46,14 +46,14 @@ func (s *Store) ClaimTask(ctx context.Context, taskName, owner string, leaseUnti
 
 // FinishTask records the outcome of a completed task run.
 func (s *Store) FinishTask(ctx context.Context, taskName string, now time.Time, ok bool, errCode, errMsg string, nextRun time.Time) error {
-	status := "failed"
+	status := TaskStatusFailed
 	if ok {
-		status = "ok"
+		status = TaskStatusOK
 	}
 	if err := s.Query().FinishTask(ctx, FinishTaskParams{
 		LastFinishedAt:   now.UTC(),
 		NextRunAt:        nextRun.UTC(),
-		LastStatus:       status,
+		LastStatus:       string(status),
 		LastErrorCode:    errCode,
 		LastErrorMessage: errMsg,
 		UpdatedAt:        now.UTC(),

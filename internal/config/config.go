@@ -8,12 +8,88 @@ import (
 	"os"
 	"reflect"
 	"strings"
-
-	"github.com/go-playground/validator/v10"
+	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/validation"
 )
+
+type SSOProviderID string
+
+const (
+	SSOProviderGoogle    SSOProviderID = "google"
+	SSOProviderGitHub    SSOProviderID = "github"
+	SSOProviderMicrosoft SSOProviderID = "microsoft"
+	SSOProviderGitLab    SSOProviderID = "gitlab"
+)
+
+type SSOProviderConfig struct {
+	// ID identifies the SSO provider internally.
+	ID SSOProviderID
+	// Name is the display name shown to users.
+	Name string
+	// ClientID is the provider OAuth client ID.
+	ClientID string
+	// Secret is the provider OAuth client secret.
+	Secret string
+	// CallbackURL is the absolute OAuth callback URL registered with the provider.
+	CallbackURL string
+	// Enabled is true when the provider has all required credentials.
+	Enabled bool
+}
+
+type SMTPConfig struct {
+	// Host is the SMTP server hostname used for outbound application email.
+	Host string `env:"DINCHY_SMTP_HOST"`
+	// Port is the SMTP server port; defaults to 587 when SMTP is enabled and no port is set.
+	Port string `env:"DINCHY_SMTP_PORT"`
+	// Username is the optional SMTP username for authenticated mail servers.
+	Username string `env:"DINCHY_SMTP_USERNAME"`
+	// Password is the optional SMTP password for authenticated mail servers.
+	Password string `env:"DINCHY_SMTP_PASSWORD"`
+	// From is the sender address used for password reset and invite emails.
+	From string `env:"DINCHY_SMTP_FROM"`
+}
+
+type AuthConfig struct {
+	// SessionCookieName is the HTTP cookie name used for Dinchy session tokens.
+	SessionCookieName string `env:"DINCHY_AUTH_SESSION_COOKIE_NAME" validate:"required"`
+	// SSOStateCookieName is the temporary HTTP cookie name used during SSO redirects.
+	SSOStateCookieName string `env:"DINCHY_AUTH_SSO_STATE_COOKIE_NAME" validate:"required"`
+	// SessionIdleTimeout is the maximum idle time before a session is considered expired.
+	SessionIdleTimeout time.Duration `env:"DINCHY_AUTH_SESSION_IDLE_TIMEOUT"`
+	// SessionMaxLifetime is the absolute maximum age of a session regardless of activity.
+	SessionMaxLifetime time.Duration `env:"DINCHY_AUTH_SESSION_MAX_LIFETIME"`
+	// SSOStateLifetime is the maximum age of a pending SSO redirect transaction.
+	SSOStateLifetime time.Duration `env:"DINCHY_AUTH_SSO_STATE_LIFETIME"`
+	// PasswordResetLifetime is the validity window for password reset tokens.
+	PasswordResetLifetime time.Duration `env:"DINCHY_AUTH_PASSWORD_RESET_LIFETIME"`
+	// TOTPIssuer is the issuer label shown in authenticator apps for Dinchy TOTP secrets.
+	TOTPIssuer string `env:"DINCHY_AUTH_TOTP_ISSUER" validate:"required"`
+	// DefaultOrganisationName is the organisation name created during first-user setup.
+	DefaultOrganisationName string `env:"DINCHY_AUTH_DEFAULT_ORGANISATION_NAME" validate:"required"`
+	// DefaultOrganisationSlug is the organisation slug created during first-user setup.
+	DefaultOrganisationSlug string `env:"DINCHY_AUTH_DEFAULT_ORGANISATION_SLUG" validate:"required"`
+}
+
+func (c SMTPConfig) Enabled() bool {
+	return strings.TrimSpace(c.Host) != "" || strings.TrimSpace(c.From) != ""
+}
+
+func DefaultAuth() AuthConfig {
+	return AuthConfig{
+		SessionCookieName:       "dinchy_session",
+		SSOStateCookieName:      "dinchy_sso_state",
+		SessionIdleTimeout:      30 * time.Minute,
+		SessionMaxLifetime:      7 * 24 * time.Hour,
+		SSOStateLifetime:        10 * time.Minute,
+		PasswordResetLifetime:   time.Hour,
+		TOTPIssuer:              "Dinchy",
+		DefaultOrganisationName: "Default",
+		DefaultOrganisationSlug: "default",
+	}
+}
 
 // Config holds all startup configuration values for the Dinchy server.
 type Config struct {
@@ -34,6 +110,36 @@ type Config struct {
 	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,url"`
 	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
 	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
+	// GoogleClientID is the Google OAuth client ID; Google SSO is enabled only when ID, secret, and callback URL are set.
+	GoogleClientID string `env:"DINCHY_GOOGLE_CLIENT_ID"`
+	// GoogleSecret is the Google OAuth client secret.
+	GoogleSecret string `env:"DINCHY_GOOGLE_CLIENT_SECRET"`
+	// GoogleCallbackURL is the absolute Google OAuth callback URL.
+	GoogleCallbackURL string `env:"DINCHY_GOOGLE_CALLBACK_URL" validate:"omitempty,url"`
+	// GitHubClientID is the GitHub OAuth client ID; GitHub SSO is enabled only when ID, secret, and callback URL are set.
+	GitHubClientID string `env:"DINCHY_GITHUB_CLIENT_ID"`
+	// GitHubSecret is the GitHub OAuth client secret.
+	GitHubSecret string `env:"DINCHY_GITHUB_CLIENT_SECRET"`
+	// GitHubCallbackURL is the absolute GitHub OAuth callback URL.
+	GitHubCallbackURL string `env:"DINCHY_GITHUB_CALLBACK_URL" validate:"omitempty,url"`
+	// MicrosoftClientID is the Microsoft OAuth client ID; Microsoft SSO is enabled only when ID, secret, and callback URL are set.
+	MicrosoftClientID string `env:"DINCHY_MICROSOFT_CLIENT_ID"`
+	// MicrosoftSecret is the Microsoft OAuth client secret.
+	MicrosoftSecret string `env:"DINCHY_MICROSOFT_CLIENT_SECRET"`
+	// MicrosoftCallbackURL is the absolute Microsoft OAuth callback URL.
+	MicrosoftCallbackURL string `env:"DINCHY_MICROSOFT_CALLBACK_URL" validate:"omitempty,url"`
+	// GitLabClientID is the GitLab OAuth client ID; GitLab SSO is enabled only when ID, secret, and callback URL are set.
+	GitLabClientID string `env:"DINCHY_GITLAB_CLIENT_ID"`
+	// GitLabSecret is the GitLab OAuth client secret.
+	GitLabSecret string `env:"DINCHY_GITLAB_CLIENT_SECRET"`
+	// GitLabCallbackURL is the absolute GitLab OAuth callback URL.
+	GitLabCallbackURL string `env:"DINCHY_GITLAB_CALLBACK_URL" validate:"omitempty,url"`
+	// Auth contains authentication behavior and lifetime settings.
+	Auth AuthConfig
+	// SMTP contains outbound email settings for password reset and invitation flows.
+	SMTP SMTPConfig
+	// SSOProviders contains the enabled SSO providers derived from env configuration.
+	SSOProviders []SSOProviderConfig
 }
 
 // defaultConfig returns a Config pre-populated with sensible defaults.
@@ -44,6 +150,7 @@ func defaultConfig() Config {
 		DBBackend:    "sqlite",
 		DBPath:       "./dinchy.db",
 		DevProxyURL:  "http://127.0.0.1:5173",
+		Auth:         DefaultAuth(),
 	}
 }
 
@@ -59,9 +166,17 @@ func Load() (Config, error) {
 	if err := loadFromEnv(&cfg); err != nil {
 		return Config{}, err
 	}
+	if err := loadFromEnv(&cfg.Auth); err != nil {
+		return Config{}, err
+	}
+	if err := loadFromEnv(&cfg.SMTP); err != nil {
+		return Config{}, err
+	}
+	cfg.SSOProviders = configuredSSOProviders(cfg)
 
-	if err := validator.New().Struct(cfg); err != nil {
-		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(err))
+	v := validation.New()
+	if err := v.Struct(cfg); err != nil {
+		return Config{}, err
 	}
 
 	switch cfg.DBBackend {
@@ -82,7 +197,7 @@ func Load() (Config, error) {
 
 // loadFromEnv iterates Config fields, reads the env tag to find the env var name,
 // and overrides the field value only when the env var is non-empty.
-func loadFromEnv(cfg *Config) error {
+func loadFromEnv(cfg any) error {
 	v := reflect.ValueOf(cfg).Elem()
 	t := v.Type()
 
@@ -101,6 +216,16 @@ func loadFromEnv(cfg *Config) error {
 			v.Field(i).SetString(raw)
 		case reflect.Bool:
 			v.Field(i).SetBool(parseBool(raw))
+		case reflect.Int64:
+			duration, err := time.ParseDuration(raw)
+			if err != nil {
+				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+					apperrors.WithCause(fmt.Errorf("parse duration env %q for %q: %w", envKey, field.Name, err)),
+					apperrors.WithField(apperrors.FieldName(field.Name)),
+					apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
+				)
+			}
+			v.Field(i).SetInt(int64(duration))
 		default:
 			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),
@@ -110,6 +235,26 @@ func loadFromEnv(cfg *Config) error {
 		}
 	}
 	return nil
+}
+
+func configuredSSOProviders(cfg Config) []SSOProviderConfig {
+	candidates := []SSOProviderConfig{
+		{ID: SSOProviderGoogle, Name: "Google", ClientID: cfg.GoogleClientID, Secret: cfg.GoogleSecret, CallbackURL: cfg.GoogleCallbackURL},
+		{ID: SSOProviderGitHub, Name: "GitHub", ClientID: cfg.GitHubClientID, Secret: cfg.GitHubSecret, CallbackURL: cfg.GitHubCallbackURL},
+		{ID: SSOProviderMicrosoft, Name: "Microsoft", ClientID: cfg.MicrosoftClientID, Secret: cfg.MicrosoftSecret, CallbackURL: cfg.MicrosoftCallbackURL},
+		{ID: SSOProviderGitLab, Name: "GitLab", ClientID: cfg.GitLabClientID, Secret: cfg.GitLabSecret, CallbackURL: cfg.GitLabCallbackURL},
+	}
+	providers := make([]SSOProviderConfig, 0, len(candidates))
+	for _, provider := range candidates {
+		provider.ClientID = strings.TrimSpace(provider.ClientID)
+		provider.Secret = strings.TrimSpace(provider.Secret)
+		provider.CallbackURL = strings.TrimSpace(provider.CallbackURL)
+		provider.Enabled = provider.ClientID != "" && provider.Secret != "" && provider.CallbackURL != ""
+		if provider.Enabled {
+			providers = append(providers, provider)
+		}
+	}
+	return providers
 }
 
 func parseBool(s string) bool {

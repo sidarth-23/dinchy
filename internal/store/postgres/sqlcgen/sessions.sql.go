@@ -28,21 +28,26 @@ func (q *Queries) DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEn
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
-SELECT s.id, s.user_id, u.email, u.display_name, u.role, s.idle_expires_at, s.expires_at, s.revoked_at
+SELECT s.id, s.user_id, u.email, u.display_name, s.active_organisation_id, o.name AS organisation_name, o.slug AS organisation_slug, m.role, s.idle_expires_at, s.expires_at, s.revoked_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
+JOIN organisations o ON o.id = s.active_organisation_id
+JOIN organisation_members m ON m.user_id = u.id AND m.organisation_id = o.id
 WHERE s.token_hash = $1
 `
 
 type GetSessionByTokenHashRow struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	Email         string
-	DisplayName   string
-	Role          string
-	IdleExpiresAt time.Time
-	ExpiresAt     time.Time
-	RevokedAt     sql.NullTime
+	ID                   uuid.UUID
+	UserID               uuid.UUID
+	Email                string
+	DisplayName          string
+	ActiveOrganisationID uuid.UUID
+	OrganisationName     string
+	OrganisationSlug     string
+	Role                 string
+	IdleExpiresAt        time.Time
+	ExpiresAt            time.Time
+	RevokedAt            sql.NullTime
 }
 
 func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (GetSessionByTokenHashRow, error) {
@@ -53,6 +58,9 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 		&i.UserID,
 		&i.Email,
 		&i.DisplayName,
+		&i.ActiveOrganisationID,
+		&i.OrganisationName,
+		&i.OrganisationSlug,
 		&i.Role,
 		&i.IdleExpiresAt,
 		&i.ExpiresAt,
@@ -62,27 +70,29 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 }
 
 const insertSession = `-- name: InsertSession :exec
-INSERT INTO sessions (id, user_id, token_hash, ip_address, user_agent, last_seen_at, idle_expires_at, expires_at, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO sessions (id, user_id, active_organisation_id, token_hash, ip_address, user_agent, last_seen_at, idle_expires_at, expires_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertSessionParams struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	TokenHash     string
-	IpAddress     string
-	UserAgent     string
-	LastSeenAt    time.Time
-	IdleExpiresAt time.Time
-	ExpiresAt     time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                   uuid.UUID
+	UserID               uuid.UUID
+	ActiveOrganisationID uuid.UUID
+	TokenHash            string
+	IpAddress            string
+	UserAgent            string
+	LastSeenAt           time.Time
+	IdleExpiresAt        time.Time
+	ExpiresAt            time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
 	_, err := q.db.ExecContext(ctx, insertSession,
 		arg.ID,
 		arg.UserID,
+		arg.ActiveOrganisationID,
 		arg.TokenHash,
 		arg.IpAddress,
 		arg.UserAgent,

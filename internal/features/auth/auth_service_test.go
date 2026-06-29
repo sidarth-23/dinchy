@@ -10,8 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
 
@@ -25,7 +27,8 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
 	clk := fakeClock{now: fixedTime}
-	svc := NewService(store, id.NewGenerator(), clk)
+	svc, err := NewService(store, id.NewGenerator(), clk, config.DefaultAuth(), nil, email.NoopSender{})
+	require.NoError(t, err)
 	return svc, store
 }
 
@@ -54,7 +57,8 @@ func TestSetupFirstUser_Success(t *testing.T) {
 			assert.Equal(t, "admin@example.com", in.Email)
 			assert.Equal(t, "Admin", in.DisplayName)
 			assert.NotEmpty(t, in.PasswordHash)
-			return User{ID: "user-1", Email: in.Email, DisplayName: in.DisplayName, Role: RoleAdmin}, nil
+			assert.NotEmpty(t, in.OrganisationID)
+			return User{ID: "user-1", Email: in.Email, DisplayName: in.DisplayName}, nil
 		})
 	store.EXPECT().
 		CreateSession(gomock.Any(), gomock.Any()).
@@ -73,7 +77,7 @@ func TestSetupFirstUser_EmailNormalized(t *testing.T) {
 		CreateFirstUser(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, in CreateUserInput) (User, error) {
 			assert.Equal(t, "admin@example.com", in.Email, "email must be normalized to lowercase")
-			return User{ID: "user-1", Email: in.Email, Role: RoleAdmin}, nil
+			return User{ID: "user-1", Email: in.Email}, nil
 		})
 	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "sess-1"}, nil)
 
@@ -98,10 +102,17 @@ func TestLogin_Success(t *testing.T) {
 	hashed := HashPasswordForTest(t, "secret")
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashed, Role: RoleAdmin}, nil)
+		Return(&User{ID: "u1", Email: "user@example.com"}, nil)
+	store.EXPECT().
+		FindPasswordAccountByUserID(gomock.Any(), "u1").
+		Return(&Account{UserID: "u1", PasswordHash: hashed}, nil)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), "u1").Return(nil, nil)
+	store.EXPECT().
+		ListOrganisationsForUser(gomock.Any(), "u1").
+		Return([]Organisation{{ID: "org1", Name: "Default", Slug: "default", Role: RoleAdmin}}, nil)
 	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "s1"}, nil)
 
-	token, err := svc.Login(testCtx, "user@example.com", "secret", "127.0.0.1", "ua")
+	token, err := svc.Login(testCtx, "user@example.com", "secret", "", "", "127.0.0.1", "ua")
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 }
@@ -112,9 +123,12 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: HashPasswordForTest(t, "correct")}, nil)
+		Return(&User{ID: "u1", Email: "user@example.com"}, nil)
+	store.EXPECT().
+		FindPasswordAccountByUserID(gomock.Any(), "u1").
+		Return(&Account{UserID: "u1", PasswordHash: HashPasswordForTest(t, "correct")}, nil)
 
-	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "")
+	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "", "", "")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
 }
 
@@ -124,7 +138,7 @@ func TestLogin_UserNotFound(t *testing.T) {
 
 	store.EXPECT().FindUserByEmail(gomock.Any(), "nobody@example.com").Return(nil, nil)
 
-	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "")
+	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "", "", "")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
 }
 
@@ -134,10 +148,17 @@ func TestLogin_EmailNormalized(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", PasswordHash: HashPasswordForTest(t, "p")}, nil)
+		Return(&User{ID: "u1"}, nil)
+	store.EXPECT().
+		FindPasswordAccountByUserID(gomock.Any(), "u1").
+		Return(&Account{UserID: "u1", PasswordHash: HashPasswordForTest(t, "p")}, nil)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), "u1").Return(nil, nil)
+	store.EXPECT().
+		ListOrganisationsForUser(gomock.Any(), "u1").
+		Return([]Organisation{{ID: "org1", Slug: "default", Role: RoleAdmin}}, nil)
 	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "s1"}, nil)
 
-	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "")
+	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "", "", "")
 	require.NoError(t, err)
 }
 

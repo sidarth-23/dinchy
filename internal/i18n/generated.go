@@ -9,27 +9,51 @@ import (
 type Code string
 
 const (
-	CodeAuthInvalidCredentials  Code = "auth.invalid_credentials"
-	CodeAuthSetupCompleted      Code = "auth.setup_completed"
-	CodeAuthUnauthenticated     Code = "auth.unauthenticated"
-	CodeConfigLoadFailed        Code = "config.load_failed"
-	CodeConfigValidationFailed  Code = "config.validation_failed"
-	CodeRequestValidationFailed Code = "request.validation_failed"
-	CodeSecurityCSRFFailed      Code = "security.csrf_failed"
-	CodeSecurityHTTPSRequired   Code = "security.https_required"
-	CodeServerInternalError     Code = "server.internal_error"
+	CodeAuthInvalidCredentials   Code = "auth.invalid_credentials"
+	CodeAuthInvalidResetToken    Code = "auth.invalid_reset_token"
+	CodeAuthInvalidTOTP          Code = "auth.invalid_totp"
+	CodeAuthOIDCInvalidState     Code = "auth.oidc_invalid_state"
+	CodeAuthOIDCLoginFailed      Code = "auth.oidc_login_failed"
+	CodeAuthOIDCProviderNotFound Code = "auth.oidc_provider_not_found"
+	CodeAuthOrganisationNotFound Code = "auth.organisation_not_found"
+	CodeAuthOrganisationRequired Code = "auth.organisation_required"
+	CodeAuthSetupCompleted       Code = "auth.setup_completed"
+	CodeAuthSSOInvalidState      Code = "auth.sso_invalid_state"
+	CodeAuthSSOLoginFailed       Code = "auth.sso_login_failed"
+	CodeAuthSSOProviderNotFound  Code = "auth.sso_provider_not_found"
+	CodeAuthTOTPRequired         Code = "auth.totp_required"
+	CodeAuthUnauthenticated      Code = "auth.unauthenticated"
+	CodeConfigLoadFailed         Code = "config.load_failed"
+	CodeConfigValidationFailed   Code = "config.validation_failed"
+	CodeEmailNotConfigured       Code = "email.not_configured"
+	CodeRequestValidationFailed  Code = "request.validation_failed"
+	CodeSecurityCSRFFailed       Code = "security.csrf_failed"
+	CodeSecurityHTTPSRequired    Code = "security.https_required"
+	CodeServerInternalError      Code = "server.internal_error"
 )
 
 var CatalogData = map[language.Tag]map[Code]string{
 	language.English: {
-		CodeAuthInvalidCredentials:  "Invalid email or password.",
-		CodeAuthSetupCompleted:      "Setup has already been completed for {{.resource}} ({{.count}} users).",
-		CodeAuthUnauthenticated:     "Authentication required.",
-		CodeConfigLoadFailed:        "Failed to load configuration.",
-		CodeConfigValidationFailed:  "Configuration is invalid.",
-		CodeRequestValidationFailed: "Some fields need attention.",
-		CodeSecurityCSRFFailed:      "Missing or invalid CSRF token.",
-		CodeSecurityHTTPSRequired:   "This endpoint requires a secure (HTTPS) connection.",
-		CodeServerInternalError:     "An unexpected error occurred.",
+		CodeAuthInvalidCredentials:   "Invalid email or password.",
+		CodeAuthInvalidResetToken:    "The password reset token is invalid or has expired.",
+		CodeAuthInvalidTOTP:          "Invalid two-factor authentication code.",
+		CodeAuthOIDCInvalidState:     "The OIDC login flow is invalid or has expired.",
+		CodeAuthOIDCLoginFailed:      "Unable to sign in with that OIDC provider.",
+		CodeAuthOIDCProviderNotFound: "The selected OIDC provider is not available.",
+		CodeAuthOrganisationNotFound: "The selected organisation is not available.",
+		CodeAuthOrganisationRequired: "Choose an organisation to continue.",
+		CodeAuthSetupCompleted:       "Setup has already been completed for {{.resource}} ({{.count}} users).",
+		CodeAuthSSOInvalidState:      "The SSO login flow is invalid or has expired.",
+		CodeAuthSSOLoginFailed:       "Unable to sign in with that SSO provider.",
+		CodeAuthSSOProviderNotFound:  "The selected SSO provider is not available.",
+		CodeAuthTOTPRequired:         "Two-factor authentication code required.",
+		CodeAuthUnauthenticated:      "Authentication required.",
+		CodeConfigLoadFailed:         "Failed to load configuration.",
+		CodeConfigValidationFailed:   "Configuration is invalid.",
+		CodeEmailNotConfigured:       "Email delivery is not configured.",
+		CodeRequestValidationFailed:  "Some fields need attention.",
+		CodeSecurityCSRFFailed:       "Missing or invalid CSRF token.",
+		CodeSecurityHTTPSRequired:    "This endpoint requires a secure (HTTPS) connection.",
+		CodeServerInternalError:      "An unexpected error occurred.",
 	},
 }

@@ -15,11 +15,28 @@ import (
 type Queries interface {
 	CountUsers(ctx context.Context) (int64, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) error
+	InsertAccount(ctx context.Context, arg InsertAccountParams) error
+	InsertOrganisation(ctx context.Context, arg InsertOrganisationParams) error
+	InsertOrganisationMember(ctx context.Context, arg InsertOrganisationMemberParams) error
 	FindUserByEmail(ctx context.Context, email string) (UserRow, error)
+	FindPasswordAccountByUserID(ctx context.Context, userID string) (AccountRow, error)
+	FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (UserRow, error)
+	ListOrganisationsForUser(ctx context.Context, userID string) ([]OrganisationRow, error)
+	FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (OrganisationRow, error)
+	FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (OrganisationRow, error)
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
+	InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) error
+	FindVerificationToken(ctx context.Context, tokenHash, purpose string) (VerificationTokenRow, error)
+	ConsumeVerificationToken(ctx context.Context, arg ConsumeVerificationTokenParams) error
+	SaveTwoFactor(ctx context.Context, arg SaveTwoFactorParams) error
+	FindTwoFactorByUserID(ctx context.Context, userID string) (TwoFactorRow, error)
+	ConfirmTwoFactor(ctx context.Context, arg UseTwoFactorParams) error
+	MarkTwoFactorUsed(ctx context.Context, arg UseTwoFactorParams) error
+	DisableTwoFactor(ctx context.Context, userID string) error
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (SessionRow, error)
 	RevokeSessionByTokenHash(ctx context.Context, arg RevokeSessionParams) error
+	RevokeSessionsForUser(ctx context.Context, arg RevokeSessionsForUserParams) error
 	DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time.Time) (int64, error)
 	EnsureDefaultSettings(ctx context.Context, now time.Time) error
 	GetInstanceName(ctx context.Context) (string, error)

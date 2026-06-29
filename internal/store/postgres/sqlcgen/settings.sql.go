@@ -40,7 +40,7 @@ SELECT instance_name FROM app_settings WHERE id = 'app_settings'
 
 func (q *Queries) GetInstanceName(ctx context.Context) (string, error) {
 	row := q.db.QueryRowContext(ctx, getInstanceName)
-	var instanceName string
-	err := row.Scan(&instanceName)
-	return instanceName, err
+	var instance_name string
+	err := row.Scan(&instance_name)
+	return instance_name, err
 }

@@ -12,6 +12,7 @@ package auth
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -38,6 +39,34 @@ func NewMockStore(ctrl *gomock.Controller) *MockStore {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
+}
+
+// ConfirmTwoFactor mocks base method.
+func (m *MockStore) ConfirmTwoFactor(ctx context.Context, userID string, step int64, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfirmTwoFactor", ctx, userID, step, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ConfirmTwoFactor indicates an expected call of ConfirmTwoFactor.
+func (mr *MockStoreMockRecorder) ConfirmTwoFactor(ctx, userID, step, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmTwoFactor", reflect.TypeOf((*MockStore)(nil).ConfirmTwoFactor), ctx, userID, step, now)
+}
+
+// ConsumeVerificationToken mocks base method.
+func (m *MockStore) ConsumeVerificationToken(ctx context.Context, tokenID string, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConsumeVerificationToken", ctx, tokenID, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ConsumeVerificationToken indicates an expected call of ConsumeVerificationToken.
+func (mr *MockStoreMockRecorder) ConsumeVerificationToken(ctx, tokenID, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeVerificationToken", reflect.TypeOf((*MockStore)(nil).ConsumeVerificationToken), ctx, tokenID, now)
 }
 
 // CreateFirstUser mocks base method.
@@ -70,6 +99,94 @@ func (mr *MockStoreMockRecorder) CreateSession(ctx, in any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSession", reflect.TypeOf((*MockStore)(nil).CreateSession), ctx, in)
 }
 
+// CreateVerificationToken mocks base method.
+func (m *MockStore) CreateVerificationToken(ctx context.Context, token VerificationToken) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateVerificationToken", ctx, token)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateVerificationToken indicates an expected call of CreateVerificationToken.
+func (mr *MockStoreMockRecorder) CreateVerificationToken(ctx, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVerificationToken", reflect.TypeOf((*MockStore)(nil).CreateVerificationToken), ctx, token)
+}
+
+// DisableTwoFactor mocks base method.
+func (m *MockStore) DisableTwoFactor(ctx context.Context, userID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DisableTwoFactor", ctx, userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DisableTwoFactor indicates an expected call of DisableTwoFactor.
+func (mr *MockStoreMockRecorder) DisableTwoFactor(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableTwoFactor", reflect.TypeOf((*MockStore)(nil).DisableTwoFactor), ctx, userID)
+}
+
+// FindOrganisationByIDForUser mocks base method.
+func (m *MockStore) FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (*Organisation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrganisationByIDForUser", ctx, userID, organisationID)
+	ret0, _ := ret[0].(*Organisation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOrganisationByIDForUser indicates an expected call of FindOrganisationByIDForUser.
+func (mr *MockStoreMockRecorder) FindOrganisationByIDForUser(ctx, userID, organisationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganisationByIDForUser", reflect.TypeOf((*MockStore)(nil).FindOrganisationByIDForUser), ctx, userID, organisationID)
+}
+
+// FindOrganisationBySlugForUser mocks base method.
+func (m *MockStore) FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (*Organisation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrganisationBySlugForUser", ctx, userID, slug)
+	ret0, _ := ret[0].(*Organisation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOrganisationBySlugForUser indicates an expected call of FindOrganisationBySlugForUser.
+func (mr *MockStoreMockRecorder) FindOrganisationBySlugForUser(ctx, userID, slug any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganisationBySlugForUser", reflect.TypeOf((*MockStore)(nil).FindOrganisationBySlugForUser), ctx, userID, slug)
+}
+
+// FindPasswordAccountByUserID mocks base method.
+func (m *MockStore) FindPasswordAccountByUserID(ctx context.Context, userID string) (*Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindPasswordAccountByUserID", ctx, userID)
+	ret0, _ := ret[0].(*Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindPasswordAccountByUserID indicates an expected call of FindPasswordAccountByUserID.
+func (mr *MockStoreMockRecorder) FindPasswordAccountByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPasswordAccountByUserID", reflect.TypeOf((*MockStore)(nil).FindPasswordAccountByUserID), ctx, userID)
+}
+
+// FindTwoFactorByUserID mocks base method.
+func (m *MockStore) FindTwoFactorByUserID(ctx context.Context, userID string) (*TwoFactor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindTwoFactorByUserID", ctx, userID)
+	ret0, _ := ret[0].(*TwoFactor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindTwoFactorByUserID indicates an expected call of FindTwoFactorByUserID.
+func (mr *MockStoreMockRecorder) FindTwoFactorByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindTwoFactorByUserID", reflect.TypeOf((*MockStore)(nil).FindTwoFactorByUserID), ctx, userID)
+}
+
 // FindUserByEmail mocks base method.
 func (m *MockStore) FindUserByEmail(ctx context.Context, email string) (*User, error) {
 	m.ctrl.T.Helper()
@@ -85,18 +202,34 @@ func (mr *MockStoreMockRecorder) FindUserByEmail(ctx, email any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByEmail", reflect.TypeOf((*MockStore)(nil).FindUserByEmail), ctx, email)
 }
 
-// UpdateUserPasswordHash mocks base method.
-func (m *MockStore) UpdateUserPasswordHash(ctx context.Context, in UpdateUserPasswordHashInput) error {
+// FindUserByProviderAccount mocks base method.
+func (m *MockStore) FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (*User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserPasswordHash", ctx, in)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "FindUserByProviderAccount", ctx, provider, providerAccountID)
+	ret0, _ := ret[0].(*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// UpdateUserPasswordHash indicates an expected call of UpdateUserPasswordHash.
-func (mr *MockStoreMockRecorder) UpdateUserPasswordHash(ctx, in any) *gomock.Call {
+// FindUserByProviderAccount indicates an expected call of FindUserByProviderAccount.
+func (mr *MockStoreMockRecorder) FindUserByProviderAccount(ctx, provider, providerAccountID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserPasswordHash", reflect.TypeOf((*MockStore)(nil).UpdateUserPasswordHash), ctx, in)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByProviderAccount", reflect.TypeOf((*MockStore)(nil).FindUserByProviderAccount), ctx, provider, providerAccountID)
+}
+
+// FindVerificationToken mocks base method.
+func (m *MockStore) FindVerificationToken(ctx context.Context, tokenHash, purpose string) (*VerificationToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindVerificationToken", ctx, tokenHash, purpose)
+	ret0, _ := ret[0].(*VerificationToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindVerificationToken indicates an expected call of FindVerificationToken.
+func (mr *MockStoreMockRecorder) FindVerificationToken(ctx, tokenHash, purpose any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindVerificationToken", reflect.TypeOf((*MockStore)(nil).FindVerificationToken), ctx, tokenHash, purpose)
 }
 
 // GetSessionByTokenHash mocks base method.
@@ -114,6 +247,35 @@ func (mr *MockStoreMockRecorder) GetSessionByTokenHash(ctx, tokenHash any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSessionByTokenHash", reflect.TypeOf((*MockStore)(nil).GetSessionByTokenHash), ctx, tokenHash)
 }
 
+// ListOrganisationsForUser mocks base method.
+func (m *MockStore) ListOrganisationsForUser(ctx context.Context, userID string) ([]Organisation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOrganisationsForUser", ctx, userID)
+	ret0, _ := ret[0].([]Organisation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListOrganisationsForUser indicates an expected call of ListOrganisationsForUser.
+func (mr *MockStoreMockRecorder) ListOrganisationsForUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganisationsForUser", reflect.TypeOf((*MockStore)(nil).ListOrganisationsForUser), ctx, userID)
+}
+
+// MarkTwoFactorUsed mocks base method.
+func (m *MockStore) MarkTwoFactorUsed(ctx context.Context, userID string, step int64, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkTwoFactorUsed", ctx, userID, step, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkTwoFactorUsed indicates an expected call of MarkTwoFactorUsed.
+func (mr *MockStoreMockRecorder) MarkTwoFactorUsed(ctx, userID, step, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkTwoFactorUsed", reflect.TypeOf((*MockStore)(nil).MarkTwoFactorUsed), ctx, userID, step, now)
+}
+
 // RevokeSessionByTokenHash mocks base method.
 func (m *MockStore) RevokeSessionByTokenHash(ctx context.Context, tokenHash string) error {
 	m.ctrl.T.Helper()
@@ -126,4 +288,46 @@ func (m *MockStore) RevokeSessionByTokenHash(ctx context.Context, tokenHash stri
 func (mr *MockStoreMockRecorder) RevokeSessionByTokenHash(ctx, tokenHash any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSessionByTokenHash", reflect.TypeOf((*MockStore)(nil).RevokeSessionByTokenHash), ctx, tokenHash)
+}
+
+// RevokeSessionsForUser mocks base method.
+func (m *MockStore) RevokeSessionsForUser(ctx context.Context, userID string, now time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeSessionsForUser", ctx, userID, now)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeSessionsForUser indicates an expected call of RevokeSessionsForUser.
+func (mr *MockStoreMockRecorder) RevokeSessionsForUser(ctx, userID, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSessionsForUser", reflect.TypeOf((*MockStore)(nil).RevokeSessionsForUser), ctx, userID, now)
+}
+
+// SaveTwoFactor mocks base method.
+func (m *MockStore) SaveTwoFactor(ctx context.Context, in TwoFactor) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveTwoFactor", ctx, in)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveTwoFactor indicates an expected call of SaveTwoFactor.
+func (mr *MockStoreMockRecorder) SaveTwoFactor(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveTwoFactor", reflect.TypeOf((*MockStore)(nil).SaveTwoFactor), ctx, in)
+}
+
+// UpdateUserPasswordHash mocks base method.
+func (m *MockStore) UpdateUserPasswordHash(ctx context.Context, in UpdateUserPasswordHashInput) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserPasswordHash", ctx, in)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUserPasswordHash indicates an expected call of UpdateUserPasswordHash.
+func (mr *MockStoreMockRecorder) UpdateUserPasswordHash(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserPasswordHash", reflect.TypeOf((*MockStore)(nil).UpdateUserPasswordHash), ctx, in)
 }

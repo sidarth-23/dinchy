@@ -2,6 +2,7 @@ package support_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,15 @@ func TestRequestInfo_RoundTrip(t *testing.T) {
 	ctx := support.WithRequestInfo(context.Background(), "1.2.3.4", "Mozilla/5.0")
 	assert.Equal(t, "1.2.3.4", support.RemoteIPFrom(ctx))
 	assert.Equal(t, "Mozilla/5.0", support.UserAgentFrom(ctx))
+}
+
+func TestRequestCookies_RoundTrip(t *testing.T) {
+	t.Parallel()
+	ctx := support.WithRequestCookies(context.Background(), []*http.Cookie{
+		{Name: "session", Value: "rawtoken"},
+	})
+	assert.Equal(t, "rawtoken", support.CookieValueFrom(ctx, "session"))
+	assert.Equal(t, "", support.CookieValueFrom(ctx, "missing"))
 }
 
 func TestLang_RoundTrip(t *testing.T) {

@@ -11,6 +11,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type Account struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Provider          string
+	ProviderAccountID string
+	PasswordHash      sql.NullString
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type AppSetting struct {
 	ID                            string
 	InstanceName                  string
@@ -33,6 +43,38 @@ type AuthAuditLog struct {
 	CreatedAt    time.Time
 }
 
+type Organisation struct {
+	ID        uuid.UUID
+	Name      string
+	Slug      string
+	Logo      sql.NullString
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type OrganisationInvitation struct {
+	ID              uuid.UUID
+	OrganisationID  uuid.UUID
+	Email           string
+	Role            string
+	Status          string
+	TokenHash       string
+	ExpiresAt       time.Time
+	InvitedByUserID uuid.UUID
+	AcceptedAt      sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type OrganisationMember struct {
+	ID             uuid.UUID
+	OrganisationID uuid.UUID
+	UserID         uuid.UUID
+	Role           string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type ScheduledTask struct {
 	ID                      uuid.UUID
 	TaskName                string
@@ -50,27 +92,51 @@ type ScheduledTask struct {
 }
 
 type Session struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	TokenHash     string
-	IpAddress     string
-	UserAgent     string
-	LastSeenAt    time.Time
-	IdleExpiresAt time.Time
-	ExpiresAt     time.Time
-	RevokedAt     sql.NullTime
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                   uuid.UUID
+	UserID               uuid.UUID
+	ActiveOrganisationID uuid.UUID
+	TokenHash            string
+	IpAddress            string
+	UserAgent            string
+	LastSeenAt           time.Time
+	IdleExpiresAt        time.Time
+	ExpiresAt            time.Time
+	RevokedAt            sql.NullTime
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type TwoFactor struct {
+	ID                      uuid.UUID
+	UserID                  uuid.UUID
+	Secret                  string
+	Verified                bool
+	LastUsedStep            sql.NullInt64
+	FailedVerificationCount int64
+	LockedUntil             sql.NullTime
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type User struct {
-	ID           uuid.UUID
-	Email        string
-	PasswordHash string
-	DisplayName  string
-	Role         string
-	DisabledAt   sql.NullTime
-	LastLoginAt  sql.NullTime
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID              uuid.UUID
+	Email           string
+	DisplayName     string
+	EmailVerifiedAt sql.NullTime
+	DisabledAt      sql.NullTime
+	LastLoginAt     sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type VerificationToken struct {
+	ID         uuid.UUID
+	UserID     uuid.NullUUID
+	Email      string
+	Purpose    string
+	TokenHash  string
+	ExpiresAt  time.Time
+	ConsumedAt sql.NullTime
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }

@@ -8,6 +8,16 @@ import (
 	"database/sql"
 )
 
+type Account struct {
+	ID                string
+	UserID            string
+	Provider          string
+	ProviderAccountID string
+	PasswordHash      sql.NullString
+	CreatedAt         string
+	UpdatedAt         string
+}
+
 type AppSetting struct {
 	ID                            string
 	InstanceName                  string
@@ -30,6 +40,38 @@ type AuthAuditLog struct {
 	CreatedAt    string
 }
 
+type Organisation struct {
+	ID        string
+	Name      string
+	Slug      string
+	Logo      sql.NullString
+	CreatedAt string
+	UpdatedAt string
+}
+
+type OrganisationInvitation struct {
+	ID              string
+	OrganisationID  string
+	Email           string
+	Role            string
+	Status          string
+	TokenHash       string
+	ExpiresAt       string
+	InvitedByUserID string
+	AcceptedAt      sql.NullString
+	CreatedAt       string
+	UpdatedAt       string
+}
+
+type OrganisationMember struct {
+	ID             string
+	OrganisationID string
+	UserID         string
+	Role           string
+	CreatedAt      string
+	UpdatedAt      string
+}
+
 type ScheduledTask struct {
 	ID                      string
 	TaskName                string
@@ -47,27 +89,51 @@ type ScheduledTask struct {
 }
 
 type Session struct {
-	ID            string
-	UserID        string
-	TokenHash     string
-	IpAddress     string
-	UserAgent     string
-	LastSeenAt    string
-	IdleExpiresAt string
-	ExpiresAt     string
-	RevokedAt     sql.NullString
-	CreatedAt     string
-	UpdatedAt     string
+	ID                   string
+	UserID               string
+	ActiveOrganisationID string
+	TokenHash            string
+	IpAddress            string
+	UserAgent            string
+	LastSeenAt           string
+	IdleExpiresAt        string
+	ExpiresAt            string
+	RevokedAt            sql.NullString
+	CreatedAt            string
+	UpdatedAt            string
+}
+
+type TwoFactor struct {
+	ID                      string
+	UserID                  string
+	Secret                  string
+	Verified                int64
+	LastUsedStep            sql.NullInt64
+	FailedVerificationCount int64
+	LockedUntil             sql.NullString
+	CreatedAt               string
+	UpdatedAt               string
 }
 
 type User struct {
-	ID           string
-	Email        string
-	PasswordHash string
-	DisplayName  string
-	Role         string
-	DisabledAt   sql.NullString
-	LastLoginAt  sql.NullString
-	CreatedAt    string
-	UpdatedAt    string
+	ID              string
+	Email           string
+	DisplayName     string
+	EmailVerifiedAt sql.NullString
+	DisabledAt      sql.NullString
+	LastLoginAt     sql.NullString
+	CreatedAt       string
+	UpdatedAt       string
+}
+
+type VerificationToken struct {
+	ID         string
+	UserID     sql.NullString
+	Email      string
+	Purpose    string
+	TokenHash  string
+	ExpiresAt  string
+	ConsumedAt sql.NullString
+	CreatedAt  string
+	UpdatedAt  string
 }

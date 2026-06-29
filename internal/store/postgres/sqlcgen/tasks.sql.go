@@ -24,12 +24,12 @@ WHERE task_name = $5
 
 type ClaimTaskParams struct {
 	LeaseOwner       sql.NullString
-	LeaseExpiresAt   time.Time
-	LastRunAt        time.Time
+	LeaseExpiresAt   sql.NullTime
+	LastRunAt        sql.NullTime
 	UpdatedAt        time.Time
 	TaskName         string
-	LeaseExpiresAt_2 time.Time
-	NextRunAt        time.Time
+	LeaseExpiresAt_2 sql.NullTime
+	NextRunAt        sql.NullTime
 }
 
 func (q *Queries) ClaimTask(ctx context.Context, arg ClaimTaskParams) (sql.Result, error) {

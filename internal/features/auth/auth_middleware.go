@@ -5,13 +5,25 @@ import (
 	"net/http"
 )
 
-// Cookie names used by auth.
-const SessionCookieName = "dinchy_session"
+func (s *Service) SessionCookieName() string {
+	return s.authConfig.SessionCookieName
+}
 
-// SessionCookie builds the session cookie with all required security attributes.
-func SessionCookie(token string, secure bool) *http.Cookie {
+func (s *Service) SSOStateCookieName() string {
+	return s.authConfig.SSOStateCookieName
+}
+
+func (s *Service) SessionCookie(token string, secure bool) *http.Cookie {
+	return sessionCookie(s.authConfig.SessionCookieName, token, secure)
+}
+
+func (s *Service) ClearSessionCookie(secure bool) *http.Cookie {
+	return clearSessionCookie(s.authConfig.SessionCookieName, secure)
+}
+
+func sessionCookie(name, token string, secure bool) *http.Cookie {
 	return &http.Cookie{
-		Name:     SessionCookieName,
+		Name:     name,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
@@ -20,10 +32,9 @@ func SessionCookie(token string, secure bool) *http.Cookie {
 	}
 }
 
-// ClearSessionCookie returns a cookie that immediately expires the session cookie.
-func ClearSessionCookie(secure bool) *http.Cookie {
+func clearSessionCookie(name string, secure bool) *http.Cookie {
 	return &http.Cookie{
-		Name:     SessionCookieName,
+		Name:     name,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,

@@ -13,6 +13,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/tasks"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
+	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store"
@@ -48,7 +49,20 @@ func (a *App) Start() error {
 	a.closer = s
 
 	clk := clock.RealClock{}
-	authSvc := auth.NewService(s, id.NewGenerator(), clk)
+	var sender email.Sender = email.NoopSender{}
+	if a.cfg.SMTP.Enabled() {
+		smtpSender, err := email.NewSMTPSender(a.cfg.SMTP)
+		if err != nil {
+			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		}
+		sender = smtpSender
+	}
+	authSvc, err := auth.NewService(s, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, sender)
+	if err != nil {
+		return apperrors.Annotate(err,
+			apperrors.WithStage(apperrors.StageSetup),
+		)
+	}
 
 	dist, err := frontendFS(a.cfg.DevMode)
 	if err != nil {

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/crypto/argon2"
 
@@ -24,12 +23,6 @@ const (
 	passwordHashTime      = 2
 	passwordHashThreads   = 4
 	passwordHashKeyLen    = 32
-
-	legacyPasswordHashSalt = "dinchy-static-salt-phase1"
-	legacyPasswordHashTime = 1
-	legacyPasswordHashMem  = 64 * 1024
-	legacyPasswordHashThrd = 4
-	legacyPasswordHashLen  = 32
 )
 
 type passwordHashParams struct {
@@ -52,7 +45,7 @@ type parsedPasswordHash struct {
 	hash   []byte
 }
 
-func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string, error) {
+func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua string) (string, error) {
 	token, tokenHash, err := generateSessionToken()
 	if err != nil {
 		return "", apperrors.Annotate(err,
@@ -62,14 +55,15 @@ func (s *Service) newSession(ctx context.Context, userID, ip, ua string) (string
 	}
 	now := s.clock.Now()
 	_, err = s.store.CreateSession(ctx, CreateSessionInput{
-		ID:            s.idg.New(),
-		UserID:        userID,
-		TokenHash:     tokenHash,
-		IP:            ip,
-		UserAgent:     ua,
-		Now:           now,
-		IdleExpiresAt: now.Add(30 * time.Minute),
-		ExpiresAt:     now.Add(7 * 24 * time.Hour),
+		ID:             s.idg.New(),
+		UserID:         userID,
+		OrganisationID: organisationID,
+		TokenHash:      tokenHash,
+		IP:             ip,
+		UserAgent:      ua,
+		Now:            now,
+		IdleExpiresAt:  now.Add(s.authConfig.SessionIdleTimeout),
+		ExpiresAt:      now.Add(s.authConfig.SessionMaxLifetime),
 	})
 	if err != nil {
 		return "", apperrors.Annotate(err,
@@ -90,35 +84,31 @@ func hashPassword(password string) (string, error) {
 }
 
 func verifyPassword(password, encoded string) bool {
-	if strings.HasPrefix(encoded, passwordHashVersion+"$") {
-		spec, ok := parsePasswordHash(encoded)
-		if !ok {
-			return false
-		}
-		sum := argon2.IDKey([]byte(password), spec.salt, spec.params.time, spec.params.memory, spec.params.threads, spec.params.keyLen)
-		return subtle.ConstantTimeCompare(sum, spec.hash) == 1
-	}
-
-	legacySalt := sha256.Sum256([]byte(legacyPasswordHashSalt))
-	sum := argon2.IDKey([]byte(password), legacySalt[:], legacyPasswordHashTime, legacyPasswordHashMem, legacyPasswordHashThrd, legacyPasswordHashLen)
-	decoded, err := base64.RawStdEncoding.DecodeString(encoded)
-	if err != nil {
+	spec, ok := parsePasswordHash(encoded)
+	if !ok {
 		return false
 	}
-	return subtle.ConstantTimeCompare(sum, decoded) == 1
-}
-
-func needsPasswordHashUpgrade(encoded string) bool {
-	return !strings.HasPrefix(encoded, passwordHashVersion+"$")
+	sum := argon2.IDKey([]byte(password), spec.salt, spec.params.time, spec.params.memory, spec.params.threads, spec.params.keyLen)
+	return subtle.ConstantTimeCompare(sum, spec.hash) == 1
 }
 
 func generateSessionToken() (raw, tokenHash string, err error) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
+	raw, err = newRandomToken(32)
+	if err != nil {
 		return "", "", err
 	}
-	raw = base64.RawURLEncoding.EncodeToString(buf)
 	return raw, hashToken(raw), nil
+}
+
+func newRandomToken(size int) (string, error) {
+	buf := make([]byte, 32)
+	if size > 0 {
+		buf = make([]byte, size)
+	}
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 func hashToken(raw string) string {

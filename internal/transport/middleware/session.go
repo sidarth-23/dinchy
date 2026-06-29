@@ -12,7 +12,7 @@ import (
 func Session(svc *auth.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(auth.SessionCookieName)
+			cookie, err := r.Cookie(svc.SessionCookieName())
 			if err != nil || cookie.Value == "" {
 				next.ServeHTTP(w, r)
 				return

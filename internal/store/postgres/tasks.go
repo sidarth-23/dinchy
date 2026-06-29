@@ -23,12 +23,12 @@ func (q *queries) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan ti
 func (q *queries) ClaimTask(ctx context.Context, arg core.ClaimTaskParams) (int64, error) {
 	res, err := q.q.ClaimTask(ctx, sqlcgen.ClaimTaskParams{
 		LeaseOwner:       sql.NullString{String: arg.LeaseOwner, Valid: true},
-		LeaseExpiresAt:   arg.LeaseExpiresAt.UTC(),
-		LastRunAt:        arg.LastRunAt.UTC(),
+		LeaseExpiresAt:   sql.NullTime{Time: arg.LeaseExpiresAt.UTC(), Valid: true},
+		LastRunAt:        sql.NullTime{Time: arg.LastRunAt.UTC(), Valid: true},
 		UpdatedAt:        arg.UpdatedAt.UTC(),
 		TaskName:         arg.TaskName,
-		LeaseExpiresAt_2: arg.LastRunAt.UTC(),
-		NextRunAt:        arg.NextRunAt.UTC(),
+		LeaseExpiresAt_2: sql.NullTime{Time: arg.LastRunAt.UTC(), Valid: true},
+		NextRunAt:        sql.NullTime{Time: arg.NextRunAt.UTC(), Valid: true},
 	})
 	if err != nil {
 		return 0, err
