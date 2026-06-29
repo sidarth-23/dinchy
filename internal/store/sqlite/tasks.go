@@ -5,57 +5,45 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/sidarth-23/dinchy/internal/store/core"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
 )
 
-// EnsureTask registers a task by name if it does not already exist.
-func (s *Store) EnsureTask(ctx context.Context, name string, intervalSeconds int64, now time.Time) error {
-	return s.q.EnsureTask(ctx, sqlcgen.EnsureTaskParams{
-		ID:                      "task_" + name,
-		TaskName:                name,
-		ScheduleIntervalSeconds: intervalSeconds,
-		NextRunAt:               sql.NullString{String: tsFormat(now), Valid: true},
-		UpdatedAt:               tsFormat(now),
-	})
-}
-
-// ClaimTask atomically acquires the lease on a task that is due to run.
-// Returns true if the claim succeeded.
-func (s *Store) ClaimTask(ctx context.Context, taskName, owner string, leaseUntil, now time.Time) (bool, error) {
-	nowStr := tsFormat(now)
-	res, err := s.q.ClaimTask(ctx, sqlcgen.ClaimTaskParams{
-		LeaseOwner:       sql.NullString{String: owner, Valid: true},
-		LeaseExpiresAt:   sql.NullString{String: tsFormat(leaseUntil), Valid: true},
-		LeaseExpiresAt_2: sql.NullString{String: nowStr, Valid: true},
-		LastRunAt:        sql.NullString{String: nowStr, Valid: true},
-		UpdatedAt:        nowStr,
-		TaskName:         taskName,
-		NextRunAt:        sql.NullString{String: nowStr, Valid: true},
+func (q *queries) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
+	res, err := q.q.DeleteEndedSessionsOlderThan(ctx, sqlcgen.DeleteEndedSessionsOlderThanParams{
+		ExpiresAt: formatTime(olderThan),
+		UpdatedAt: formatTime(olderThan),
 	})
 	if err != nil {
-		return false, err
+		return 0, err
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
+	return res.RowsAffected()
 }
 
-// FinishTask records the outcome of a completed task run and schedules its next execution.
-func (s *Store) FinishTask(ctx context.Context, taskName string, now time.Time, ok bool, errCode, errMsg string, nextRun time.Time) error {
-	status := "failed"
-	if ok {
-		status = "ok"
+func (q *queries) ClaimTask(ctx context.Context, arg core.ClaimTaskParams) (int64, error) {
+	res, err := q.q.ClaimTask(ctx, sqlcgen.ClaimTaskParams{
+		LeaseOwner:       sql.NullString{String: arg.LeaseOwner, Valid: true},
+		LeaseExpiresAt:   sql.NullString{String: formatTime(arg.LeaseExpiresAt), Valid: true},
+		LastRunAt:        sql.NullString{String: formatTime(arg.LastRunAt), Valid: true},
+		UpdatedAt:        formatTime(arg.UpdatedAt),
+		TaskName:         arg.TaskName,
+		LeaseExpiresAt_2: sql.NullString{String: formatTime(arg.LastRunAt), Valid: true},
+		NextRunAt:        sql.NullString{String: formatTime(arg.NextRunAt), Valid: true},
+	})
+	if err != nil {
+		return 0, err
 	}
-	nowStr := tsFormat(now)
-	return s.q.FinishTask(ctx, sqlcgen.FinishTaskParams{
-		LastFinishedAt:   sql.NullString{String: nowStr, Valid: true},
-		NextRunAt:        sql.NullString{String: tsFormat(nextRun), Valid: true},
-		LastStatus:       sql.NullString{String: status, Valid: true},
-		LastErrorCode:    nullString(errCode),
-		LastErrorMessage: nullString(errMsg),
-		UpdatedAt:        nowStr,
-		TaskName:         taskName,
+	return res.RowsAffected()
+}
+
+func (q *queries) FinishTask(ctx context.Context, arg core.FinishTaskParams) error {
+	return q.q.FinishTask(ctx, sqlcgen.FinishTaskParams{
+		LastFinishedAt:   sql.NullString{String: formatTime(arg.LastFinishedAt), Valid: true},
+		NextRunAt:        sql.NullString{String: formatTime(arg.NextRunAt), Valid: true},
+		LastStatus:       sql.NullString{String: arg.LastStatus, Valid: true},
+		LastErrorCode:    nullString(arg.LastErrorCode),
+		LastErrorMessage: nullString(arg.LastErrorMessage),
+		UpdatedAt:        formatTime(arg.UpdatedAt),
+		TaskName:         arg.TaskName,
 	})
 }

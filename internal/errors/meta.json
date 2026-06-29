@@ -1,0 +1,133 @@
+{
+  "groups": [
+    {
+      "name": "Stage",
+      "meta_key": "stage",
+      "comment": "Stage names a lifecycle step recorded in metadata.",
+      "values": [
+        { "name": "OpenStore", "value": "open_store" },
+        { "name": "LoadFrontendAssets", "value": "load_frontend_assets" },
+        { "name": "StartTaskRuntime", "value": "start_task_runtime" },
+        { "name": "FrontendDistFS", "value": "frontend_dist_fs" },
+        { "name": "CreateFirstUser", "value": "create_first_user" },
+        { "name": "FindUser", "value": "find_user" },
+        { "name": "GetSession", "value": "get_session" },
+        { "name": "RevokeSession", "value": "revoke_session" },
+        { "name": "GenerateToken", "value": "generate_token" },
+        { "name": "CreateSession", "value": "create_session" },
+        { "name": "Login", "value": "login" },
+        { "name": "Bootstrap", "value": "bootstrap" },
+        { "name": "SessionLookup", "value": "session_lookup" },
+        { "name": "Logout", "value": "logout" },
+        { "name": "Setup", "value": "setup" },
+        { "name": "SetupFirstUser", "value": "setup_first_user" },
+        { "name": "EnsureTask", "value": "ensure_task" },
+        { "name": "ClaimTask", "value": "claim_task" },
+        { "name": "DeleteEndedSessions", "value": "delete_ended_sessions" },
+        { "name": "FinishFailedRun", "value": "finish_failed_run" },
+        { "name": "FinishSuccess", "value": "finish_success" },
+        { "name": "TxPassthrough", "value": "tx_passthrough" },
+        { "name": "Body", "value": "body" },
+        { "name": "RowsAffected", "value": "rows_affected" },
+        { "name": "ResolveXDGConfigHome", "value": "resolve_xdg_config_home" }
+      ]
+    },
+    {
+      "name": "Flow",
+      "meta_key": "flow",
+      "comment": "Flow names a higher-level business flow recorded in metadata.",
+      "values": [
+        { "name": "SetupFirstUser", "value": "setup_first_user" },
+        { "name": "Login", "value": "login" },
+        { "name": "Session", "value": "session" },
+        { "name": "Logout", "value": "logout" },
+        { "name": "NewSession", "value": "new_session" }
+      ]
+    },
+    {
+      "name": "Handler",
+      "meta_key": "handler",
+      "comment": "Handler names a transport handler recorded in metadata.",
+      "values": [
+        { "name": "AuthLogin", "value": "auth.login" },
+        { "name": "AuthLogout", "value": "auth.logout" },
+        { "name": "AuthSession", "value": "auth.session" },
+        { "name": "AuthSetup", "value": "auth.setup" },
+        { "name": "BootstrapGet", "value": "bootstrap.get" }
+      ]
+    },
+    {
+      "name": "Operation",
+      "meta_key": "operation",
+      "comment": "Operation names a storage or runtime operation recorded in metadata.",
+      "values": [
+        { "name": "EnsureDefaultSettings", "value": "EnsureDefaultSettings" },
+        { "name": "CountUsers", "value": "CountUsers" },
+        { "name": "GetInstanceName", "value": "GetInstanceName" },
+        { "name": "Open", "value": "Open" },
+        { "name": "SQLOpen", "value": "sql.Open" },
+        { "name": "PingContext", "value": "PingContext" },
+        { "name": "Close", "value": "Close" },
+        { "name": "WithTx", "value": "WithTx" },
+        { "name": "BeginTx", "value": "BeginTx" },
+        { "name": "Commit", "value": "Commit" },
+        { "name": "Rollback", "value": "Rollback" },
+        { "name": "MkdirAll", "value": "MkdirAll" },
+        { "name": "ApplyPragmas", "value": "applyPragmas" },
+        { "name": "CreateSession", "value": "CreateSession" },
+        { "name": "GetSessionByTokenHash", "value": "GetSessionByTokenHash" },
+        { "name": "RevokeSessionByTokenHash", "value": "RevokeSessionByTokenHash" },
+        { "name": "DeleteEndedSessionsOlderThan", "value": "DeleteEndedSessionsOlderThan" },
+        { "name": "EnsureTask", "value": "EnsureTask" },
+        { "name": "ClaimTask", "value": "ClaimTask" },
+        { "name": "FinishTask", "value": "FinishTask" },
+        { "name": "InsertUser", "value": "InsertUser" },
+        { "name": "FindUserByEmail", "value": "FindUserByEmail" }
+      ]
+    },
+    {
+      "name": "Task",
+      "meta_key": "task",
+      "comment": "Task names a durable background task recorded in metadata.",
+      "values": [
+        { "name": "SessionCleanup", "value": "session_cleanup" }
+      ]
+    },
+    {
+      "name": "FieldName",
+      "key_name": "Field",
+      "option_name": "WithField",
+      "meta_key": "field",
+      "comment": "FieldName records a field name in metadata."
+    },
+    {
+      "name": "FieldKind",
+      "key_name": "Kind",
+      "option_name": "WithKind",
+      "meta_key": "kind",
+      "comment": "FieldKind records a reflected type kind in metadata.",
+      "from_reflect": true
+    },
+    {
+      "name": "Path",
+      "meta_key": "path",
+      "comment": "Path records a filesystem path in metadata."
+    },
+    {
+      "name": "Pragma",
+      "meta_key": "pragma",
+      "comment": "Pragma records a SQLite pragma name in metadata."
+    },
+    {
+      "name": "DeletedCount",
+      "go_type": "int",
+      "meta_key": "deleted_count",
+      "comment": "DeletedCount records the number of deleted rows in metadata."
+    },
+    {
+      "name": "TokenHash",
+      "meta_key": "token_hash",
+      "comment": "TokenHash records a token hash in metadata."
+    }
+  ]
+}

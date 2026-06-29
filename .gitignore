@@ -10,7 +10,10 @@
 *.out
 /vendor/
 /dist/
-go.sum
+
+# Generated Go code
+/internal/errors/generated.go
+/internal/i18n/generated.go
 
 # Frontend
 web/node_modules/

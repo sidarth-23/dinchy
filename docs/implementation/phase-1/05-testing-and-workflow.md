@@ -76,7 +76,7 @@ Available tasks:
 - `mise run test` — run the full test stack (`go test ./...`)
 - `mise run lint` — run golangci-lint
 - `mise run fmt` — format Go code with golangci-lint
-- `mise run generate` — regenerate sqlc queries (`sqlc generate`)
+- `mise run generate` — regenerate generated Go code and sqlc queries (`go generate ./internal/errors ./internal/i18n && sqlc generate`)
 - `mise run db:migrate` — run SQLite migrations (`goose up`)
 - `mise run db:status` — check migration status
 - `mise run web:dev` — run the frontend dev server (Bun runtime)
@@ -87,7 +87,7 @@ Intent:
 
 - `mise run dev` starts the backend in dev mode; the frontend dev server is started separately with `mise run web:dev`
 - `mise run web:build` builds the frontend assets for embedding into the Go binary
-- `mise run generate` regenerates the OpenAPI-based frontend client
+- `mise run generate` regenerates the generated Go code and sqlc output
 - `mise run build` produces the production binary
 - `mise run test` runs the Phase 1 test stack
 

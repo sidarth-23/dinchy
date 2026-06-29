@@ -16,6 +16,7 @@ func TestLoad_Defaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ":8080", cfg.Addr)
 	assert.Equal(t, ":9090", cfg.InternalAddr)
+	assert.Equal(t, "sqlite", cfg.DBBackend)
 	assert.Equal(t, "./dinchy.db", cfg.DBPath)
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 	assert.False(t, cfg.DevMode)
@@ -26,6 +27,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_ADDR", ":9999")
 	t.Setenv("DINCHY_INTERNAL_ADDR", ":8888")
+	t.Setenv("DINCHY_DB_BACKEND", "sqlite")
 	t.Setenv("DINCHY_DB_PATH", "/tmp/test.db")
 	t.Setenv("DINCHY_DEV", "true")
 	t.Setenv("DINCHY_DEV_PROXY_URL", "http://localhost:3000")
@@ -80,11 +82,20 @@ func TestLoad_MissingExplicitEnvFile_Fails(t *testing.T) {
 	require.Error(t, err, "explicit env file that doesn't exist should fail")
 }
 
+func TestLoad_PostgresBackendRequiresDSN(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_DB_BACKEND", "postgres")
+
+	_, err := config.Load()
+	require.Error(t, err)
+}
+
 // clearDinchyEnv clears all DINCHY_ env vars so tests start from a clean baseline.
 func clearDinchyEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"DINCHY_ADDR", "DINCHY_INTERNAL_ADDR", "DINCHY_DB_PATH",
+		"DINCHY_DB_BACKEND", "DINCHY_POSTGRES_DSN",
 		"DINCHY_DEV", "DINCHY_DEV_PROXY_URL", "DINCHY_REQUIRE_HTTPS_FOR_AUTH",
 		"DINCHY_ENV_FILE",
 	} {

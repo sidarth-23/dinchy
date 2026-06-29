@@ -25,16 +25,21 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
+	waitCh := make(chan error, 1)
 	go func() {
-		<-ctx.Done()
-		stop()
-		if err := a.Shutdown(context.Background()); err != nil {
-			log.Printf("shutdown failed: %v", err)
-		}
+		waitCh <- a.Wait()
 	}()
 
-	if err := a.Wait(); err != nil {
-		log.Fatal(err)
+	select {
+	case err := <-waitCh:
+		if err != nil {
+			log.Fatal(err)
+		}
+	case <-ctx.Done():
+		if err := a.Shutdown(context.Background()); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
