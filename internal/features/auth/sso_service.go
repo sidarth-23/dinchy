@@ -23,26 +23,28 @@ import (
 )
 
 type ssoRegistry struct {
-	stateCookieName string
-	stateLifetime   time.Duration
-	providers       map[string]goth.Provider
-	summaries       []SSOProviderOut
+	stateCookieName   string
+	sessionCookieName string
+	stateLifetime     time.Duration
+	providers         map[string]goth.Provider
+	summaries         []SSOProviderOut
 }
 
 type ssoState struct {
 	ProviderID       string    `json:"provider_id"`
-	State            string    `json:"state"`
 	ReturnTo         string    `json:"return_to"`
 	OrganisationSlug string    `json:"organisation_slug"`
-	Session          string    `json:"session"`
 	ExpiresAt        time.Time `json:"expires_at"`
 }
 
+const ssoSessionCookieName = "dinchy_sso_session"
+
 func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig) (*ssoRegistry, error) {
 	registry := &ssoRegistry{
-		stateCookieName: authConfig.SSOStateCookieName,
-		stateLifetime:   authConfig.SSOStateLifetime,
-		providers:       map[string]goth.Provider{},
+		stateCookieName:   authConfig.SSOStateCookieName,
+		sessionCookieName: ssoSessionCookieName,
+		stateLifetime:     authConfig.SSOStateLifetime,
+		providers:         map[string]goth.Provider{},
 	}
 	for _, cfg := range configs {
 		if !cfg.Enabled {
@@ -80,7 +82,7 @@ func (s *Service) listSSOProviders() []SSOProviderOut {
 	return append([]SSOProviderOut(nil), s.sso.summaries...)
 }
 
-func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisationSlug string) (string, *http.Cookie, error) {
+func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisationSlug string) (string, []http.Cookie, error) {
 	provider, ok := s.sso.providers[providerID]
 	if !ok {
 		return "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
@@ -100,39 +102,59 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	now := s.clock.Now()
 	state := ssoState{
 		ProviderID:       providerID,
-		State:            stateToken,
 		ReturnTo:         transform.InternalReturnPath(returnTo),
 		OrganisationSlug: strings.TrimSpace(organisationSlug),
-		Session:          session.Marshal(),
 		ExpiresAt:        now.Add(s.sso.stateLifetime),
 	}
-	encoded, err := encodeSSOState(state)
+	encodedState, err := encodeSSOState(state)
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	return authURL, &http.Cookie{
-		Name:     s.sso.stateCookieName,
-		Value:    encoded,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  state.ExpiresAt,
-		MaxAge:   int(time.Until(state.ExpiresAt).Seconds()),
+	encodedSession, err := encodeSSOSession(session.Marshal())
+	if err != nil {
+		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
+	}
+	return authURL, []http.Cookie{
+		{
+			Name:     s.sso.stateCookieName,
+			Value:    encodedState,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Expires:  state.ExpiresAt,
+			MaxAge:   int(time.Until(state.ExpiresAt).Seconds()),
+		},
+		{
+			Name:     s.sso.sessionCookieName,
+			Value:    encodedSession,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Expires:  state.ExpiresAt,
+			MaxAge:   int(time.Until(state.ExpiresAt).Seconds()),
+		},
 	}, nil
 }
 
-func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, cookieValue, ip, userAgent string) (string, string, *http.Cookie, error) {
+func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, stateCookieValue, sessionCookieValue, ip, userAgent string) (string, string, []http.Cookie, error) {
 	provider, ok := s.sso.providers[providerID]
 	if !ok {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
 	}
-	state, err := decodeSSOState(cookieValue)
-	if err != nil || state.ProviderID != providerID || state.State != queryState || s.clock.Now().After(state.ExpiresAt) {
+	state, err := decodeSSOState(stateCookieValue)
+	if err != nil || state.ProviderID != providerID || s.clock.Now().After(state.ExpiresAt) {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
 	}
-	session, err := provider.UnmarshalSession(state.Session)
+	sessionRaw, err := decodeSSOSession(sessionCookieValue)
+	if err != nil {
+		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
+	}
+	session, err := provider.UnmarshalSession(sessionRaw)
 	if err != nil {
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
+	}
+	if err := validateSSOState(session, queryState); err != nil {
+		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
 	}
 	if _, err := session.Authorize(provider, url.Values{"code": []string{code}, "state": []string{queryState}}); err != nil {
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
@@ -162,7 +184,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if err != nil {
 		return "", "", nil, err
 	}
-	return state.ReturnTo, token, s.clearSSOStateCookie(), nil
+	return state.ReturnTo, token, s.clearSSOCookies(), nil
 }
 
 func encodeSSOState(state ssoState) (string, error) {
@@ -185,13 +207,50 @@ func decodeSSOState(raw string) (ssoState, error) {
 	return state, nil
 }
 
-func (s *Service) clearSSOStateCookie() *http.Cookie {
-	return &http.Cookie{
-		Name:     s.authConfig.SSOStateCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+func encodeSSOSession(raw string) (string, error) {
+	return base64.RawURLEncoding.EncodeToString([]byte(raw)), nil
+}
+
+func decodeSSOSession(raw string) (string, error) {
+	data, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func validateSSOState(session goth.Session, queryState string) error {
+	authURL, err := session.GetAuthURL()
+	if err != nil {
+		return err
+	}
+	parsedURL, err := url.Parse(authURL)
+	if err != nil {
+		return err
+	}
+	if parsedURL.Query().Get("state") != queryState {
+		return fmt.Errorf("state token mismatch")
+	}
+	return nil
+}
+
+func (s *Service) clearSSOCookies() []http.Cookie {
+	return []http.Cookie{
+		{
+			Name:     s.sso.stateCookieName,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		},
+		{
+			Name:     s.sso.sessionCookieName,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		},
 	}
 }

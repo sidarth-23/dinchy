@@ -258,7 +258,7 @@ func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error
 	if a.requireHTTPS && !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
-	authURL, cookie, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganisationSlug)
+	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganisationSlug)
 	if err != nil {
 		return nil, apperrors.Annotate(err,
 			apperrors.WithHandler(apperrors.HandlerAuthSSOStart),
@@ -266,8 +266,10 @@ func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error
 		)
 	}
 	secure := support.IsSecure(ctx)
-	cookie.Secure = secure
-	return &SSOStartOut{Status: http.StatusFound, Location: authURL, SetCookie: []http.Cookie{*cookie}}, nil
+	for i := range cookies {
+		cookies[i].Secure = secure
+	}
+	return &SSOStartOut{Status: http.StatusFound, Location: authURL, SetCookie: cookies}, nil
 }
 
 func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackOut, error) {
@@ -283,6 +285,7 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 		in.State,
 		in.Code,
 		support.CookieValueFrom(ctx, a.auth.SSOStateCookieName()),
+		support.CookieValueFrom(ctx, a.auth.SSOSessionCookieName()),
 		support.RemoteIPFrom(ctx),
 		support.UserAgentFrom(ctx),
 	)
@@ -293,11 +296,13 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 		)
 	}
 	secure := support.IsSecure(ctx)
-	clearCookie.Secure = secure
+	for i := range clearCookie {
+		clearCookie[i].Secure = secure
+	}
 	out := &SSOCallbackOut{
 		Status:    http.StatusFound,
 		Location:  returnTo,
-		SetCookie: []http.Cookie{*a.auth.SessionCookie(token, secure), *clearCookie},
+		SetCookie: append([]http.Cookie{*a.auth.SessionCookie(token, secure)}, clearCookie...),
 	}
 	return out, nil
 }

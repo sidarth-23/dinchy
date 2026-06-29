@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -219,4 +221,62 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, api.auth.SessionCookieName(), out.SetCookie.Name)
 	assert.Equal(t, -1, out.SetCookie.MaxAge)
+}
+
+func TestAPISSOStart_SetsSecureOnAllCookies(t *testing.T) {
+	t.Parallel()
+	svc, _ := newSSOTestService(t)
+	api := &API{auth: svc, settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, requireHTTPS: false}
+
+	out, err := api.ssoStart(support.WithSecure(context.Background(), true), &SSOStartIn{ProviderID: "github", ReturnTo: "/dashboard"})
+	require.NoError(t, err)
+	require.Len(t, out.SetCookie, 2)
+	assert.True(t, out.SetCookie[0].Secure)
+	assert.True(t, out.SetCookie[1].Secure)
+}
+
+func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
+	t.Parallel()
+	api, store := newHTTPTestAPI(t)
+	svc, _ := newSSOTestService(t)
+	api.auth.sso = svc.sso
+
+	_, cookies, err := api.auth.startSSO(testCtx, "github", "/dashboard", "")
+	require.NoError(t, err)
+	sessionValue := cookieValue(t, cookies, ssoSessionCookieName)
+	startedSession, err := decodeSSOSession(sessionValue)
+	require.NoError(t, err)
+	var session fakeSSOSession
+	require.NoError(t, json.Unmarshal([]byte(startedSession), &session))
+	parsedAuthURL, err := url.Parse(session.AuthURL)
+	require.NoError(t, err)
+
+	store.EXPECT().
+		FindUserByProviderAccount(gomock.Any(), "github", "provider-user").
+		Return(&User{ID: "u1", Email: "candidate@example.com", DisplayName: "User"}, nil)
+	store.EXPECT().
+		ListOrganisationsForUser(gomock.Any(), "u1").
+		Return([]Organisation{{ID: "org1", Name: "Default", Slug: "default", Role: RoleAdmin}}, nil)
+	store.EXPECT().
+		CreateSession(gomock.Any(), gomock.Any()).
+		Return(Session{ID: "s1"}, nil)
+
+	requestCookies := make([]*http.Cookie, 0, len(cookies))
+	for i := range cookies {
+		requestCookies = append(requestCookies, &cookies[i])
+	}
+	ctx := support.WithSecure(
+		support.WithRequestInfo(
+			support.WithRequestCookies(context.Background(), requestCookies),
+			"127.0.0.1",
+			"ua",
+		),
+		true,
+	)
+	out, err := api.ssoCallback(ctx, &SSOCallbackIn{ProviderID: "github", Code: "code-123", State: parsedAuthURL.Query().Get("state")})
+	require.NoError(t, err)
+	require.Len(t, out.SetCookie, 3)
+	assert.True(t, out.SetCookie[0].Secure)
+	assert.True(t, out.SetCookie[1].Secure)
+	assert.True(t, out.SetCookie[2].Secure)
 }
