@@ -5,6 +5,7 @@ package errors
 import (
 	"encoding/json"
 	stdErrors "errors"
+	"maps"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -74,9 +75,7 @@ func WithMetaMap(meta map[string]any) Option {
 		if e.meta == nil {
 			e.meta = make(map[string]any, len(meta))
 		}
-		for k, v := range meta {
-			e.meta[k] = v
-		}
+		maps.Copy(e.meta, meta)
 	}
 }
 
@@ -132,8 +131,7 @@ func Annotate(err error, opts ...Option) error {
 	if err == nil {
 		return nil
 	}
-	var appErr *AppError
-	if stdErrors.As(err, &appErr) {
+	if appErr, ok := stdErrors.AsType[*AppError](err); ok {
 		merged := []Option{WithCause(appErr.cause), WithMetaMap(appErr.meta)}
 		merged = append(merged, opts...)
 		return New(appErr.status, appErr.msg, merged...)
@@ -257,8 +255,7 @@ func findAppError(errs ...error) *AppError {
 		if err == nil {
 			continue
 		}
-		var appErr *AppError
-		if stdErrors.As(err, &appErr) {
+		if appErr, ok := stdErrors.AsType[*AppError](err); ok {
 			return appErr
 		}
 	}
@@ -270,12 +267,8 @@ func mergeMeta(base, extra map[string]any) map[string]any {
 		return nil
 	}
 	out := make(map[string]any, len(base)+len(extra))
-	for k, v := range base {
-		out[k] = v
-	}
-	for k, v := range extra {
-		out[k] = v
-	}
+	maps.Copy(out, base)
+	maps.Copy(out, extra)
 	return out
 }
 
@@ -294,8 +287,7 @@ func Resolve(tag language.Tag, catalog *i18n.Catalog, err error) *ErrorResponse 
 	if err == nil {
 		return nil
 	}
-	var appErr *AppError
-	if stdErrors.As(err, &appErr) {
+	if appErr, ok := stdErrors.AsType[*AppError](err); ok {
 		return localizedResponse(tag, catalog, appErr)
 	}
 	return localizedResponse(tag, catalog, Internal(i18n.Msg(i18n.CodeServerInternalError), WithCause(err)))
