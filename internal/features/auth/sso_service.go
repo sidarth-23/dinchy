@@ -2,82 +2,15 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
-	"time"
-
-	"github.com/markbates/goth"
-	"github.com/markbates/goth/providers/github"
-	"github.com/markbates/goth/providers/gitlab"
-	"github.com/markbates/goth/providers/google"
 
 	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
-	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
-
-const (
-	ssoProviderGoogle = "google"
-	ssoProviderGitHub = "github"
-	ssoProviderGitLab = "gitlab"
-)
-
-var supportedSSOProviders = []SSOProviderOut{
-	{ID: ssoProviderGoogle, Name: "Google"},
-	{ID: ssoProviderGitHub, Name: "GitHub"},
-	{ID: ssoProviderGitLab, Name: "GitLab"},
-}
-
-type ssoRegistry struct {
-	stateCookieName string
-	stateLifetime   time.Duration
-	envProviders    map[string]config.SSOProviderConfig
-	cacheKeyer      cachecore.Keyer
-}
-
-type ssoCacheState struct {
-	ProviderID       string `json:"provider_id"`
-	ReturnTo         string `json:"return_to"`
-	OrganisationSlug string `json:"organisation_slug"`
-	State            string `json:"state"`
-	Session          string `json:"session"`
-}
-
-func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig, cacheKeyer cachecore.Keyer) (*ssoRegistry, error) {
-	registry := &ssoRegistry{
-		stateCookieName: authConfig.SSOStateCookieName,
-		stateLifetime:   authConfig.SSOStateLifetime,
-		envProviders:    map[string]config.SSOProviderConfig{},
-		cacheKeyer:      cacheKeyer,
-	}
-	for _, providerConfig := range configs {
-		if !supportedSSOProvider(string(providerConfig.ID)) {
-			return nil, fmt.Errorf("unsupported sso provider %q", providerConfig.ID)
-		}
-		registry.envProviders[string(providerConfig.ID)] = providerConfig
-	}
-	return registry, nil
-}
-
-func newGothProvider(cfg config.SSOProviderConfig) (goth.Provider, error) {
-	switch cfg.ID {
-	case config.SSOProviderGoogle:
-		return google.New(cfg.ClientID, cfg.Secret, cfg.CallbackURL, "email", "profile"), nil
-	case config.SSOProviderGitHub:
-		return github.New(cfg.ClientID, cfg.Secret, cfg.CallbackURL, "user:email"), nil
-	case config.SSOProviderGitLab:
-		return gitlab.New(cfg.ClientID, cfg.Secret, cfg.CallbackURL, "read_user"), nil
-	default:
-		return nil, fmt.Errorf("unsupported sso provider %q", cfg.ID)
-	}
-}
-
-var newGothProviderForSSO = newGothProvider
 
 func (s *Service) listSSOProviders(ctx context.Context) ([]SSOProviderOut, error) {
 	configs, err := s.effectiveSSOProviderConfigs(ctx)
@@ -207,40 +140,4 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
 	return cached.ReturnTo, token, s.clearSSOCookies(), nil
-}
-
-func validateSSOState(session goth.Session, queryState string) error {
-	authURL, err := session.GetAuthURL()
-	if err != nil {
-		return err
-	}
-	parsedURL, err := url.Parse(authURL)
-	if err != nil {
-		return err
-	}
-	if parsedURL.Query().Get("state") != queryState {
-		return fmt.Errorf("state token mismatch")
-	}
-	return nil
-}
-
-func (s *Service) clearSSOCookies() []http.Cookie {
-	return []http.Cookie{{
-		Name:     s.sso.stateCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	}}
-}
-
-func (r *ssoRegistry) cacheKey(transactionID string) string {
-	return r.cacheKeyer.Key("sso", "state", transactionID)
-}
-
-func supportedSSOProvider(providerID string) bool {
-	return slices.ContainsFunc(supportedSSOProviders, func(provider SSOProviderOut) bool {
-		return provider.ID == providerID
-	})
 }

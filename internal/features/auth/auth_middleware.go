@@ -14,39 +14,12 @@ func (s *Service) SSOStateCookieName() string {
 }
 
 func (s *Service) SessionCookie(token string, secure bool) *http.Cookie {
-	return sessionCookie(s.authConfig.SessionCookieName, token, secure)
+	return valueCookie(s.authConfig.SessionCookieName, token, secure)
 }
 
 func (s *Service) ClearSessionCookie(secure bool) *http.Cookie {
-	return clearSessionCookie(s.authConfig.SessionCookieName, secure)
+	return clearCookie(s.authConfig.SessionCookieName, secure)
 }
-
-func sessionCookie(name, token string, secure bool) *http.Cookie {
-	return &http.Cookie{
-		Name:     name,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	}
-}
-
-func clearSessionCookie(name string, secure bool) *http.Cookie {
-	return &http.Cookie{
-		Name:     name,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	}
-}
-
-type ctxKey int
-
-const ctxKeySession ctxKey = iota
 
 // WithSession attaches a validated session to the request context.
 func WithSession(ctx context.Context, s *SessionWithUser) context.Context {

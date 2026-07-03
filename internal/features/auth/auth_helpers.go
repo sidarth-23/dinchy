@@ -12,38 +12,11 @@ import (
 
 	"golang.org/x/crypto/argon2"
 
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 )
 
-const (
-	passwordHashVersion   = "v1"
-	passwordHashAlgorithm = "argon2id"
-	passwordHashSaltLen   = 16
-	passwordHashMemory    = 64 * 1024
-	passwordHashTime      = 2
-	passwordHashThreads   = 4
-	passwordHashKeyLen    = 32
-)
-
-type passwordHashParams struct {
-	memory  uint32
-	time    uint32
-	threads uint8
-	keyLen  uint32
-}
-
-var currentPasswordHashParams = passwordHashParams{
-	memory:  passwordHashMemory,
-	time:    passwordHashTime,
-	threads: passwordHashThreads,
-	keyLen:  passwordHashKeyLen,
-}
-
-type parsedPasswordHash struct {
-	params passwordHashParams
-	salt   []byte
-	hash   []byte
-}
+var currentPasswordHashParams = config.DefaultPasswordHashParams()
 
 func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua string) (string, error) {
 	token, tokenHash, err := generateSessionToken()
@@ -75,11 +48,11 @@ func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua
 }
 
 func hashPassword(password string) (string, error) {
-	salt := make([]byte, passwordHashSaltLen)
+	salt := make([]byte, currentPasswordHashParams.SaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	sum := argon2.IDKey([]byte(password), salt, currentPasswordHashParams.time, currentPasswordHashParams.memory, currentPasswordHashParams.threads, currentPasswordHashParams.keyLen)
+	sum := argon2.IDKey([]byte(password), salt, currentPasswordHashParams.Time, currentPasswordHashParams.Memory, currentPasswordHashParams.Threads, currentPasswordHashParams.KeyLen)
 	return formatPasswordHash(salt, sum, currentPasswordHashParams), nil
 }
 
@@ -88,7 +61,7 @@ func verifyPassword(password, encoded string) bool {
 	if !ok {
 		return false
 	}
-	sum := argon2.IDKey([]byte(password), spec.salt, spec.params.time, spec.params.memory, spec.params.threads, spec.params.keyLen)
+	sum := argon2.IDKey([]byte(password), spec.salt, spec.params.Time, spec.params.Memory, spec.params.Threads, spec.params.KeyLen)
 	return subtle.ConstantTimeCompare(sum, spec.hash) == 1
 }
 
@@ -116,14 +89,17 @@ func hashToken(raw string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func formatPasswordHash(salt, hash []byte, params passwordHashParams) string {
+func formatPasswordHash(salt, hash []byte, params config.PasswordHashParams) string {
 	return fmt.Sprintf(
-		"%s$%s$m=%d,t=%d,p=%d$%s$%s",
-		passwordHashVersion,
-		passwordHashAlgorithm,
-		params.memory,
-		params.time,
-		params.threads,
+		"%s$%s$%s=%d,%s=%d,%s=%d$%s$%s",
+		config.PasswordHashVersionV1,
+		config.PasswordHashAlgorithmArgon2ID,
+		config.PasswordHashParamMemory,
+		params.Memory,
+		config.PasswordHashParamTime,
+		params.Time,
+		config.PasswordHashParamThreads,
+		params.Threads,
 		base64.RawStdEncoding.EncodeToString(salt),
 		base64.RawStdEncoding.EncodeToString(hash),
 	)
@@ -134,7 +110,7 @@ func parsePasswordHash(encoded string) (parsedPasswordHash, bool) {
 	if len(parts) != 5 {
 		return parsedPasswordHash{}, false
 	}
-	if parts[0] != passwordHashVersion || parts[1] != passwordHashAlgorithm {
+	if config.PasswordHashVersion(parts[0]) != config.PasswordHashVersionV1 || config.PasswordHashAlgorithm(parts[1]) != config.PasswordHashAlgorithmArgon2ID {
 		return parsedPasswordHash{}, false
 	}
 	params, ok := parsePasswordHashParams(parts[2])
@@ -142,11 +118,11 @@ func parsePasswordHash(encoded string) (parsedPasswordHash, bool) {
 		return parsedPasswordHash{}, false
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[3])
-	if err != nil || len(salt) != passwordHashSaltLen {
+	if err != nil || len(salt) != currentPasswordHashParams.SaltLen {
 		return parsedPasswordHash{}, false
 	}
 	hash, err := base64.RawStdEncoding.DecodeString(parts[4])
-	if err != nil || len(hash) != int(params.keyLen) {
+	if err != nil || len(hash) != int(params.KeyLen) {
 		return parsedPasswordHash{}, false
 	}
 	return parsedPasswordHash{
@@ -156,36 +132,35 @@ func parsePasswordHash(encoded string) (parsedPasswordHash, bool) {
 	}, true
 }
 
-func parsePasswordHashParams(raw string) (passwordHashParams, bool) {
+func parsePasswordHashParams(raw string) (config.PasswordHashParams, bool) {
 	parts := strings.Split(raw, ",")
 	if len(parts) != 3 {
-		return passwordHashParams{}, false
+		return config.PasswordHashParams{}, false
 	}
 
-	var params passwordHashParams
+	params := config.PasswordHashParams{SaltLen: currentPasswordHashParams.SaltLen, KeyLen: currentPasswordHashParams.KeyLen}
 	for _, part := range parts {
 		kv := strings.SplitN(part, "=", 2)
 		if len(kv) != 2 {
-			return passwordHashParams{}, false
+			return config.PasswordHashParams{}, false
 		}
 		v, err := strconv.ParseUint(kv[1], 10, 32)
 		if err != nil {
-			return passwordHashParams{}, false
+			return config.PasswordHashParams{}, false
 		}
-		switch kv[0] {
-		case "m":
-			params.memory = uint32(v)
-		case "t":
-			params.time = uint32(v)
-		case "p":
-			params.threads = uint8(v)
+		switch config.PasswordHashParamKey(kv[0]) {
+		case config.PasswordHashParamMemory:
+			params.Memory = uint32(v)
+		case config.PasswordHashParamTime:
+			params.Time = uint32(v)
+		case config.PasswordHashParamThreads:
+			params.Threads = uint8(v)
 		default:
-			return passwordHashParams{}, false
+			return config.PasswordHashParams{}, false
 		}
 	}
-	if params.memory == 0 || params.time == 0 || params.threads == 0 {
-		return passwordHashParams{}, false
+	if params.Memory == 0 || params.Time == 0 || params.Threads == 0 {
+		return config.PasswordHashParams{}, false
 	}
-	params.keyLen = passwordHashKeyLen
 	return params, true
 }

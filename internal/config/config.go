@@ -15,29 +15,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/validation"
 )
 
-type SSOProviderID string
-
-const (
-	SSOProviderGoogle SSOProviderID = "google"
-	SSOProviderGitHub SSOProviderID = "github"
-	SSOProviderGitLab SSOProviderID = "gitlab"
-)
-
-type SSOProviderConfig struct {
-	// ID identifies the SSO provider internally.
-	ID SSOProviderID
-	// Name is the display name shown to users.
-	Name string
-	// ClientID is the provider OAuth client ID.
-	ClientID string
-	// Secret is the provider OAuth client secret.
-	Secret string
-	// CallbackURL is the absolute OAuth callback URL registered with the provider.
-	CallbackURL string
-	// Enabled is true when the provider has all required credentials.
-	Enabled bool
-}
-
 type SMTPConfig struct {
 	// Host is the SMTP server hostname used for outbound application email.
 	Host string `env:"DINCHY_SMTP_HOST"`
@@ -124,26 +101,10 @@ type Config struct {
 	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,url"`
 	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
 	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
-	// GoogleClientID is the Google OAuth client ID; Google SSO is enabled only when ID, secret, and callback URL are set.
-	GoogleClientID string `env:"DINCHY_GOOGLE_CLIENT_ID"`
-	// GoogleSecret is the Google OAuth client secret.
-	GoogleSecret string `env:"DINCHY_GOOGLE_CLIENT_SECRET"`
-	// GoogleCallbackURL is the absolute Google OAuth callback URL.
-	GoogleCallbackURL string `env:"DINCHY_GOOGLE_CALLBACK_URL" validate:"omitempty,url"`
-	// GitHubClientID is the GitHub OAuth client ID; GitHub SSO is enabled only when ID, secret, and callback URL are set.
-	GitHubClientID string `env:"DINCHY_GITHUB_CLIENT_ID"`
-	// GitHubSecret is the GitHub OAuth client secret.
-	GitHubSecret string `env:"DINCHY_GITHUB_CLIENT_SECRET"`
-	// GitHubCallbackURL is the absolute GitHub OAuth callback URL.
-	GitHubCallbackURL string `env:"DINCHY_GITHUB_CALLBACK_URL" validate:"omitempty,url"`
-	// GitLabClientID is the GitLab OAuth client ID; GitLab SSO is enabled only when ID, secret, and callback URL are set.
-	GitLabClientID string `env:"DINCHY_GITLAB_CLIENT_ID"`
-	// GitLabSecret is the GitLab OAuth client secret.
-	GitLabSecret string `env:"DINCHY_GITLAB_CLIENT_SECRET"`
-	// GitLabCallbackURL is the absolute GitLab OAuth callback URL.
-	GitLabCallbackURL string `env:"DINCHY_GITLAB_CALLBACK_URL" validate:"omitempty,url"`
 	// Auth contains authentication behavior and lifetime settings.
 	Auth AuthConfig
+	// SSO contains startup SSO provider values loaded from environment.
+	SSO SSOEnvConfig
 	// SMTP contains outbound email settings for password reset and invitation flows.
 	SMTP SMTPConfig
 	// Cache contains optional cache store settings for ephemeral state.
@@ -177,6 +138,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := loadFromEnv(&cfg.Auth); err != nil {
+		return Config{}, err
+	}
+	if err := loadFromEnv(&cfg.SSO); err != nil {
 		return Config{}, err
 	}
 	if err := loadFromEnv(&cfg.SMTP); err != nil {
@@ -258,25 +222,6 @@ func loadFromEnv(cfg any) error {
 		}
 	}
 	return nil
-}
-
-func configuredSSOProviders(cfg Config) []SSOProviderConfig {
-	candidates := []SSOProviderConfig{
-		{ID: SSOProviderGoogle, Name: "Google", ClientID: cfg.GoogleClientID, Secret: cfg.GoogleSecret, CallbackURL: cfg.GoogleCallbackURL},
-		{ID: SSOProviderGitHub, Name: "GitHub", ClientID: cfg.GitHubClientID, Secret: cfg.GitHubSecret, CallbackURL: cfg.GitHubCallbackURL},
-		{ID: SSOProviderGitLab, Name: "GitLab", ClientID: cfg.GitLabClientID, Secret: cfg.GitLabSecret, CallbackURL: cfg.GitLabCallbackURL},
-	}
-	providers := make([]SSOProviderConfig, 0, len(candidates))
-	for _, provider := range candidates {
-		provider.ClientID = strings.TrimSpace(provider.ClientID)
-		provider.Secret = strings.TrimSpace(provider.Secret)
-		provider.CallbackURL = strings.TrimSpace(provider.CallbackURL)
-		provider.Enabled = provider.ClientID != "" && provider.Secret != "" && provider.CallbackURL != ""
-		if provider.ClientID != "" || provider.Secret != "" || provider.CallbackURL != "" {
-			providers = append(providers, provider)
-		}
-	}
-	return providers
 }
 
 func parseBool(s string) bool {
