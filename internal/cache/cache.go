@@ -21,7 +21,7 @@ func Open(ctx context.Context, cfg config.CacheConfig) (Store, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Backend)) {
 	case "":
 		return nil, nil
-	case "redis":
+	case config.CacheBackendRedis:
 		store, err := cacheredis.Open(cfg)
 		if err != nil {
 			return nil, err

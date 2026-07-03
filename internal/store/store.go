@@ -24,12 +24,12 @@ type Store interface {
 
 // Open returns the configured backend implementation.
 func Open(ctx context.Context, cfg config.Config) (Store, error) {
-	switch cfg.DBBackend {
-	case "", "sqlite":
-		return sqlite.Open(ctx, cfg.DBPath)
-	case "postgres":
-		return postgres.Open(ctx, cfg.PostgresDSN)
+	switch cfg.Database.DBBackend {
+	case "", config.DBBackendSQLite:
+		return sqlite.Open(ctx, cfg.Database.DBPath)
+	case config.DBBackendPostgres:
+		return postgres.Open(ctx, cfg.Database.PostgresDSN)
 	default:
-		return nil, fmt.Errorf("unsupported database backend %q", cfg.DBBackend)
+		return nil, fmt.Errorf("unsupported database backend %q", cfg.Database.DBBackend)
 	}
 }

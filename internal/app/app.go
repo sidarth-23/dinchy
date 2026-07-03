@@ -14,7 +14,6 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/tasks"
-	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
@@ -57,9 +56,6 @@ func (a *App) Start() error {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 	a.cache = cacheStore
-	if hasEnabledSSOProvider(a.cfg.SSOProviders) && cacheStore == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthSSOCacheRequired))
-	}
 
 	clk := clock.RealClock{}
 	var sender email.Sender = email.NoopSender{}
@@ -128,15 +124,6 @@ func (a *App) Shutdown(ctx context.Context) error {
 		}
 	}
 	return shutdownErr
-}
-
-func hasEnabledSSOProvider(providers []config.SSOProviderConfig) bool {
-	for _, provider := range providers {
-		if provider.Enabled {
-			return true
-		}
-	}
-	return false
 }
 
 // Wait blocks until both servers exit and returns the first fatal error encountered.

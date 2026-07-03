@@ -44,9 +44,6 @@ func NewSMTPSender(cfg config.SMTPConfig) (*SMTPSender, error) {
 	if cfg.Host == "" || cfg.From == "" {
 		return nil, fmt.Errorf("DINCHY_SMTP_HOST and DINCHY_SMTP_FROM are required when SMTP is configured")
 	}
-	if cfg.Port == "" {
-		cfg.Port = "587"
-	}
 	if _, err := strconv.Atoi(cfg.Port); err != nil {
 		return nil, fmt.Errorf("parse DINCHY_SMTP_PORT %q: %w", cfg.Port, err)
 	}
