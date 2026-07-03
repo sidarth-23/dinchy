@@ -50,7 +50,7 @@ Future PostgreSQL queries go in `internal/store/postgres/queries/` with PostgreS
 
 Each service declares the exact data access it needs:
 - `internal/auth/store.go` — `auth.Store` interface
-- `internal/tasks/store.go` — `tasks.Store` interface
+- `internal/workers/store.go` — `workers.Store` interface
 - `internal/domain/settings.go` — `domain.SettingsReader` interface
 
 The concrete `sqlite.Store` (in `internal/store/sqlite/`) implements all three. `internal/app/app.go` is the only place that imports the concrete store; it passes it to each service typed as that service's narrow interface.

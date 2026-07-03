@@ -8,15 +8,15 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/features/tasks"
 	"github.com/sidarth-23/dinchy/internal/store/postgres"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite"
+	"github.com/sidarth-23/dinchy/internal/workers"
 )
 
 // Store is the application-facing persistence contract.
 type Store interface {
 	auth.Store
-	tasks.Store
+	workers.Store
 	auth.SettingsReader
 	io.Closer
 	PingContext(ctx context.Context) error

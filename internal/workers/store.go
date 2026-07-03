@@ -1,13 +1,13 @@
-package tasks
+package workers
 
 import (
 	"context"
 	"time"
 )
 
-//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/tasks -destination=store_mockdata_test.go -package=tasks . Store
+//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/workers -destination=store_mockdata_test.go -package=workers . Store
 
-// Store is the data access contract required by the task runtime.
+// Store is the data access contract required by the worker runtime.
 type Store interface {
 	EnsureTask(ctx context.Context, name string, intervalSeconds int64, now time.Time) error
 	ClaimTask(ctx context.Context, taskName, owner string, leaseUntil, now time.Time) (bool, error)

@@ -122,7 +122,7 @@ Each database backend (`store/sqlite/`, future `store/postgres/`) has an identic
 - `sqlcgen/` — sqlc-generated Go code for that engine
 - `migrations/` — goose migration files in that database's DDL dialect
 
-The `sqlc.yaml` at the project root has one `sql:` block per engine. Adding a new database means adding a new sub-package that implements `auth.Store`, `tasks.Store`, and `domain.SettingsReader`. Nothing outside `store/` changes.
+The `sqlc.yaml` at the project root has one `sql:` block per engine. Adding a new database means adding a new sub-package that implements `auth.Store`, `workers.Store`, and `domain.SettingsReader`. Nothing outside `store/` changes.
 
 ## App Lifecycle
 

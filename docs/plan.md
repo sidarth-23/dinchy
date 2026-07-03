@@ -13,7 +13,7 @@
 - Chi + Huma API with typed operations, OpenAPI metadata, input validation, and structured error responses
 - SQLite setup with WAL mode (`modernc.org/sqlite`), sqlc-generated queries (`sqlc.yaml`)
 - Database migrations (`pressly/goose`) per database backend — multi-database seam: `store/sqlite/` now, `store/postgres/` ready to add
-- Consumer-defined store interfaces per domain (`auth.Store`, `tasks.Store`, `domain.SettingsReader`)
+- Consumer-defined store interfaces per domain (`auth.Store`, `workers.Store`, `domain.SettingsReader`)
 - Initial schema: users, sessions, app_settings, auth_audit_logs, scheduled_tasks
 - Chi middleware stack: request ID, real IP, CORS, CSRF double-submit, session validation, security headers, HTTPS detection
 - `embed.FS` serving the frontend build
