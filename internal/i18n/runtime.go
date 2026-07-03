@@ -4,6 +4,7 @@ package i18n
 
 import (
 	"bytes"
+	"maps"
 	"sort"
 	"text/template"
 
@@ -102,9 +103,7 @@ func cloneLocales(locales map[language.Tag]map[Code]string) map[language.Tag]map
 	out := make(map[language.Tag]map[Code]string, len(locales))
 	for tag, messages := range locales {
 		cloned := make(map[Code]string, len(messages))
-		for code, text := range messages {
-			cloned[code] = text
-		}
+		maps.Copy(cloned, messages)
 		out[tag] = cloned
 	}
 	return out
@@ -115,9 +114,7 @@ func cloneMeta(meta map[string]any) map[string]any {
 		return nil
 	}
 	out := make(map[string]any, len(meta))
-	for k, v := range meta {
-		out[k] = v
-	}
+	maps.Copy(out, meta)
 	return out
 }
 
