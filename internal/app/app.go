@@ -83,7 +83,7 @@ func (a *App) Start() error {
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
-	a.workers = workers.NewRuntime(s, clk, a.errCh)
+	a.workers = workers.NewRuntime(s, clk, a.errCh, workers.NewSessionCleanupWorker(s, clk))
 	if err := a.workers.Start(ctx); err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageStartTaskRuntime),

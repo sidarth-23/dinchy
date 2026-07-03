@@ -2,7 +2,6 @@ package workers
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -16,45 +15,50 @@ const (
 	sessionCleanupRetentionDuration  = 24 * time.Hour
 )
 
-func (r *Runtime) runSessionCleanup(ctx context.Context) error {
-	now := r.clock.Now()
-	ok, err := r.store.ClaimTask(ctx, sessionCleanupTaskName, r.owner, now.Add(sessionCleanupLeaseDuration), now)
+// SessionCleanupWorker prunes ended sessions after the retention period.
+type SessionCleanupWorker struct {
+	store Store
+	clock contextClock
+}
+
+type contextClock interface {
+	Now() time.Time
+}
+
+// NewSessionCleanupWorker creates the session cleanup worker.
+func NewSessionCleanupWorker(store Store, clk contextClock) Worker {
+	return &SessionCleanupWorker{store: store, clock: clk}
+}
+
+func (w *SessionCleanupWorker) TaskName() string {
+	return sessionCleanupTaskName
+}
+
+func (w *SessionCleanupWorker) IntervalSeconds() int64 {
+	return sessionCleanupIntervalSeconds
+}
+
+func (w *SessionCleanupWorker) LeaseDuration() time.Duration {
+	return sessionCleanupLeaseDuration
+}
+
+func (w *SessionCleanupWorker) RetryDelay() time.Duration {
+	return sessionCleanupRetryDelayDuration
+}
+
+func (w *SessionCleanupWorker) FailureErrorCode() string {
+	return "task.session_cleanup_failed"
+}
+
+func (w *SessionCleanupWorker) ExecutionStage() apperrors.Stage {
+	return apperrors.StageDeleteEndedSessions
+}
+
+func (w *SessionCleanupWorker) Execute(ctx context.Context) (WorkerOutcome, error) {
+	now := w.clock.Now()
+	deletedCount, err := w.store.DeleteEndedSessionsOlderThan(ctx, now.Add(-sessionCleanupRetentionDuration))
 	if err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithTask(apperrors.TaskSessionCleanup),
-			apperrors.WithStage(apperrors.StageClaimTask),
-		)
+		return WorkerOutcome{}, err
 	}
-	if !ok {
-		return nil
-	}
-
-	deletedCount, cleanupErr := r.store.DeleteEndedSessionsOlderThan(ctx, now.Add(-sessionCleanupRetentionDuration))
-	if cleanupErr != nil {
-		if finishErr := r.store.FinishTask(ctx, sessionCleanupTaskName, now, false, "task.session_cleanup_failed", cleanupErr.Error(), now.Add(sessionCleanupRetryDelayDuration)); finishErr != nil {
-			return errors.Join(
-				apperrors.Annotate(cleanupErr,
-					apperrors.WithTask(apperrors.TaskSessionCleanup),
-					apperrors.WithStage(apperrors.StageDeleteEndedSessions),
-				),
-				apperrors.Annotate(finishErr,
-					apperrors.WithTask(apperrors.TaskSessionCleanup),
-					apperrors.WithStage(apperrors.StageFinishFailedRun),
-				),
-			)
-		}
-		return apperrors.Annotate(cleanupErr,
-			apperrors.WithTask(apperrors.TaskSessionCleanup),
-			apperrors.WithStage(apperrors.StageDeleteEndedSessions),
-		)
-	}
-
-	if err := r.store.FinishTask(ctx, sessionCleanupTaskName, now, true, "", "", now.Add(sessionCleanupRetryDelayDuration)); err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithTask(apperrors.TaskSessionCleanup),
-			apperrors.WithStage(apperrors.StageFinishSuccess),
-			apperrors.WithDeletedCount(apperrors.DeletedCount(deletedCount)),
-		)
-	}
-	return nil
+	return WorkerOutcome{DeletedCount: deletedCount}, nil
 }
