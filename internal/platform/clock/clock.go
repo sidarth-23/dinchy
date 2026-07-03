@@ -1,8 +1,6 @@
 // Package clock provides a mockable time source for testability.
 package clock
 
-//go:generate mockgen -destination=clock_mockdata_test.go -package=clock . Clock
-
 import "time"
 
 // Clock abstracts time so it can be controlled in tests.
