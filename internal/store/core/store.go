@@ -33,6 +33,8 @@ type Queries interface {
 	ConfirmTwoFactor(ctx context.Context, arg UseTwoFactorParams) error
 	MarkTwoFactorUsed(ctx context.Context, arg UseTwoFactorParams) error
 	DisableTwoFactor(ctx context.Context, userID string) error
+	ListSSOProviderSettings(ctx context.Context) ([]SSOProviderSettingRow, error)
+	UpsertSSOProviderSetting(ctx context.Context, arg UpsertSSOProviderSettingParams) error
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (SessionRow, error)
 	RevokeSessionByTokenHash(ctx context.Context, arg RevokeSessionParams) error

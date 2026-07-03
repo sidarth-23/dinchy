@@ -8,10 +8,13 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/sidarth-23/dinchy/internal/cache"
+	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/tasks"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
@@ -24,6 +27,7 @@ import (
 type App struct {
 	cfg      config.Config
 	closer   io.Closer
+	cache    cache.Store
 	public   *http.Server
 	internal *http.Server
 	tasks    *tasks.Runtime
@@ -48,6 +52,15 @@ func (a *App) Start() error {
 	}
 	a.closer = s
 
+	cacheStore, err := cache.Open(ctx, a.cfg.Cache)
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	a.cache = cacheStore
+	if hasEnabledSSOProvider(a.cfg.SSOProviders) && cacheStore == nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthSSOCacheRequired))
+	}
+
 	clk := clock.RealClock{}
 	var sender email.Sender = email.NoopSender{}
 	if a.cfg.SMTP.Enabled() {
@@ -57,7 +70,7 @@ func (a *App) Start() error {
 		}
 		sender = smtpSender
 	}
-	authSvc, err := auth.NewService(s, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, sender)
+	authSvc, err := auth.NewService(s, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender)
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageSetup),
@@ -104,12 +117,26 @@ func (a *App) Shutdown(ctx context.Context) error {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
+	if a.cache != nil {
+		if err := a.cache.Close(); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
+	}
 	if a.closer != nil {
 		if err := a.closer.Close(); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
 	return shutdownErr
+}
+
+func hasEnabledSSOProvider(providers []config.SSOProviderConfig) bool {
+	for _, provider := range providers {
+		if provider.Enabled {
+			return true
+		}
+	}
+	return false
 }
 
 // Wait blocks until both servers exit and returns the first fatal error encountered.

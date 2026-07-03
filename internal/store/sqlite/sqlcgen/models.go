@@ -103,6 +103,16 @@ type Session struct {
 	UpdatedAt            string
 }
 
+type SsoProviderSetting struct {
+	ProviderID   string
+	ClientID     sql.NullString
+	ClientSecret sql.NullString
+	CallbackUrl  sql.NullString
+	Enabled      int64
+	CreatedAt    string
+	UpdatedAt    string
+}
+
 type TwoFactor struct {
 	ID                      string
 	UserID                  string

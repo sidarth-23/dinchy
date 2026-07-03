@@ -73,6 +73,19 @@ type TwoFactorRow struct {
 	LockedUntilValid        bool
 }
 
+type SSOProviderSettingRow struct {
+	ProviderID    string
+	ClientID      string
+	ClientIDValid bool
+	Secret        string
+	SecretValid   bool
+	CallbackURL   string
+	CallbackValid bool
+	Enabled       bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type InsertUserParams struct {
 	ID              string
 	Email           string
@@ -174,6 +187,19 @@ type UseTwoFactorParams struct {
 	UserID       string
 	LastUsedStep int64
 	UpdatedAt    time.Time
+}
+
+type UpsertSSOProviderSettingParams struct {
+	ProviderID    string
+	ClientID      string
+	ClientIDValid bool
+	Secret        string
+	SecretValid   bool
+	CallbackURL   string
+	CallbackValid bool
+	Enabled       bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type TaskParams struct {

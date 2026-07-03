@@ -2,11 +2,10 @@ package auth
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,48 +13,53 @@ import (
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/gitlab"
 	"github.com/markbates/goth/providers/google"
-	"github.com/markbates/goth/providers/microsoftonline"
 
+	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
+const (
+	ssoProviderGoogle = "google"
+	ssoProviderGitHub = "github"
+	ssoProviderGitLab = "gitlab"
+)
+
+var supportedSSOProviders = []SSOProviderOut{
+	{ID: ssoProviderGoogle, Name: "Google"},
+	{ID: ssoProviderGitHub, Name: "GitHub"},
+	{ID: ssoProviderGitLab, Name: "GitLab"},
+}
+
 type ssoRegistry struct {
-	stateCookieName   string
-	sessionCookieName string
-	stateLifetime     time.Duration
-	providers         map[string]goth.Provider
-	summaries         []SSOProviderOut
+	stateCookieName string
+	stateLifetime   time.Duration
+	envProviders    map[string]config.SSOProviderConfig
+	cacheKeyer      cachecore.Keyer
 }
 
-type ssoState struct {
-	ProviderID       string    `json:"provider_id"`
-	ReturnTo         string    `json:"return_to"`
-	OrganisationSlug string    `json:"organisation_slug"`
-	ExpiresAt        time.Time `json:"expires_at"`
+type ssoCacheState struct {
+	ProviderID       string `json:"provider_id"`
+	ReturnTo         string `json:"return_to"`
+	OrganisationSlug string `json:"organisation_slug"`
+	State            string `json:"state"`
+	Session          string `json:"session"`
 }
 
-const ssoSessionCookieName = "dinchy_sso_session"
-
-func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig) (*ssoRegistry, error) {
+func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig, cacheKeyer cachecore.Keyer) (*ssoRegistry, error) {
 	registry := &ssoRegistry{
-		stateCookieName:   authConfig.SSOStateCookieName,
-		sessionCookieName: ssoSessionCookieName,
-		stateLifetime:     authConfig.SSOStateLifetime,
-		providers:         map[string]goth.Provider{},
+		stateCookieName: authConfig.SSOStateCookieName,
+		stateLifetime:   authConfig.SSOStateLifetime,
+		envProviders:    map[string]config.SSOProviderConfig{},
+		cacheKeyer:      cacheKeyer,
 	}
-	for _, cfg := range configs {
-		if !cfg.Enabled {
-			continue
+	for _, providerConfig := range configs {
+		if !supportedSSOProvider(string(providerConfig.ID)) {
+			return nil, fmt.Errorf("unsupported sso provider %q", providerConfig.ID)
 		}
-		provider, err := newGothProvider(cfg)
-		if err != nil {
-			return nil, err
-		}
-		registry.providers[string(cfg.ID)] = provider
-		registry.summaries = append(registry.summaries, SSOProviderOut{ID: string(cfg.ID), Name: cfg.Name})
+		registry.envProviders[string(providerConfig.ID)] = providerConfig
 	}
 	return registry, nil
 }
@@ -66,8 +70,6 @@ func newGothProvider(cfg config.SSOProviderConfig) (goth.Provider, error) {
 		return google.New(cfg.ClientID, cfg.Secret, cfg.CallbackURL, "email", "profile"), nil
 	case config.SSOProviderGitHub:
 		return github.New(cfg.ClientID, cfg.Secret, cfg.CallbackURL, "user:email"), nil
-	case config.SSOProviderMicrosoft:
-		return microsoftonline.New(cfg.ClientID, cfg.Secret, cfg.CallbackURL, "common", "openid", "email", "profile"), nil
 	case config.SSOProviderGitLab:
 		return gitlab.New(cfg.ClientID, cfg.Secret, cfg.CallbackURL, "read_user"), nil
 	default:
@@ -75,19 +77,39 @@ func newGothProvider(cfg config.SSOProviderConfig) (goth.Provider, error) {
 	}
 }
 
-func (s *Service) listSSOProviders() []SSOProviderOut {
-	if s == nil || s.sso == nil {
-		return nil
+var newGothProviderForSSO = newGothProvider
+
+func (s *Service) listSSOProviders(ctx context.Context) ([]SSOProviderOut, error) {
+	configs, err := s.effectiveSSOProviderConfigs(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return append([]SSOProviderOut(nil), s.sso.summaries...)
+	out := make([]SSOProviderOut, 0, len(configs))
+	for _, providerConfig := range configs {
+		if !providerConfig.Enabled {
+			continue
+		}
+		out = append(out, SSOProviderOut{ID: string(providerConfig.ID), Name: providerConfig.Name})
+	}
+	return out, nil
 }
 
 func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisationSlug string) (string, []http.Cookie, error) {
-	provider, ok := s.sso.providers[providerID]
-	if !ok {
+	providerConfig, ok, err := s.effectiveSSOProviderConfig(ctx, providerID)
+	if err != nil {
+		return "", nil, err
+	}
+	if !ok || !providerConfig.Enabled {
 		return "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
 	}
-	stateToken, err := newRandomToken(16)
+	if s.cache == nil {
+		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthSSOCacheRequired))
+	}
+	provider, err := newGothProviderForSSO(providerConfig)
+	if err != nil {
+		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
+	}
+	stateToken, err := newRandomToken(32)
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
@@ -99,57 +121,54 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	now := s.clock.Now()
-	state := ssoState{
+	transactionID, err := newRandomToken(32)
+	if err != nil {
+		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
+	}
+	cacheState := ssoCacheState{
 		ProviderID:       providerID,
 		ReturnTo:         transform.InternalReturnPath(returnTo),
 		OrganisationSlug: strings.TrimSpace(organisationSlug),
-		ExpiresAt:        now.Add(s.sso.stateLifetime),
+		State:            stateToken,
+		Session:          session.Marshal(),
 	}
-	encodedState, err := encodeSSOState(state)
-	if err != nil {
+	if err := cachecore.SetJSON(ctx, s.cache, s.sso.cacheKey(transactionID), cacheState, s.sso.stateLifetime); err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	encodedSession, err := encodeSSOSession(session.Marshal())
-	if err != nil {
-		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
-	}
-	return authURL, []http.Cookie{
-		{
-			Name:     s.sso.stateCookieName,
-			Value:    encodedState,
-			Path:     "/",
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			Expires:  state.ExpiresAt,
-			MaxAge:   int(time.Until(state.ExpiresAt).Seconds()),
-		},
-		{
-			Name:     s.sso.sessionCookieName,
-			Value:    encodedSession,
-			Path:     "/",
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			Expires:  state.ExpiresAt,
-			MaxAge:   int(time.Until(state.ExpiresAt).Seconds()),
-		},
-	}, nil
+	return authURL, []http.Cookie{{
+		Name:     s.sso.stateCookieName,
+		Value:    transactionID,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(s.sso.stateLifetime.Seconds()),
+		Expires:  s.clock.Now().Add(s.sso.stateLifetime),
+	}}, nil
 }
 
-func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, stateCookieValue, sessionCookieValue, ip, userAgent string) (string, string, []http.Cookie, error) {
-	provider, ok := s.sso.providers[providerID]
-	if !ok {
+func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, transactionID, ip, userAgent string) (string, string, []http.Cookie, error) {
+	providerConfig, ok, err := s.effectiveSSOProviderConfig(ctx, providerID)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if !ok || !providerConfig.Enabled {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
 	}
-	state, err := decodeSSOState(stateCookieValue)
-	if err != nil || state.ProviderID != providerID || s.clock.Now().After(state.ExpiresAt) {
+	if s.cache == nil || transactionID == "" {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
 	}
-	sessionRaw, err := decodeSSOSession(sessionCookieValue)
+	var cached ssoCacheState
+	if err := cachecore.GetJSON(ctx, s.cache, s.sso.cacheKey(transactionID), &cached); err != nil {
+		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
+	}
+	if cached.ProviderID != providerID || cached.State != queryState {
+		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
+	}
+	provider, err := newGothProviderForSSO(providerConfig)
 	if err != nil {
-		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
+		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
-	session, err := provider.UnmarshalSession(sessionRaw)
+	session, err := provider.UnmarshalSession(cached.Session)
 	if err != nil {
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
@@ -176,7 +195,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if user == nil {
 		return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
 	}
-	organisation, err := s.resolveLoginOrganisation(ctx, user.ID, state.OrganisationSlug)
+	organisation, err := s.resolveLoginOrganisation(ctx, user.ID, cached.OrganisationSlug)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -184,39 +203,10 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if err != nil {
 		return "", "", nil, err
 	}
-	return state.ReturnTo, token, s.clearSSOCookies(), nil
-}
-
-func encodeSSOState(state ssoState) (string, error) {
-	raw, err := json.Marshal(state)
-	if err != nil {
-		return "", err
+	if err := s.cache.Delete(ctx, s.sso.cacheKey(transactionID)); err != nil {
+		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
-	return base64.RawURLEncoding.EncodeToString(raw), nil
-}
-
-func decodeSSOState(raw string) (ssoState, error) {
-	data, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return ssoState{}, err
-	}
-	var state ssoState
-	if err := json.Unmarshal(data, &state); err != nil {
-		return ssoState{}, err
-	}
-	return state, nil
-}
-
-func encodeSSOSession(raw string) (string, error) {
-	return base64.RawURLEncoding.EncodeToString([]byte(raw)), nil
-}
-
-func decodeSSOSession(raw string) (string, error) {
-	data, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return cached.ReturnTo, token, s.clearSSOCookies(), nil
 }
 
 func validateSSOState(session goth.Session, queryState string) error {
@@ -235,22 +225,22 @@ func validateSSOState(session goth.Session, queryState string) error {
 }
 
 func (s *Service) clearSSOCookies() []http.Cookie {
-	return []http.Cookie{
-		{
-			Name:     s.sso.stateCookieName,
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-		},
-		{
-			Name:     s.sso.sessionCookieName,
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-		},
-	}
+	return []http.Cookie{{
+		Name:     s.sso.stateCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}}
+}
+
+func (r *ssoRegistry) cacheKey(transactionID string) string {
+	return r.cacheKeyer.Key("sso", "state", transactionID)
+}
+
+func supportedSSOProvider(providerID string) bool {
+	return slices.ContainsFunc(supportedSSOProviders, func(provider SSOProviderOut) bool {
+		return provider.ID == providerID
+	})
 }

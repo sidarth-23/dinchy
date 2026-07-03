@@ -322,6 +322,45 @@ func (s *Store) DisableTwoFactor(ctx context.Context, userID string) error {
 	return nil
 }
 
+func (s *Store) ListSSOProviderSettings(ctx context.Context) ([]auth.SSOProviderSetting, error) {
+	rows, err := s.Query().ListSSOProviderSettings(ctx)
+	if err != nil {
+		return nil, apperrors.Annotate(err)
+	}
+	out := make([]auth.SSOProviderSetting, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, auth.SSOProviderSetting{
+			ProviderID:    row.ProviderID,
+			ClientID:      row.ClientID,
+			ClientIDValid: row.ClientIDValid,
+			Secret:        row.Secret,
+			SecretValid:   row.SecretValid,
+			CallbackURL:   row.CallbackURL,
+			CallbackValid: row.CallbackValid,
+			Enabled:       row.Enabled,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) UpsertSSOProviderSetting(ctx context.Context, in auth.UpsertSSOProviderSettingInput) error {
+	if err := s.Query().UpsertSSOProviderSetting(ctx, UpsertSSOProviderSettingParams{
+		ProviderID:    in.ProviderID,
+		ClientID:      in.ClientID,
+		ClientIDValid: in.ClientIDValid,
+		Secret:        in.Secret,
+		SecretValid:   in.SecretValid,
+		CallbackURL:   in.CallbackURL,
+		CallbackValid: in.CallbackValid,
+		Enabled:       in.Enabled,
+		CreatedAt:     in.Now.UTC(),
+		UpdatedAt:     in.Now.UTC(),
+	}); err != nil {
+		return apperrors.Annotate(err)
+	}
+	return nil
+}
+
 func userFromRow(row UserRow) *auth.User {
 	return &auth.User{ID: row.ID, Email: row.Email, DisplayName: row.DisplayName}
 }

@@ -18,10 +18,9 @@ import (
 type SSOProviderID string
 
 const (
-	SSOProviderGoogle    SSOProviderID = "google"
-	SSOProviderGitHub    SSOProviderID = "github"
-	SSOProviderMicrosoft SSOProviderID = "microsoft"
-	SSOProviderGitLab    SSOProviderID = "gitlab"
+	SSOProviderGoogle SSOProviderID = "google"
+	SSOProviderGitHub SSOProviderID = "github"
+	SSOProviderGitLab SSOProviderID = "gitlab"
 )
 
 type SSOProviderConfig struct {
@@ -50,6 +49,21 @@ type SMTPConfig struct {
 	Password string `env:"DINCHY_SMTP_PASSWORD"`
 	// From is the sender address used for password reset and invite emails.
 	From string `env:"DINCHY_SMTP_FROM"`
+}
+
+type CacheConfig struct {
+	// Backend selects the cache implementation. Empty disables the cache.
+	Backend string `env:"DINCHY_CACHE_BACKEND"`
+	// Addr is the network address for the configured cache backend.
+	Addr string `env:"DINCHY_CACHE_ADDR"`
+	// Username is the optional cache username.
+	Username string `env:"DINCHY_CACHE_USERNAME"`
+	// Password is the optional cache password.
+	Password string `env:"DINCHY_CACHE_PASSWORD"`
+	// Database selects the backend database or namespace when supported.
+	Database int `env:"DINCHY_CACHE_DATABASE"`
+	// KeyPrefix scopes all cache keys for this Dinchy instance.
+	KeyPrefix string `env:"DINCHY_CACHE_KEY_PREFIX"`
 }
 
 type AuthConfig struct {
@@ -122,12 +136,6 @@ type Config struct {
 	GitHubSecret string `env:"DINCHY_GITHUB_CLIENT_SECRET"`
 	// GitHubCallbackURL is the absolute GitHub OAuth callback URL.
 	GitHubCallbackURL string `env:"DINCHY_GITHUB_CALLBACK_URL" validate:"omitempty,url"`
-	// MicrosoftClientID is the Microsoft OAuth client ID; Microsoft SSO is enabled only when ID, secret, and callback URL are set.
-	MicrosoftClientID string `env:"DINCHY_MICROSOFT_CLIENT_ID"`
-	// MicrosoftSecret is the Microsoft OAuth client secret.
-	MicrosoftSecret string `env:"DINCHY_MICROSOFT_CLIENT_SECRET"`
-	// MicrosoftCallbackURL is the absolute Microsoft OAuth callback URL.
-	MicrosoftCallbackURL string `env:"DINCHY_MICROSOFT_CALLBACK_URL" validate:"omitempty,url"`
 	// GitLabClientID is the GitLab OAuth client ID; GitLab SSO is enabled only when ID, secret, and callback URL are set.
 	GitLabClientID string `env:"DINCHY_GITLAB_CLIENT_ID"`
 	// GitLabSecret is the GitLab OAuth client secret.
@@ -138,6 +146,8 @@ type Config struct {
 	Auth AuthConfig
 	// SMTP contains outbound email settings for password reset and invitation flows.
 	SMTP SMTPConfig
+	// Cache contains optional cache store settings for ephemeral state.
+	Cache CacheConfig
 	// SSOProviders contains the enabled SSO providers derived from env configuration.
 	SSOProviders []SSOProviderConfig
 }
@@ -170,6 +180,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := loadFromEnv(&cfg.SMTP); err != nil {
+		return Config{}, err
+	}
+	if err := loadFromEnv(&cfg.Cache); err != nil {
 		return Config{}, err
 	}
 	cfg.SSOProviders = configuredSSOProviders(cfg)
@@ -216,6 +229,16 @@ func loadFromEnv(cfg any) error {
 			v.Field(i).SetString(raw)
 		case reflect.Bool:
 			v.Field(i).SetBool(parseBool(raw))
+		case reflect.Int:
+			var parsed int
+			if _, err := fmt.Sscanf(raw, "%d", &parsed); err != nil {
+				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+					apperrors.WithCause(fmt.Errorf("parse integer env %q for %q: %w", envKey, field.Name, err)),
+					apperrors.WithField(apperrors.FieldName(field.Name)),
+					apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
+				)
+			}
+			v.Field(i).SetInt(int64(parsed))
 		case reflect.Int64:
 			duration, err := time.ParseDuration(raw)
 			if err != nil {
@@ -241,7 +264,6 @@ func configuredSSOProviders(cfg Config) []SSOProviderConfig {
 	candidates := []SSOProviderConfig{
 		{ID: SSOProviderGoogle, Name: "Google", ClientID: cfg.GoogleClientID, Secret: cfg.GoogleSecret, CallbackURL: cfg.GoogleCallbackURL},
 		{ID: SSOProviderGitHub, Name: "GitHub", ClientID: cfg.GitHubClientID, Secret: cfg.GitHubSecret, CallbackURL: cfg.GitHubCallbackURL},
-		{ID: SSOProviderMicrosoft, Name: "Microsoft", ClientID: cfg.MicrosoftClientID, Secret: cfg.MicrosoftSecret, CallbackURL: cfg.MicrosoftCallbackURL},
 		{ID: SSOProviderGitLab, Name: "GitLab", ClientID: cfg.GitLabClientID, Secret: cfg.GitLabSecret, CallbackURL: cfg.GitLabCallbackURL},
 	}
 	providers := make([]SSOProviderConfig, 0, len(candidates))
@@ -250,7 +272,7 @@ func configuredSSOProviders(cfg Config) []SSOProviderConfig {
 		provider.Secret = strings.TrimSpace(provider.Secret)
 		provider.CallbackURL = strings.TrimSpace(provider.CallbackURL)
 		provider.Enabled = provider.ClientID != "" && provider.Secret != "" && provider.CallbackURL != ""
-		if provider.Enabled {
+		if provider.ClientID != "" || provider.Secret != "" || provider.CallbackURL != "" {
 			providers = append(providers, provider)
 		}
 	}

@@ -262,6 +262,21 @@ func (mr *MockStoreMockRecorder) ListOrganisationsForUser(ctx, userID any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganisationsForUser", reflect.TypeOf((*MockStore)(nil).ListOrganisationsForUser), ctx, userID)
 }
 
+// ListSSOProviderSettings mocks base method.
+func (m *MockStore) ListSSOProviderSettings(ctx context.Context) ([]SSOProviderSetting, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSSOProviderSettings", ctx)
+	ret0, _ := ret[0].([]SSOProviderSetting)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSSOProviderSettings indicates an expected call of ListSSOProviderSettings.
+func (mr *MockStoreMockRecorder) ListSSOProviderSettings(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSSOProviderSettings", reflect.TypeOf((*MockStore)(nil).ListSSOProviderSettings), ctx)
+}
+
 // MarkTwoFactorUsed mocks base method.
 func (m *MockStore) MarkTwoFactorUsed(ctx context.Context, userID string, step int64, now time.Time) error {
 	m.ctrl.T.Helper()
@@ -316,6 +331,20 @@ func (m *MockStore) SaveTwoFactor(ctx context.Context, in TwoFactor) error {
 func (mr *MockStoreMockRecorder) SaveTwoFactor(ctx, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveTwoFactor", reflect.TypeOf((*MockStore)(nil).SaveTwoFactor), ctx, in)
+}
+
+// UpsertSSOProviderSetting mocks base method.
+func (m *MockStore) UpsertSSOProviderSetting(ctx context.Context, in UpsertSSOProviderSettingInput) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertSSOProviderSetting", ctx, in)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertSSOProviderSetting indicates an expected call of UpsertSSOProviderSetting.
+func (mr *MockStoreMockRecorder) UpsertSSOProviderSetting(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertSSOProviderSetting", reflect.TypeOf((*MockStore)(nil).UpsertSSOProviderSetting), ctx, in)
 }
 
 // UpdateUserPasswordHash mocks base method.

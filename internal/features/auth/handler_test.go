@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -224,30 +225,28 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 }
 
 func TestAPISSOStart_SetsSecureOnAllCookies(t *testing.T) {
-	t.Parallel()
 	svc, _ := newSSOTestService(t)
 	api := &API{auth: svc, settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, requireHTTPS: false}
 
 	out, err := api.ssoStart(support.WithSecure(context.Background(), true), &SSOStartIn{ProviderID: "github", ReturnTo: "/dashboard"})
 	require.NoError(t, err)
-	require.Len(t, out.SetCookie, 2)
+	require.Len(t, out.SetCookie, 1)
 	assert.True(t, out.SetCookie[0].Secure)
-	assert.True(t, out.SetCookie[1].Secure)
 }
 
 func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
-	t.Parallel()
 	api, store := newHTTPTestAPI(t)
 	svc, _ := newSSOTestService(t)
 	api.auth.sso = svc.sso
+	store.EXPECT().ListSSOProviderSettings(gomock.Any()).Return(nil, nil).AnyTimes()
 
 	_, cookies, err := api.auth.startSSO(testCtx, "github", "/dashboard", "")
 	require.NoError(t, err)
-	sessionValue := cookieValue(t, cookies, ssoSessionCookieName)
-	startedSession, err := decodeSSOSession(sessionValue)
-	require.NoError(t, err)
+	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
+	var cached ssoCacheState
+	require.NoError(t, cachecore.GetJSON(testCtx, api.auth.cache, api.auth.sso.cacheKey(transactionID), &cached))
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(startedSession), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
 	parsedAuthURL, err := url.Parse(session.AuthURL)
 	require.NoError(t, err)
 
@@ -275,8 +274,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	)
 	out, err := api.ssoCallback(ctx, &SSOCallbackIn{ProviderID: "github", Code: "code-123", State: parsedAuthURL.Query().Get("state")})
 	require.NoError(t, err)
-	require.Len(t, out.SetCookie, 3)
+	require.Len(t, out.SetCookie, 2)
 	assert.True(t, out.SetCookie[0].Secure)
 	assert.True(t, out.SetCookie[1].Secure)
-	assert.True(t, out.SetCookie[2].Secure)
 }

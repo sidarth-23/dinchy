@@ -293,6 +293,41 @@ func (q *queries) DisableTwoFactor(ctx context.Context, userID string) error {
 	return q.q.DisableTwoFactor(ctx, parsedUserID)
 }
 
+func (q *queries) ListSSOProviderSettings(ctx context.Context) ([]core.SSOProviderSettingRow, error) {
+	rows, err := q.q.ListSSOProviderSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]core.SSOProviderSettingRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, core.SSOProviderSettingRow{
+			ProviderID:    row.ProviderID,
+			ClientID:      row.ClientID.String,
+			ClientIDValid: row.ClientID.Valid,
+			Secret:        row.ClientSecret.String,
+			SecretValid:   row.ClientSecret.Valid,
+			CallbackURL:   row.CallbackUrl.String,
+			CallbackValid: row.CallbackUrl.Valid,
+			Enabled:       row.Enabled,
+			CreatedAt:     row.CreatedAt.UTC(),
+			UpdatedAt:     row.UpdatedAt.UTC(),
+		})
+	}
+	return out, nil
+}
+
+func (q *queries) UpsertSSOProviderSetting(ctx context.Context, arg core.UpsertSSOProviderSettingParams) error {
+	return q.q.UpsertSSOProviderSetting(ctx, sqlcgen.UpsertSSOProviderSettingParams{
+		ProviderID:   arg.ProviderID,
+		ClientID:     sql.NullString{String: arg.ClientID, Valid: arg.ClientIDValid},
+		ClientSecret: sql.NullString{String: arg.Secret, Valid: arg.SecretValid},
+		CallbackUrl:  sql.NullString{String: arg.CallbackURL, Valid: arg.CallbackValid},
+		Enabled:      arg.Enabled,
+		CreatedAt:    arg.CreatedAt.UTC(),
+		UpdatedAt:    arg.UpdatedAt.UTC(),
+	})
+}
+
 func (q *queries) InsertSession(ctx context.Context, arg core.InsertSessionParams) error {
 	id, userID, err := parseTwoUUIDs(arg.ID, arg.UserID)
 	if err != nil {

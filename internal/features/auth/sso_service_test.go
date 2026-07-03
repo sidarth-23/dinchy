@@ -15,6 +15,8 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
 
+	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 )
@@ -110,14 +112,26 @@ func newSSOTestService(t *testing.T) (*Service, *MockStore) {
 	t.Helper()
 	svc, store := newTestService(t)
 	svc.sso = &ssoRegistry{
-		stateCookieName:   "dinchy_sso_state",
-		sessionCookieName: ssoSessionCookieName,
-		stateLifetime:     time.Minute,
-		providers: map[string]goth.Provider{
-			"github": &fakeSSOProvider{name: "github"},
+		stateCookieName: "dinchy_sso_state",
+		stateLifetime:   time.Minute,
+		envProviders: map[string]config.SSOProviderConfig{
+			"github": {
+				ID:          config.SSOProviderGitHub,
+				Name:        "GitHub",
+				ClientID:    "client-id",
+				Secret:      "secret",
+				CallbackURL: "https://app.example.test/api/auth/sso/github/callback",
+				Enabled:     true,
+			},
 		},
-		summaries: []SSOProviderOut{{ID: "github", Name: "GitHub"}},
+		cacheKeyer: cachecore.NewKeyer("test"),
 	}
+	originalProviderFactory := newGothProviderForSSO
+	newGothProviderForSSO = func(cfg config.SSOProviderConfig) (goth.Provider, error) {
+		return &fakeSSOProvider{name: string(cfg.ID)}, nil
+	}
+	t.Cleanup(func() { newGothProviderForSSO = originalProviderFactory })
+	store.EXPECT().ListSSOProviderSettings(gomock.Any()).Return(nil, nil).AnyTimes()
 	return svc, store
 }
 
@@ -132,40 +146,36 @@ func cookieValue(t *testing.T, cookies []http.Cookie, name string) string {
 	return ""
 }
 
-func TestStartSSO_ReturnsMetadataAndSessionCookies(t *testing.T) {
-	t.Parallel()
+func TestStartSSO_ReturnsMetadataAndTransactionCookie(t *testing.T) {
 	svc, _ := newSSOTestService(t)
 
 	authURL, cookies, err := svc.startSSO(testCtx, "github", "/projects/123?tab=activity", "default")
 	require.NoError(t, err)
-	require.Len(t, cookies, 2)
+	require.Len(t, cookies, 1)
 	assert.Contains(t, authURL, "state=")
 
-	stateCookie, err := decodeSSOState(cookieValue(t, cookies, "dinchy_sso_state"))
-	require.NoError(t, err)
-	assert.Equal(t, "github", stateCookie.ProviderID)
-	assert.Equal(t, "/projects/123?tab=activity", stateCookie.ReturnTo)
-	assert.Equal(t, "default", stateCookie.OrganisationSlug)
-
-	sessionRaw, err := decodeSSOSession(cookieValue(t, cookies, ssoSessionCookieName))
-	require.NoError(t, err)
+	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
+	var cached ssoCacheState
+	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	assert.Equal(t, "github", cached.ProviderID)
+	assert.Equal(t, "/projects/123?tab=activity", cached.ReturnTo)
+	assert.Equal(t, "default", cached.OrganisationSlug)
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(sessionRaw), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
 	assert.Contains(t, session.AuthURL, "state=")
 }
 
 func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
-	t.Parallel()
 	svc, store := newSSOTestService(t)
 
 	_, cookies, err := svc.startSSO(testCtx, "github", "/dashboard", "")
 	require.NoError(t, err)
 
-	sessionValue := cookieValue(t, cookies, ssoSessionCookieName)
-	startedSession, err := decodeSSOSession(sessionValue)
-	require.NoError(t, err)
+	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
+	var cached ssoCacheState
+	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(startedSession), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
 
 	parsedAuthURL, err := url.Parse(session.AuthURL)
 	require.NoError(t, err)
@@ -190,20 +200,17 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 		state,
 		"code-123",
 		cookieValue(t, cookies, "dinchy_sso_state"),
-		sessionValue,
 		"127.0.0.1",
 		"ua",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "/dashboard", returnTo)
 	assert.NotEmpty(t, token)
-	require.Len(t, clearedCookies, 2)
+	require.Len(t, clearedCookies, 1)
 	assert.Equal(t, -1, clearedCookies[0].MaxAge)
-	assert.Equal(t, -1, clearedCookies[1].MaxAge)
 }
 
 func TestCompleteSSO_RejectsInvalidState(t *testing.T) {
-	t.Parallel()
 	svc, _ := newSSOTestService(t)
 
 	_, cookies, err := svc.startSSO(testCtx, "github", "/dashboard", "default")
@@ -215,7 +222,6 @@ func TestCompleteSSO_RejectsInvalidState(t *testing.T) {
 		"wrong-state",
 		"code-123",
 		cookieValue(t, cookies, "dinchy_sso_state"),
-		cookieValue(t, cookies, ssoSessionCookieName),
 		"",
 		"",
 	)

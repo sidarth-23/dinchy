@@ -3,9 +3,11 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
+	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -27,9 +29,39 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
 	clk := fakeClock{now: fixedTime}
-	svc, err := NewService(store, id.NewGenerator(), clk, config.DefaultAuth(), nil, email.NoopSender{})
+	svc, err := NewService(store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), email.NoopSender{})
 	require.NoError(t, err)
 	return svc, store
+}
+
+type testCache struct {
+	values map[string][]byte
+}
+
+func newTestCache() *testCache {
+	return &testCache{values: map[string][]byte{}}
+}
+
+func (c *testCache) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
+	c.values[key] = append([]byte(nil), value...)
+	return nil
+}
+
+func (c *testCache) Get(_ context.Context, key string) ([]byte, error) {
+	value, ok := c.values[key]
+	if !ok {
+		return nil, fmt.Errorf("cache key %q not found", key)
+	}
+	return append([]byte(nil), value...), nil
+}
+
+func (c *testCache) Delete(_ context.Context, key string) error {
+	delete(c.values, key)
+	return nil
+}
+
+func (c *testCache) Ping(context.Context) error {
+	return nil
 }
 
 type fakeClock struct {

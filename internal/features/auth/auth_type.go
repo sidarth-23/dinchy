@@ -145,6 +145,31 @@ type Store interface {
 	ConfirmTwoFactor(ctx context.Context, userID string, step int64, now time.Time) error
 	MarkTwoFactorUsed(ctx context.Context, userID string, step int64, now time.Time) error
 	DisableTwoFactor(ctx context.Context, userID string) error
+	ListSSOProviderSettings(ctx context.Context) ([]SSOProviderSetting, error)
+	UpsertSSOProviderSetting(ctx context.Context, in UpsertSSOProviderSettingInput) error
+}
+
+type SSOProviderSetting struct {
+	ProviderID    string
+	ClientID      string
+	ClientIDValid bool
+	Secret        string
+	SecretValid   bool
+	CallbackURL   string
+	CallbackValid bool
+	Enabled       bool
+}
+
+type UpsertSSOProviderSettingInput struct {
+	ProviderID    string
+	ClientID      string
+	ClientIDValid bool
+	Secret        string
+	SecretValid   bool
+	CallbackURL   string
+	CallbackValid bool
+	Enabled       bool
+	Now           time.Time
 }
 
 type BootstrapState struct {
@@ -216,6 +241,41 @@ type SSOProviderOut struct {
 
 type SSOProvidersOut struct {
 	Body []SSOProviderOut
+}
+
+type SSOProviderFieldOut struct {
+	Set    bool   `json:"set"`
+	Source string `json:"source,omitempty" enum:"env,db"`
+}
+
+type SSOProviderSettingOut struct {
+	ID            string              `json:"id"`
+	Name          string              `json:"name"`
+	ClientID      SSOProviderFieldOut `json:"client_id"`
+	ClientSecret  SSOProviderFieldOut `json:"client_secret"`
+	CallbackURL   SSOProviderFieldOut `json:"callback_url"`
+	Enabled       bool                `json:"enabled"`
+	EnabledSource string              `json:"enabled_source,omitempty" enum:"env,db"`
+}
+
+type SSOProviderSettingsOut struct {
+	Body []SSOProviderSettingOut
+}
+
+type SSOProviderSettingUpdateIn struct {
+	ProviderID string `path:"provider_id"`
+	Body       SSOProviderSettingUpdateBody
+}
+
+type SSOProviderSettingUpdateBody struct {
+	ClientID     *string `json:"client_id,omitempty"`
+	ClientSecret *string `json:"client_secret,omitempty"`
+	CallbackURL  *string `json:"callback_url,omitempty"`
+	Enabled      *bool   `json:"enabled,omitempty"`
+}
+
+type SSOProviderSettingUpdateOut struct {
+	Body SSOProviderSettingOut
 }
 
 type SSOStartIn struct {

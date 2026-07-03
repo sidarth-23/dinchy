@@ -9,6 +9,7 @@ import (
 type Code string
 
 const (
+	CodeAuthForbidden            Code = "auth.forbidden"
 	CodeAuthInvalidCredentials   Code = "auth.invalid_credentials"
 	CodeAuthInvalidResetToken    Code = "auth.invalid_reset_token"
 	CodeAuthInvalidTOTP          Code = "auth.invalid_totp"
@@ -18,6 +19,8 @@ const (
 	CodeAuthOrganisationNotFound Code = "auth.organisation_not_found"
 	CodeAuthOrganisationRequired Code = "auth.organisation_required"
 	CodeAuthSetupCompleted       Code = "auth.setup_completed"
+	CodeAuthSSOCacheRequired     Code = "auth.sso_cache_required"
+	CodeAuthSSOFieldManagedByEnv Code = "auth.sso_field_managed_by_env"
 	CodeAuthSSOInvalidState      Code = "auth.sso_invalid_state"
 	CodeAuthSSOLoginFailed       Code = "auth.sso_login_failed"
 	CodeAuthSSOProviderNotFound  Code = "auth.sso_provider_not_found"
@@ -34,6 +37,7 @@ const (
 
 var CatalogData = map[language.Tag]map[Code]string{
 	language.English: {
+		CodeAuthForbidden:            "You do not have permission to perform this action.",
 		CodeAuthInvalidCredentials:   "Invalid email or password.",
 		CodeAuthInvalidResetToken:    "The password reset token is invalid or has expired.",
 		CodeAuthInvalidTOTP:          "Invalid two-factor authentication code.",
@@ -43,6 +47,8 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeAuthOrganisationNotFound: "The selected organisation is not available.",
 		CodeAuthOrganisationRequired: "Choose an organisation to continue.",
 		CodeAuthSetupCompleted:       "Setup has already been completed for {{.resource}} ({{.count}} users).",
+		CodeAuthSSOCacheRequired:     "A cache store is required before SSO can be enabled.",
+		CodeAuthSSOFieldManagedByEnv: "This SSO setting is managed by environment configuration.",
 		CodeAuthSSOInvalidState:      "The SSO login flow is invalid or has expired.",
 		CodeAuthSSOLoginFailed:       "Unable to sign in with that SSO provider.",
 		CodeAuthSSOProviderNotFound:  "The selected SSO provider is not available.",

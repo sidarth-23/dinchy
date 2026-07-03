@@ -233,6 +233,53 @@ func (q *queries) DisableTwoFactor(ctx context.Context, userID string) error {
 	return q.q.DisableTwoFactor(ctx, userID)
 }
 
+func (q *queries) ListSSOProviderSettings(ctx context.Context) ([]core.SSOProviderSettingRow, error) {
+	rows, err := q.q.ListSSOProviderSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]core.SSOProviderSettingRow, 0, len(rows))
+	for _, row := range rows {
+		createdAt, err := parseTime(row.CreatedAt)
+		if err != nil {
+			return nil, wrapParseErr("created_at", err)
+		}
+		updatedAt, err := parseTime(row.UpdatedAt)
+		if err != nil {
+			return nil, wrapParseErr("updated_at", err)
+		}
+		out = append(out, core.SSOProviderSettingRow{
+			ProviderID:    row.ProviderID,
+			ClientID:      row.ClientID.String,
+			ClientIDValid: row.ClientID.Valid,
+			Secret:        row.ClientSecret.String,
+			SecretValid:   row.ClientSecret.Valid,
+			CallbackURL:   row.CallbackUrl.String,
+			CallbackValid: row.CallbackUrl.Valid,
+			Enabled:       row.Enabled == 1,
+			CreatedAt:     createdAt,
+			UpdatedAt:     updatedAt,
+		})
+	}
+	return out, nil
+}
+
+func (q *queries) UpsertSSOProviderSetting(ctx context.Context, arg core.UpsertSSOProviderSettingParams) error {
+	enabled := int64(0)
+	if arg.Enabled {
+		enabled = 1
+	}
+	return q.q.UpsertSSOProviderSetting(ctx, sqlcgen.UpsertSSOProviderSettingParams{
+		ProviderID:   arg.ProviderID,
+		ClientID:     sql.NullString{String: arg.ClientID, Valid: arg.ClientIDValid},
+		ClientSecret: sql.NullString{String: arg.Secret, Valid: arg.SecretValid},
+		CallbackUrl:  sql.NullString{String: arg.CallbackURL, Valid: arg.CallbackValid},
+		Enabled:      enabled,
+		CreatedAt:    formatTime(arg.CreatedAt),
+		UpdatedAt:    formatTime(arg.UpdatedAt),
+	})
+}
+
 func (q *queries) InsertSession(ctx context.Context, arg core.InsertSessionParams) error {
 	return q.q.InsertSession(ctx, sqlcgen.InsertSessionParams{
 		ID:                   arg.ID,

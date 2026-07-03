@@ -13,13 +13,6 @@ func (s *Service) SSOStateCookieName() string {
 	return s.authConfig.SSOStateCookieName
 }
 
-func (s *Service) SSOSessionCookieName() string {
-	if s == nil || s.sso == nil {
-		return ""
-	}
-	return s.sso.sessionCookieName
-}
-
 func (s *Service) SessionCookie(token string, secure bool) *http.Cookie {
 	return sessionCookie(s.authConfig.SessionCookieName, token, secure)
 }

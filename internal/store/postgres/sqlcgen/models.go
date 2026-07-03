@@ -106,6 +106,16 @@ type Session struct {
 	UpdatedAt            time.Time
 }
 
+type SsoProviderSetting struct {
+	ProviderID   string
+	ClientID     sql.NullString
+	ClientSecret sql.NullString
+	CallbackUrl  sql.NullString
+	Enabled      bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type TwoFactor struct {
 	ID                      uuid.UUID
 	UserID                  uuid.UUID

@@ -104,6 +104,16 @@ CREATE TABLE IF NOT EXISTS two_factors (
   FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS sso_provider_settings (
+  provider_id TEXT PRIMARY KEY,
+  client_id TEXT,
+  client_secret TEXT,
+  callback_url TEXT,
+  enabled INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
   id TEXT PRIMARY KEY,
   instance_name TEXT NOT NULL,

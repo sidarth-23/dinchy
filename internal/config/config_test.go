@@ -27,6 +27,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 30*time.Minute, cfg.Auth.SessionIdleTimeout)
 	assert.Equal(t, 7*24*time.Hour, cfg.Auth.SessionMaxLifetime)
 	assert.Equal(t, time.Hour, cfg.Auth.PasswordResetLifetime)
+	assert.Empty(t, cfg.Cache.Backend)
 	assert.Empty(t, cfg.SSOProviders)
 	assert.False(t, cfg.SMTP.Enabled())
 }
@@ -45,6 +46,10 @@ func TestLoad_AllOverrides(t *testing.T) {
 	t.Setenv("DINCHY_GITHUB_CALLBACK_URL", "https://app.example.com/api/auth/sso/github/callback")
 	t.Setenv("DINCHY_AUTH_SESSION_COOKIE_NAME", "custom_session")
 	t.Setenv("DINCHY_AUTH_SESSION_IDLE_TIMEOUT", "45m")
+	t.Setenv("DINCHY_CACHE_BACKEND", "redis")
+	t.Setenv("DINCHY_CACHE_ADDR", "127.0.0.1:6379")
+	t.Setenv("DINCHY_CACHE_DATABASE", "2")
+	t.Setenv("DINCHY_CACHE_KEY_PREFIX", "dinchy-test")
 	t.Setenv("DINCHY_SMTP_HOST", "smtp.example.com")
 	t.Setenv("DINCHY_SMTP_FROM", "dinchy@example.com")
 
@@ -60,6 +65,10 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, config.SSOProviderGitHub, cfg.SSOProviders[0].ID)
 	assert.Equal(t, "custom_session", cfg.Auth.SessionCookieName)
 	assert.Equal(t, 45*time.Minute, cfg.Auth.SessionIdleTimeout)
+	assert.Equal(t, "redis", cfg.Cache.Backend)
+	assert.Equal(t, "127.0.0.1:6379", cfg.Cache.Addr)
+	assert.Equal(t, 2, cfg.Cache.Database)
+	assert.Equal(t, "dinchy-test", cfg.Cache.KeyPrefix)
 	assert.True(t, cfg.SMTP.Enabled())
 }
 
@@ -126,6 +135,8 @@ func clearDinchyEnv(t *testing.T) {
 		"DINCHY_AUTH_SSO_STATE_LIFETIME", "DINCHY_AUTH_PASSWORD_RESET_LIFETIME",
 		"DINCHY_AUTH_TOTP_ISSUER", "DINCHY_AUTH_DEFAULT_ORGANISATION_NAME",
 		"DINCHY_AUTH_DEFAULT_ORGANISATION_SLUG",
+		"DINCHY_CACHE_BACKEND", "DINCHY_CACHE_ADDR", "DINCHY_CACHE_USERNAME",
+		"DINCHY_CACHE_PASSWORD", "DINCHY_CACHE_DATABASE", "DINCHY_CACHE_KEY_PREFIX",
 		"DINCHY_SMTP_HOST", "DINCHY_SMTP_PORT", "DINCHY_SMTP_USERNAME", "DINCHY_SMTP_PASSWORD", "DINCHY_SMTP_FROM",
 		"DINCHY_ENV_FILE",
 	} {
