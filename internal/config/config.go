@@ -32,11 +32,13 @@ type Config struct {
 	SMTP SMTPConfig
 	// Cache contains optional cache store settings for ephemeral state.
 	Cache CacheConfig
+	// EventBus contains the Redis stream settings for durable in-app events.
+	EventBus EventBusConfig
 	// Logging controls application log formatting and level.
 	Logging LoggingConfig
 	// Telemetry controls OpenTelemetry logs and traces.
 	Telemetry TelemetryConfig
-	// Audit controls durable in-app audit event capture.
+	// Audit controls the audit subscriber worker.
 	Audit AuditConfig
 	// SSOProviders contains the enabled SSO providers derived from env configuration.
 	SSOProviders []SSOProviderConfig
@@ -51,6 +53,7 @@ func defaultConfig() Config {
 		Auth:         DefaultAuth(),
 		SMTP:         DefaultSMTP(),
 		Cache:        DefaultCache(),
+		EventBus:     DefaultEventBus(),
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),
 		Audit:        DefaultAudit(),
@@ -82,6 +85,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := loadFromEnv(&cfg.Cache); err != nil {
+		return Config{}, err
+	}
+	if err := loadFromEnv(&cfg.EventBus); err != nil {
 		return Config{}, err
 	}
 	if err := loadFromEnv(&cfg.Logging); err != nil {

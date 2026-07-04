@@ -116,17 +116,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS auth_audit_logs (
-  id UUID PRIMARY KEY,
-  event_type TEXT NOT NULL,
-  user_id UUID,
-  actor_user_id UUID,
-  ip_address TEXT NOT NULL,
-  user_agent TEXT NOT NULL,
-  metadata_json TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS scheduled_tasks (
   id UUID PRIMARY KEY,
   task_name TEXT NOT NULL UNIQUE,

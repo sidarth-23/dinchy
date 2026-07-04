@@ -65,13 +65,14 @@ func (s *Store) CreateConsumerGroup(ctx context.Context, stream, group string) e
 	return nil
 }
 
-func (s *Store) AddStream(ctx context.Context, stream string, values map[string]any, maxLen int64) (string, error) {
+func (s *Store) AddStream(ctx context.Context, stream string, values map[string]any, retention time.Duration) (string, error) {
 	args := &goredis.XAddArgs{
 		Stream: stream,
 		Values: values,
 	}
-	if maxLen > 0 {
-		args.MaxLen = maxLen
+	if retention > 0 {
+		cutoff := time.Now().UTC().Add(-retention)
+		args.MinID = fmt.Sprintf("%d-0", cutoff.UnixMilli())
 		args.Approx = true
 	}
 	id, err := s.client.XAdd(ctx, args).Result()
@@ -81,13 +82,14 @@ func (s *Store) AddStream(ctx context.Context, stream string, values map[string]
 	return id, nil
 }
 
-func (s *Store) ReadGroup(ctx context.Context, stream, group, consumer string, count int64, block time.Duration) ([]core.StreamMessage, error) {
+func (s *Store) ReadGroup(ctx context.Context, stream, group, consumer string, count int64, block, claim time.Duration) ([]core.StreamMessage, error) {
 	streams, err := s.client.XReadGroup(ctx, &goredis.XReadGroupArgs{
 		Group:    group,
 		Consumer: consumer,
 		Streams:  []string{stream, ">"},
 		Count:    count,
 		Block:    block,
+		Claim:    claim,
 	}).Result()
 	if err != nil {
 		if errors.Is(err, goredis.Nil) {

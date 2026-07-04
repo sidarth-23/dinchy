@@ -17,6 +17,8 @@ func main() {
 		err = runError(os.Args[2:])
 	case "i18n":
 		err = runI18n(os.Args[2:])
+	case "event":
+		err = runEvent(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -31,5 +33,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gen <error|i18n> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: gen <error|i18n|event> [flags]")
 }

@@ -37,7 +37,7 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
 	clk := fakeClock{now: fixedTime}
-	svc, err := NewService(nil, store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), email.NoopSender{})
+	svc, err := NewService(nil, store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), email.NoopSender{}, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
@@ -284,6 +284,9 @@ func TestLogout_RevokesSession(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
+	store.EXPECT().
+		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
+		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
 	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), gomock.Any()).Return(nil)
 
 	require.NoError(t, svc.Logout(testCtx, "rawtoken"))

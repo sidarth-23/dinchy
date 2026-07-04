@@ -10,7 +10,9 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -47,10 +49,10 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: mustParseUUID(userID), LastUsedStep: sql.NullInt64{Int64: totpStep(s.clock.Now()), Valid: true}, UpdatedAt: s.clock.Now().UTC()}); err != nil {
 		return err
 	}
-	return s.recordAudit(ctx, AuditEvent{
+	return s.publishEvent(ctx, eventbus.Event{
 		Category:    "security",
 		Subcategory: "two_factor",
-		EventType:   "auth.two_factor_enabled",
+		EventType:   string(eventcatalog.AuthTwoFactorEnabled),
 		Action:      "enable_totp",
 		Outcome:     "succeeded",
 		ActorUserID: userID,
@@ -63,10 +65,10 @@ func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
 	if err := s.store.DisableTwoFactor(ctx, mustParseUUID(userID)); err != nil {
 		return err
 	}
-	return s.recordAudit(ctx, AuditEvent{
+	return s.publishEvent(ctx, eventbus.Event{
 		Category:    "security",
 		Subcategory: "two_factor",
-		EventType:   "auth.two_factor_disabled",
+		EventType:   string(eventcatalog.AuthTwoFactorDisabled),
 		Action:      "disable_totp",
 		Outcome:     "succeeded",
 		ActorUserID: userID,

@@ -25,4 +25,10 @@ func validateConfig(sl validator.StructLevel) {
 	if strings.TrimSpace(string(cfg.Cache.Backend)) == "" {
 		sl.ReportError(cfg.Cache.Backend, "Cache.Backend", "Cache.Backend", "oneof", string(CacheBackendRedis))
 	}
+	if strings.TrimSpace(cfg.EventBus.StreamName) == "" {
+		sl.ReportError(cfg.EventBus.StreamName, "EventBus.StreamName", "EventBus.StreamName", "required", "")
+	}
+	if strings.TrimSpace(cfg.EventBus.ConsumerGroupPrefix) == "" {
+		sl.ReportError(cfg.EventBus.ConsumerGroupPrefix, "EventBus.ConsumerGroupPrefix", "EventBus.ConsumerGroupPrefix", "required", "")
+	}
 }

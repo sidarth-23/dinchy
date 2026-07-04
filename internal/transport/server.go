@@ -67,7 +67,9 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
 	auth.Register(api, authSvc, sr, requireHTTPS)
-	audit.Register(api, auditSvc)
+	if auditSvc != nil {
+		audit.Register(api, auditSvc)
+	}
 	r.Mount("/api", apiRouter)
 
 	if devMode {

@@ -8,95 +8,48 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sidarth-23/dinchy/internal/config"
+
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 type Service struct {
-	store  Store
-	stream StreamStore
-	idg    *id.Generator
-	cfg    config.AuditConfig
+	store Store
+	idg   *id.Generator
 }
 
-func NewService(store Store, stream StreamStore, idg *id.Generator, cfg config.AuditConfig) (*Service, error) {
-	if !cfg.Enabled {
-		return &Service{store: store, idg: idg, cfg: cfg}, nil
+func NewService(store Store) (*Service, error) {
+	if store == nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit store is required")))
 	}
-	if stream == nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit stream store is required when audit is enabled")))
-	}
-	return &Service{store: store, stream: stream, idg: idg, cfg: cfg}, nil
+	return &Service{store: store, idg: id.NewGenerator()}, nil
 }
 
-func (s *Service) Enabled() bool {
-	return s != nil && s.cfg.Enabled
+func (s *Service) Name() string {
+	return "audit"
 }
 
-func (s *Service) EnsureConsumerGroup(ctx context.Context) error {
-	if !s.Enabled() {
-		return nil
-	}
-	if err := s.stream.CreateConsumerGroup(ctx, s.cfg.StreamName, s.cfg.ConsumerGroup); err != nil {
-		return apperrors.Annotate(err)
-	}
-	return nil
-}
-
-func (s *Service) Record(ctx context.Context, event Event) error {
-	if !s.Enabled() {
-		return nil
-	}
+func (s *Service) Handle(ctx context.Context, event eventbus.Event) error {
 	if event.ID == "" {
 		event.ID = s.idg.New()
 	}
 	if event.CreatedAt.IsZero() {
-		event.CreatedAt = time.Now().UTC()
+		event.CreatedAt = nowUTC()
 	}
-	event.Metadata = sanitizeMap(event.Metadata)
-	event.Changes = sanitizeMap(event.Changes)
-	payload, err := json.Marshal(event)
+	params, err := insertParams(event)
 	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("marshal audit event %q: %w", event.EventType, err)))
+		return err
 	}
-	if _, err := s.stream.AddStream(ctx, s.cfg.StreamName, map[string]any{"payload": string(payload)}, s.cfg.RetentionMaxLen); err != nil {
+	if err := s.store.InsertAuditLog(ctx, params); err != nil {
 		return apperrors.Annotate(err)
 	}
 	return nil
 }
 
-func (s *Service) Process(ctx context.Context) (int64, error) {
-	if !s.Enabled() {
-		return 0, nil
-	}
-	messages, err := s.stream.ReadGroup(ctx, s.cfg.StreamName, s.cfg.ConsumerGroup, s.cfg.ConsumerName, int64(s.cfg.BatchSize), 500*time.Millisecond)
-	if err != nil {
-		return 0, apperrors.Annotate(err)
-	}
-	var processed int64
-	for _, message := range messages {
-		payload := message.Values["payload"]
-		var event Event
-		if err := json.Unmarshal([]byte(payload), &event); err != nil {
-			return processed, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("decode audit stream message %q: %w", message.ID, err)))
-		}
-		params, err := insertParams(event)
-		if err != nil {
-			return processed, err
-		}
-		if err := s.store.InsertAuditLog(ctx, params); err != nil {
-			return processed, apperrors.Annotate(err)
-		}
-		if err := s.stream.AckStream(ctx, s.cfg.StreamName, s.cfg.ConsumerGroup, message.ID); err != nil {
-			return processed, apperrors.Annotate(err)
-		}
-		processed++
-	}
-	return processed, nil
-}
+var _ eventbus.Subscriber = (*Service)(nil)
 
 func (s *Service) List(ctx context.Context, in ListInput) ([]Log, error) {
 	if in.Limit <= 0 || in.Limit > 200 {
@@ -235,26 +188,6 @@ func unmarshalMap(kind, eventType, raw string) (map[string]any, error) {
 	return out, nil
 }
 
-func sanitizeMap(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return map[string]any{}
-	}
-	out := make(map[string]any, len(in))
-	for key, value := range in {
-		if isSensitive(key) {
-			out[key] = map[string]any{"redacted": true}
-			continue
-		}
-		out[key] = value
-	}
-	return out
-}
-
-func isSensitive(key string) bool {
-	switch key {
-	case "password", "token", "secret", "client_secret", "cookie", "session", "totp_secret", "smtp_password":
-		return true
-	default:
-		return false
-	}
+func nowUTC() time.Time {
+	return time.Now().UTC()
 }

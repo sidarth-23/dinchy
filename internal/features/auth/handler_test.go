@@ -197,6 +197,9 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 	api, store := newHTTPTestAPI(t)
 	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.auth.SessionCookieName(), Value: "rawtoken"}})
 
+	store.EXPECT().
+		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
+		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
 	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: fixedTime.UTC(), Valid: true}, UpdatedAt: fixedTime.UTC(), TokenHash: hashToken("rawtoken")}).Return(nil)
 
 	out, err := api.logout(ctx, &LogoutIn{})

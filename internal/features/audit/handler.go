@@ -53,7 +53,27 @@ func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
 	}
 	out := &ListOut{}
 	for _, log := range logs {
-		out.Body.Logs = append(out.Body.Logs, LogOut(log))
+		out.Body.Logs = append(out.Body.Logs, LogOut{
+			ID:                  log.ID,
+			Category:            log.Category,
+			Subcategory:         log.Subcategory,
+			EventType:           log.EventType,
+			Action:              log.Action,
+			Outcome:             log.Outcome,
+			ActorUserID:         log.ActorUserID,
+			ActorOrganisationID: log.ActorOrganisationID,
+			TargetType:          log.TargetType,
+			TargetID:            log.TargetID,
+			TargetDisplay:       log.TargetDisplay,
+			RequestID:           log.RequestID,
+			TraceID:             log.TraceID,
+			SpanID:              log.SpanID,
+			IPAddress:           log.IPAddress,
+			UserAgent:           log.UserAgent,
+			Metadata:            log.Metadata,
+			Changes:             log.Changes,
+			CreatedAt:           log.CreatedAt,
+		})
 	}
 	return out, nil
 }

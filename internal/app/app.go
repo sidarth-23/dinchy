@@ -13,10 +13,12 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
@@ -66,12 +68,33 @@ func (a *App) Start() error {
 	}
 	a.cache = cacheStore
 	streamStore, _ := cacheStore.(cachecore.StreamStore)
-	auditSvc, err := audit.NewService(queries, streamStore, id.NewGenerator(), a.cfg.Audit)
-	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-	}
-	if err := auditSvc.EnsureConsumerGroup(ctx); err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	var eventBusSvc *eventbus.Service
+	var auditSvc *audit.Service
+	if a.cfg.Audit.Enabled {
+		if streamStore == nil {
+			return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("redis stream store is required when audit is enabled")))
+		}
+		eventBusSvc, err = eventbus.NewService(streamStore, id.NewGenerator(), eventbus.Config{
+			StreamName:          a.cfg.EventBus.StreamName,
+			ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix,
+			ConsumerName:        a.cfg.EventBus.ConsumerName,
+			BatchSize:           a.cfg.EventBus.BatchSize,
+			RetentionWindow:     a.cfg.EventBus.RetentionWindow,
+			ClaimMinIdle:        a.cfg.EventBus.ClaimMinIdle,
+			ReadBlock:           a.cfg.EventBus.ReadBlock,
+			WorkerInterval:      a.cfg.EventBus.WorkerInterval,
+		})
+		if err != nil {
+			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		}
+		auditSvc, err = audit.NewService(queries)
+		if err != nil {
+			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		}
+		eventBusSvc.Register(auditSvc)
+		if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
+			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		}
 	}
 
 	clk := clock.RealClock{}
@@ -83,7 +106,7 @@ func (a *App) Start() error {
 		}
 		sender = smtpSender
 	}
-	authSvc, err := auth.NewService(s.DB(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, audit.NewAuthRecorder(auditSvc))
+	authSvc, err := auth.NewService(s.DB(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, eventBusSvc)
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageSetup),
@@ -101,8 +124,8 @@ func (a *App) Start() error {
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
 	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk)}
-	if auditSvc.Enabled() {
-		registeredWorkers = append(registeredWorkers, audit.NewWorker(auditSvc, a.cfg.Audit.WorkerIntervalSeconds))
+	if eventBusSvc != nil {
+		registeredWorkers = append(registeredWorkers, eventbus.NewWorker(eventBusSvc, auditSvc.Name()))
 	}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, a.errCh, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {

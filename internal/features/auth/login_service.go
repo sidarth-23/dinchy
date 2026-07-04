@@ -6,7 +6,9 @@ import (
 	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
@@ -14,10 +16,10 @@ import (
 func (s *Service) Login(ctx context.Context, emailAddress, password, organisationSlug, totpCode, ip, userAgent string) (string, error) {
 	user, err := s.findUserWithPassword(ctx, emailAddress, password)
 	if err != nil {
-		auditErr := s.recordAudit(ctx, AuditEvent{
+		auditErr := s.publishEvent(ctx, eventbus.Event{
 			Category:    "security",
 			Subcategory: "auth",
-			EventType:   "auth.login_failed",
+			EventType:   string(eventcatalog.AuthLoginFailed),
 			Action:      "login",
 			Outcome:     "failed",
 			IPAddress:   ip,
@@ -30,10 +32,10 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 		return "", err
 	}
 	if err := s.verifyTOTPForLogin(ctx, user.ID, totpCode); err != nil {
-		auditErr := s.recordAudit(ctx, AuditEvent{
+		auditErr := s.publishEvent(ctx, eventbus.Event{
 			Category:      "security",
 			Subcategory:   "auth",
-			EventType:     "auth.login_failed",
+			EventType:     string(eventcatalog.AuthLoginFailed),
 			Action:        "login",
 			Outcome:       "failed",
 			ActorUserID:   user.ID,
@@ -57,10 +59,10 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 	if err != nil {
 		return "", err
 	}
-	if err := s.recordAudit(ctx, AuditEvent{
+	if err := s.publishEvent(ctx, eventbus.Event{
 		Category:            "security",
 		Subcategory:         "auth",
-		EventType:           "auth.login_succeeded",
+		EventType:           string(eventcatalog.AuthLoginSucceeded),
 		Action:              "login",
 		Outcome:             "succeeded",
 		ActorUserID:         user.ID,

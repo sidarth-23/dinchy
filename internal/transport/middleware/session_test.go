@@ -42,6 +42,7 @@ func newSessionService(t *testing.T) *auth.Service {
 		nil,
 		cachecore.NewKeyer("test"),
 		email.NoopSender{},
+		nil,
 	)
 	require.NoError(t, err)
 	return svc

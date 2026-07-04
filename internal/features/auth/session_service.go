@@ -6,7 +6,9 @@ import (
 	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -58,20 +60,16 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return nil
 	}
-	var session *SessionWithUser
-	var sessionErr error
-	if s.audit != nil {
-		session, sessionErr = s.Session(ctx, rawToken)
-	}
+	session, sessionErr := s.Session(ctx, rawToken)
 	err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: s.clock.Now().UTC(), Valid: true}, UpdatedAt: s.clock.Now().UTC(), TokenHash: hashToken(rawToken)})
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}
 	if sessionErr == nil && session != nil {
-		if err := s.recordAudit(ctx, AuditEvent{
+		if err := s.publishEvent(ctx, eventbus.Event{
 			Category:            "security",
 			Subcategory:         "auth",
-			EventType:           "auth.logout_succeeded",
+			EventType:           string(eventcatalog.AuthLogoutSucceeded),
 			Action:              "logout",
 			Outcome:             "succeeded",
 			ActorUserID:         session.UserID,

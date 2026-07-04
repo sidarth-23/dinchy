@@ -7,7 +7,9 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -87,10 +89,10 @@ func (s *Service) updateSSOProviderSetting(ctx context.Context, providerID strin
 	if err != nil {
 		return SSOProviderSettingOut{}, err
 	}
-	if err := s.recordAudit(ctx, AuditEvent{
+	if err := s.publishEvent(ctx, eventbus.Event{
 		Category:      "security",
 		Subcategory:   "sso_settings",
-		EventType:     "auth.sso_settings_updated",
+		EventType:     string(eventcatalog.AuthSSOSettingsUpdated),
 		Action:        "update_sso_settings",
 		Outcome:       "succeeded",
 		TargetType:    "sso_provider",

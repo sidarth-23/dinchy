@@ -18,8 +18,8 @@ type Store interface {
 
 type StreamStore interface {
 	CreateConsumerGroup(ctx context.Context, stream, group string) error
-	AddStream(ctx context.Context, stream string, values map[string]any, maxLen int64) (string, error)
-	ReadGroup(ctx context.Context, stream, group, consumer string, count int64, block time.Duration) ([]StreamMessage, error)
+	AddStream(ctx context.Context, stream string, values map[string]any, retention time.Duration) (string, error)
+	ReadGroup(ctx context.Context, stream, group, consumer string, count int64, block, claim time.Duration) ([]StreamMessage, error)
 	AckStream(ctx context.Context, stream, group string, ids ...string) error
 }
 

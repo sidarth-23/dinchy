@@ -9,5 +9,4 @@
 - cleanup auth module
   - it has util functions which can be taken out
   - it has too many files with small functions. organize it properly
-- make in app auditting clean with eventbus system with streams which can be scaled. For now, add only db write as subscriber. Pubs are the functions emitting it
 - clean the sql queries in sqlc so that the params are not random column_7 etc. It should be named properly and the params should be named properly

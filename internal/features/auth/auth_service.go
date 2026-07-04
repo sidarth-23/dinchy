@@ -9,6 +9,7 @@ import (
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
@@ -23,10 +24,10 @@ type Service struct {
 	sso        *ssoRegistry
 	cache      cachecore.Store
 	email      email.Sender
-	audit      AuditRecorder
+	publisher  eventbus.Publisher
 }
 
-func NewService(db *sql.DB, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, cacheStore cachecore.Store, cacheKeyer cachecore.Keyer, sender email.Sender, auditors ...AuditRecorder) (*Service, error) {
+func NewService(db *sql.DB, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, cacheStore cachecore.Store, cacheKeyer cachecore.Keyer, sender email.Sender, publisher eventbus.Publisher) (*Service, error) {
 	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
 		return nil, err
@@ -34,11 +35,7 @@ func NewService(db *sql.DB, s Store, idg *id.Generator, clk clock.Clock, authCon
 	if sender == nil {
 		sender = email.NoopSender{}
 	}
-	var audit AuditRecorder
-	if len(auditors) > 0 {
-		audit = auditors[0]
-	}
-	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, cache: cacheStore, email: sender, audit: audit}
+	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, cache: cacheStore, email: sender, publisher: publisher}
 	if db != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
 			tx, err := db.BeginTx(ctx, nil)
@@ -79,9 +76,9 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {
 	return BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
 }
 
-func (s *Service) recordAudit(ctx context.Context, event AuditEvent) error {
-	if s.audit == nil {
+func (s *Service) publishEvent(ctx context.Context, event eventbus.Event) error {
+	if s.publisher == nil {
 		return nil
 	}
-	return s.audit.RecordAuthEvent(ctx, event)
+	return s.publisher.Publish(ctx, event)
 }

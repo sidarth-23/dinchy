@@ -81,7 +81,7 @@ Phase 1 initial schema includes:
 - `users`
 - `sessions`
 - `app_settings`
-- `auth_audit_logs`
+- `app_audit_logs`
 - `scheduled_tasks`
 
 ### `users`
@@ -149,7 +149,7 @@ Notes:
 - defaults are seeded eagerly at startup if missing
 - effective settings are cached in memory and refreshable immediately in-process
 
-### `auth_audit_logs`
+### `app_audit_logs`
 
 Fields:
 
