@@ -45,6 +45,8 @@ type Queries interface {
 	EnsureTask(ctx context.Context, arg TaskParams) error
 	ClaimTask(ctx context.Context, arg ClaimTaskParams) (int64, error)
 	FinishTask(ctx context.Context, arg FinishTaskParams) error
+	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
+	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLogRow, error)
 }
 
 // Store owns a database connection or transaction and executes queries through a backend-neutral adapter.

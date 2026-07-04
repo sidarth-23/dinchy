@@ -11,6 +11,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
 )
 
@@ -56,6 +57,67 @@ func (s *Store) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+func (s *Store) CreateConsumerGroup(ctx context.Context, stream, group string) error {
+	err := s.client.XGroupCreateMkStream(ctx, stream, group, "0").Err()
+	if err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
+		return fmt.Errorf("redis create stream consumer group %q for stream %q: %w", group, stream, err)
+	}
+	return nil
+}
+
+func (s *Store) AddStream(ctx context.Context, stream string, values map[string]any, maxLen int64) (string, error) {
+	args := &goredis.XAddArgs{
+		Stream: stream,
+		Values: values,
+	}
+	if maxLen > 0 {
+		args.MaxLen = maxLen
+		args.Approx = true
+	}
+	id, err := s.client.XAdd(ctx, args).Result()
+	if err != nil {
+		return "", fmt.Errorf("redis add stream entry to %q: %w", stream, err)
+	}
+	return id, nil
+}
+
+func (s *Store) ReadGroup(ctx context.Context, stream, group, consumer string, count int64, block time.Duration) ([]core.StreamMessage, error) {
+	streams, err := s.client.XReadGroup(ctx, &goredis.XReadGroupArgs{
+		Group:    group,
+		Consumer: consumer,
+		Streams:  []string{stream, ">"},
+		Count:    count,
+		Block:    block,
+	}).Result()
+	if err != nil {
+		if errors.Is(err, goredis.Nil) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("redis read stream %q group %q: %w", stream, group, err)
+	}
+	out := []core.StreamMessage{}
+	for _, redisStream := range streams {
+		for _, message := range redisStream.Messages {
+			values := make(map[string]string, len(message.Values))
+			for key, value := range message.Values {
+				values[key] = fmt.Sprint(value)
+			}
+			out = append(out, core.StreamMessage{ID: message.ID, Values: values})
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) AckStream(ctx context.Context, stream, group string, ids ...string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := s.client.XAck(ctx, stream, group, ids...).Err(); err != nil {
+		return fmt.Errorf("redis ack stream %q group %q: %w", stream, group, err)
+	}
+	return nil
+}
+
 func (s *Store) Ping(ctx context.Context) error {
 	if err := s.client.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("redis ping: %w", err)
@@ -68,3 +130,4 @@ func (s *Store) Close() error {
 }
 
 var _ io.Closer = (*Store)(nil)
+var _ core.StreamStore = (*Store)(nil)

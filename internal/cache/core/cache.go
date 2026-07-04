@@ -16,6 +16,18 @@ type Store interface {
 	Ping(ctx context.Context) error
 }
 
+type StreamStore interface {
+	CreateConsumerGroup(ctx context.Context, stream, group string) error
+	AddStream(ctx context.Context, stream string, values map[string]any, maxLen int64) (string, error)
+	ReadGroup(ctx context.Context, stream, group, consumer string, count int64, block time.Duration) ([]StreamMessage, error)
+	AckStream(ctx context.Context, stream, group string, ids ...string) error
+}
+
+type StreamMessage struct {
+	ID     string
+	Values map[string]string
+}
+
 type Keyer struct {
 	prefix string
 }

@@ -35,11 +35,35 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	if twoFactor == nil || !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
 		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
-	return s.store.ConfirmTwoFactor(ctx, userID, totpStep(s.clock.Now()), s.clock.Now())
+	if err := s.store.ConfirmTwoFactor(ctx, userID, totpStep(s.clock.Now()), s.clock.Now()); err != nil {
+		return err
+	}
+	return s.recordAudit(ctx, AuditEvent{
+		Category:    "security",
+		Subcategory: "two_factor",
+		EventType:   "auth.two_factor_enabled",
+		Action:      "enable_totp",
+		Outcome:     "succeeded",
+		ActorUserID: userID,
+		TargetType:  "user",
+		TargetID:    userID,
+	})
 }
 
 func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
-	return s.store.DisableTwoFactor(ctx, userID)
+	if err := s.store.DisableTwoFactor(ctx, userID); err != nil {
+		return err
+	}
+	return s.recordAudit(ctx, AuditEvent{
+		Category:    "security",
+		Subcategory: "two_factor",
+		EventType:   "auth.two_factor_disabled",
+		Action:      "disable_totp",
+		Outcome:     "succeeded",
+		ActorUserID: userID,
+		TargetType:  "user",
+		TargetID:    userID,
+	})
 }
 
 func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) error {

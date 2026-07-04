@@ -47,9 +47,30 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return nil
 	}
+	var session *SessionWithUser
+	var sessionErr error
+	if s.audit != nil {
+		session, sessionErr = s.Session(ctx, rawToken)
+	}
 	err := s.store.RevokeSessionByTokenHash(ctx, hashToken(rawToken))
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
+	}
+	if sessionErr == nil && session != nil {
+		if err := s.recordAudit(ctx, AuditEvent{
+			Category:            "security",
+			Subcategory:         "auth",
+			EventType:           "auth.logout_succeeded",
+			Action:              "logout",
+			Outcome:             "succeeded",
+			ActorUserID:         session.UserID,
+			ActorOrganisationID: session.OrganisationID,
+			TargetType:          "session",
+			TargetID:            session.SessionID,
+			Metadata:            map[string]any{"email": session.Email},
+		}); err != nil {
+			return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageLogout))
+		}
 	}
 	return nil
 }

@@ -87,6 +87,24 @@ func (s *Service) updateSSOProviderSetting(ctx context.Context, providerID strin
 	if err != nil {
 		return SSOProviderSettingOut{}, err
 	}
+	if err := s.recordAudit(ctx, AuditEvent{
+		Category:      "security",
+		Subcategory:   "sso_settings",
+		EventType:     "auth.sso_settings_updated",
+		Action:        "update_sso_settings",
+		Outcome:       "succeeded",
+		TargetType:    "sso_provider",
+		TargetID:      providerID,
+		TargetDisplay: providerID,
+		Changes: map[string]any{
+			"client_id":     body.ClientID != nil,
+			"client_secret": body.ClientSecret != nil,
+			"callback_url":  body.CallbackURL != nil,
+			"enabled":       body.Enabled != nil,
+		},
+	}); err != nil {
+		return SSOProviderSettingOut{}, err
+	}
 	return ssoProviderSettingOut(updated), nil
 }
 

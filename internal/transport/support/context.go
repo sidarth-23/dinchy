@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	chimw "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/text/language"
 )
 
@@ -45,6 +47,26 @@ func RemoteIPFrom(ctx context.Context) string {
 func UserAgentFrom(ctx context.Context) string {
 	s, _ := ctx.Value(ctxKeyUserAgent).(string)
 	return s
+}
+
+func RequestIDFrom(ctx context.Context) string {
+	return chimw.GetReqID(ctx)
+}
+
+func TraceIDFrom(ctx context.Context) string {
+	spanContext := trace.SpanContextFromContext(ctx)
+	if !spanContext.IsValid() {
+		return ""
+	}
+	return spanContext.TraceID().String()
+}
+
+func SpanIDFrom(ctx context.Context) string {
+	spanContext := trace.SpanContextFromContext(ctx)
+	if !spanContext.IsValid() {
+		return ""
+	}
+	return spanContext.SpanID().String()
 }
 
 // WithRequestCookies attaches request cookie values to the context.

@@ -3,7 +3,7 @@ package transport
 
 import (
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,9 +12,11 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/text/language"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
@@ -24,7 +26,10 @@ import (
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string, logger *slog.Logger) *http.Server {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	huma.NewError = func(status int, _ string, errs ...error) huma.StatusError {
 		return apperrors.ResponseFor(language.English, i18n.Default, status, errs...)
 	}
@@ -46,18 +51,20 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sr auth.SettingsReader,
 	r.Use(mw.CSRF())
 	r.Use(mw.Session(authSvc))
 	r.Use(mw.Timeout(30 * time.Second))
+	r.Use(mw.AccessLog(logger))
 
 	apiRouter := chi.NewRouter()
 	cfg := huma.DefaultConfig("Dinchy API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
 	auth.Register(api, authSvc, sr, requireHTTPS)
+	audit.Register(api, auditSvc)
 	r.Mount("/api", apiRouter)
 
 	if devMode {
 		target, err := url.Parse(devProxyURL)
 		if err != nil {
-			log.Printf("invalid dev proxy URL %q: %v", devProxyURL, err)
+			logger.Error("invalid dev proxy url", slog.String("url", devProxyURL), slog.Any("error", err))
 			r.Handle("/*", http.NotFoundHandler())
 		} else {
 			proxy := httputil.NewSingleHostReverseProxy(target)
@@ -69,6 +76,6 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sr auth.SettingsReader,
 
 	return &http.Server{
 		Addr:    addr,
-		Handler: r,
+		Handler: otelhttp.NewHandler(r, "http.server"),
 	}
 }

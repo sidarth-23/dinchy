@@ -6,12 +6,14 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/cache"
 	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
@@ -31,11 +33,15 @@ type App struct {
 	internal *http.Server
 	workers  *workers.Runtime
 	errCh    chan error
+	logger   *slog.Logger
 }
 
 // NewApp creates an App with the given configuration. Heavy initialization is deferred to Start.
-func NewApp(cfg config.Config) (*App, error) {
-	return &App{cfg: cfg, errCh: make(chan error, 3)}, nil
+func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &App{cfg: cfg, errCh: make(chan error, 3), logger: logger}, nil
 }
 
 // Start initializes all dependencies, starts the worker runtime, and begins listening
@@ -56,6 +62,14 @@ func (a *App) Start() error {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 	a.cache = cacheStore
+	streamStore, _ := cacheStore.(cachecore.StreamStore)
+	auditSvc, err := audit.NewService(s, streamStore, id.NewGenerator(), a.cfg.Audit)
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	if err := auditSvc.EnsureConsumerGroup(ctx); err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
 
 	clk := clock.RealClock{}
 	var sender email.Sender = email.NoopSender{}
@@ -66,7 +80,7 @@ func (a *App) Start() error {
 		}
 		sender = smtpSender
 	}
-	authSvc, err := auth.NewService(s, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender)
+	authSvc, err := auth.NewService(s, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, audit.NewAuthRecorder(auditSvc))
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageSetup),
@@ -80,10 +94,14 @@ func (a *App) Start() error {
 		)
 	}
 
-	a.public = transport.New(a.cfg.Addr, dist, authSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL)
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
-	a.workers = workers.NewRuntime(s, clk, a.errCh, workers.NewSessionCleanupWorker(s, clk))
+	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(s, clk)}
+	if auditSvc.Enabled() {
+		registeredWorkers = append(registeredWorkers, audit.NewWorker(auditSvc, a.cfg.Audit.WorkerIntervalSeconds))
+	}
+	a.workers = workers.NewRuntime(s, clk, a.errCh, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageStartTaskRuntime),

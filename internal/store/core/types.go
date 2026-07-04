@@ -86,6 +86,79 @@ type SSOProviderSettingRow struct {
 	UpdatedAt     time.Time
 }
 
+type AuditLogRow struct {
+	ID                       string
+	Category                 string
+	Subcategory              string
+	EventType                string
+	Action                   string
+	Outcome                  string
+	ActorUserID              string
+	ActorUserIDValid         bool
+	ActorOrganisationID      string
+	ActorOrganisationIDValid bool
+	TargetType               string
+	TargetTypeValid          bool
+	TargetID                 string
+	TargetIDValid            bool
+	TargetDisplay            string
+	TargetDisplayValid       bool
+	RequestID                string
+	RequestIDValid           bool
+	TraceID                  string
+	TraceIDValid             bool
+	SpanID                   string
+	SpanIDValid              bool
+	IPAddress                string
+	UserAgent                string
+	MetadataJSON             string
+	ChangesJSON              string
+	CreatedAt                time.Time
+}
+
+type InsertAuditLogParams struct {
+	ID                       string
+	Category                 string
+	Subcategory              string
+	EventType                string
+	Action                   string
+	Outcome                  string
+	ActorUserID              string
+	ActorUserIDValid         bool
+	ActorOrganisationID      string
+	ActorOrganisationIDValid bool
+	TargetType               string
+	TargetTypeValid          bool
+	TargetID                 string
+	TargetIDValid            bool
+	TargetDisplay            string
+	TargetDisplayValid       bool
+	RequestID                string
+	RequestIDValid           bool
+	TraceID                  string
+	TraceIDValid             bool
+	SpanID                   string
+	SpanIDValid              bool
+	IPAddress                string
+	UserAgent                string
+	MetadataJSON             string
+	ChangesJSON              string
+	CreatedAt                time.Time
+}
+
+type ListAuditLogsParams struct {
+	Category    string
+	Subcategory string
+	EventType   string
+	ActorUserID string
+	TargetType  string
+	TargetID    string
+	Outcome     string
+	Before      time.Time
+	BeforeValid bool
+	Limit       int64
+}
+
 type InsertUserParams struct {
 	ID              string
 	Email           string

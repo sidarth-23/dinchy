@@ -18,6 +18,28 @@ type Account struct {
 	UpdatedAt         string
 }
 
+type AppAuditLog struct {
+	ID                  string
+	Category            string
+	Subcategory         string
+	EventType           string
+	Action              string
+	Outcome             string
+	ActorUserID         sql.NullString
+	ActorOrganisationID sql.NullString
+	TargetType          sql.NullString
+	TargetID            sql.NullString
+	TargetDisplay       sql.NullString
+	RequestID           sql.NullString
+	TraceID             sql.NullString
+	SpanID              sql.NullString
+	IpAddress           string
+	UserAgent           string
+	MetadataJson        string
+	ChangesJson         string
+	CreatedAt           string
+}
+
 type AppSetting struct {
 	ID                            string
 	InstanceName                  string

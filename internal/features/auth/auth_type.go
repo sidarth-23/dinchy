@@ -172,6 +172,27 @@ type UpsertSSOProviderSettingInput struct {
 	Now           time.Time
 }
 
+type AuditEvent struct {
+	Category            string
+	Subcategory         string
+	EventType           string
+	Action              string
+	Outcome             string
+	ActorUserID         string
+	ActorOrganisationID string
+	TargetType          string
+	TargetID            string
+	TargetDisplay       string
+	IPAddress           string
+	UserAgent           string
+	Metadata            map[string]any
+	Changes             map[string]any
+}
+
+type AuditRecorder interface {
+	RecordAuthEvent(ctx context.Context, event AuditEvent) error
+}
+
 type BootstrapState struct {
 	SetupRequired bool
 	InstanceName  string

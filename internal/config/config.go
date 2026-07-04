@@ -32,6 +32,12 @@ type Config struct {
 	SMTP SMTPConfig
 	// Cache contains optional cache store settings for ephemeral state.
 	Cache CacheConfig
+	// Logging controls application log formatting and level.
+	Logging LoggingConfig
+	// Telemetry controls OpenTelemetry logs and traces.
+	Telemetry TelemetryConfig
+	// Audit controls durable in-app audit event capture.
+	Audit AuditConfig
 	// SSOProviders contains the enabled SSO providers derived from env configuration.
 	SSOProviders []SSOProviderConfig
 }
@@ -49,6 +55,9 @@ func defaultConfig() Config {
 		Auth:        DefaultAuth(),
 		SMTP:        DefaultSMTP(),
 		Cache:       DefaultCache(),
+		Logging:     DefaultLogging(),
+		Telemetry:   DefaultTelemetry(),
+		Audit:       DefaultAudit(),
 	}
 }
 
@@ -79,6 +88,15 @@ func Load() (Config, error) {
 	if err := loadFromEnv(&cfg.Cache); err != nil {
 		return Config{}, err
 	}
+	if err := loadFromEnv(&cfg.Logging); err != nil {
+		return Config{}, err
+	}
+	if err := loadFromEnv(&cfg.Telemetry); err != nil {
+		return Config{}, err
+	}
+	if err := loadFromEnv(&cfg.Audit); err != nil {
+		return Config{}, err
+	}
 	cfg.SSOProviders = configuredSSOProviders(cfg)
 
 	v := validation.New()
@@ -87,6 +105,9 @@ func Load() (Config, error) {
 	}
 
 	if err := validateDatabaseConfig(cfg); err != nil {
+		return Config{}, err
+	}
+	if err := validateAuditConfig(cfg); err != nil {
 		return Config{}, err
 	}
 

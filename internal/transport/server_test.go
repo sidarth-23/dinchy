@@ -39,7 +39,7 @@ func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler 
 	svc, err := auth.NewService(db, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), email.NoopSender{})
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
-	srv := transport.New(":0", dist, svc, db, false, devMode, devProxyURL)
+	srv := transport.New(":0", dist, svc, nil, db, false, devMode, devProxyURL, nil)
 	return srv.Handler
 }
 

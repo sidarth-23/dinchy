@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/store/postgres"
 	"github.com/sidarth-23/dinchy/internal/store/sqlite"
@@ -16,6 +17,7 @@ import (
 // Store is the application-facing persistence contract.
 type Store interface {
 	auth.Store
+	audit.Store
 	workers.Store
 	auth.SettingsReader
 	io.Closer

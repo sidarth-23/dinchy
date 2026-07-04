@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -11,16 +12,67 @@ import (
 func (s *Service) Login(ctx context.Context, emailAddress, password, organisationSlug, totpCode, ip, userAgent string) (string, error) {
 	user, err := s.findUserWithPassword(ctx, emailAddress, password)
 	if err != nil {
+		auditErr := s.recordAudit(ctx, AuditEvent{
+			Category:    "security",
+			Subcategory: "auth",
+			EventType:   "auth.login_failed",
+			Action:      "login",
+			Outcome:     "failed",
+			IPAddress:   ip,
+			UserAgent:   userAgent,
+			Metadata:    map[string]any{"email": emailAddress},
+		})
+		if auditErr != nil {
+			return "", errors.Join(err, auditErr)
+		}
 		return "", err
 	}
 	if err := s.verifyTOTPForLogin(ctx, user.ID, totpCode); err != nil {
+		auditErr := s.recordAudit(ctx, AuditEvent{
+			Category:      "security",
+			Subcategory:   "auth",
+			EventType:     "auth.login_failed",
+			Action:        "login",
+			Outcome:       "failed",
+			ActorUserID:   user.ID,
+			TargetType:    "user",
+			TargetID:      user.ID,
+			TargetDisplay: user.Email,
+			IPAddress:     ip,
+			UserAgent:     userAgent,
+			Metadata:      map[string]any{"email": user.Email, "reason": "totp"},
+		})
+		if auditErr != nil {
+			return "", errors.Join(err, auditErr)
+		}
 		return "", err
 	}
 	organisation, err := s.resolveLoginOrganisation(ctx, user.ID, organisationSlug)
 	if err != nil {
 		return "", err
 	}
-	return s.newSession(ctx, user.ID, organisation.ID, ip, userAgent)
+	token, err := s.newSession(ctx, user.ID, organisation.ID, ip, userAgent)
+	if err != nil {
+		return "", err
+	}
+	if err := s.recordAudit(ctx, AuditEvent{
+		Category:            "security",
+		Subcategory:         "auth",
+		EventType:           "auth.login_succeeded",
+		Action:              "login",
+		Outcome:             "succeeded",
+		ActorUserID:         user.ID,
+		ActorOrganisationID: organisation.ID,
+		TargetType:          "user",
+		TargetID:            user.ID,
+		TargetDisplay:       user.Email,
+		IPAddress:           ip,
+		UserAgent:           userAgent,
+		Metadata:            map[string]any{"email": user.Email, "organisation_slug": organisation.Slug},
+	}); err != nil {
+		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageLogin))
+	}
+	return token, nil
 }
 
 func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, password string) (*User, error) {
