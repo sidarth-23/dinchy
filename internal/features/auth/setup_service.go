@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -61,7 +61,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err := s.publishEvent(ctx, eventbus.Event{
 		Category:            "security",
 		Subcategory:         "auth",
-		EventType:           string(eventcatalog.AuthSetupCompleted),
+		EventType:           string(events.AuthSecurityAuthSetupCompleted),
 		Action:              "setup_first_user",
 		Outcome:             "succeeded",
 		ActorUserID:         user.ID,
@@ -71,7 +71,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 		TargetDisplay:       user.Email,
 		IPAddress:           ip,
 		UserAgent:           userAgent,
-		Metadata:            map[string]any{"email": user.Email, "display_name": user.DisplayName},
+		Metadata:            events.AuthSecurityAuthSetupCompletedMetadata{Email: user.Email, DisplayName: user.DisplayName}.Map(),
 	}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}

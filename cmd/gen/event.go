@@ -13,7 +13,7 @@ import (
 
 type eventManifest struct {
 	Subscribers []eventSubscriber `json:"subscribers"`
-	Events      []eventDefinition `json:"events"`
+	Modules     []eventModule     `json:"modules"`
 }
 
 type eventSubscriber struct {
@@ -21,17 +21,28 @@ type eventSubscriber struct {
 	Description string `json:"description,omitempty"`
 }
 
+type eventModule struct {
+	ID          string            `json:"id"`
+	Description string            `json:"description,omitempty"`
+	Modules     []eventModule     `json:"modules,omitempty"`
+	Events      []eventDefinition `json:"events,omitempty"`
+}
+
 type eventDefinition struct {
-	Name         string   `json:"name"`
-	Type         string   `json:"type"`
-	Module       string   `json:"module"`
-	Subscriber   string   `json:"subscriber"`
-	Category     string   `json:"category"`
-	Subcategory  string   `json:"subcategory"`
-	Action       string   `json:"action"`
-	Outcome      string   `json:"outcome"`
-	MetadataKeys []string `json:"metadata_keys,omitempty"`
-	ChangeKeys   []string `json:"change_keys,omitempty"`
+	ID           string     `json:"id"`
+	Description  string     `json:"description,omitempty"`
+	Subscriber   string     `json:"subscriber"`
+	Category     string     `json:"category"`
+	Subcategory  string     `json:"subcategory"`
+	Action       string     `json:"action"`
+	Outcome      string     `json:"outcome"`
+	MetadataKeys []eventKey `json:"metadata_keys,omitempty"`
+	ChangeKeys   []eventKey `json:"change_keys,omitempty"`
+}
+
+type eventKey struct {
+	Key    string `json:"key"`
+	GoType string `json:"go_type,omitempty"`
 }
 
 func runEvent(args []string) error {
@@ -78,51 +89,113 @@ func validateEventManifest(mf eventManifest) error {
 		seenSubscribers[subscriber.Name] = struct{}{}
 	}
 
+	if len(mf.Modules) == 0 {
+		return fmt.Errorf("event catalog must define at least one module")
+	}
+
 	seenTypes := map[string]struct{}{}
 	seenNames := map[string]struct{}{}
-	for _, event := range mf.Events {
-		if event.Name == "" {
-			return fmt.Errorf("event name cannot be empty")
+	return validateEventModules(mf.Modules, nil, seenSubscribers, seenTypes, seenNames)
+}
+
+func validateEventModules(modules []eventModule, modulePath []string, seenSubscribers, seenTypes, seenNames map[string]struct{}) error {
+	seenModuleIDs := map[string]struct{}{}
+	for _, module := range modules {
+		if module.ID == "" {
+			return fmt.Errorf("module id cannot be empty")
 		}
-		if event.Type == "" {
-			return fmt.Errorf("event %q has empty type", event.Name)
+		if _, ok := seenModuleIDs[module.ID]; ok {
+			return fmt.Errorf("duplicate module id %q within module path %q", module.ID, displayPath(modulePath))
 		}
-		if event.Module == "" {
-			return fmt.Errorf("event %q has empty module", event.Name)
+		seenModuleIDs[module.ID] = struct{}{}
+
+		currentPath := append(append([]string{}, modulePath...), module.ID)
+		seenEventIDs := map[string]struct{}{}
+		for _, event := range module.Events {
+			if event.ID == "" {
+				return fmt.Errorf("event id cannot be empty within module path %q", displayPath(currentPath))
+			}
+			if _, ok := seenEventIDs[event.ID]; ok {
+				return fmt.Errorf("duplicate event id %q within module path %q", event.ID, displayPath(currentPath))
+			}
+			if event.Subscriber == "" {
+				return fmt.Errorf("event %q has empty subscriber", displayPath(append(currentPath, event.ID)))
+			}
+			if event.Category == "" {
+				return fmt.Errorf("event %q has empty category", displayPath(append(currentPath, event.ID)))
+			}
+			if event.Subcategory == "" {
+				return fmt.Errorf("event %q has empty subcategory", displayPath(append(currentPath, event.ID)))
+			}
+			if event.Action == "" {
+				return fmt.Errorf("event %q has empty action", displayPath(append(currentPath, event.ID)))
+			}
+			if event.Outcome == "" {
+				return fmt.Errorf("event %q has empty outcome", displayPath(append(currentPath, event.ID)))
+			}
+			if _, ok := seenSubscribers[event.Subscriber]; !ok {
+				return fmt.Errorf("event %q references unknown subscriber %q", displayPath(append(currentPath, event.ID)), event.Subscriber)
+			}
+			fullType := eventTypeFor(currentPath, event.ID)
+			if _, ok := seenTypes[fullType]; ok {
+				return fmt.Errorf("duplicate event type %q", fullType)
+			}
+			constName := eventConstantName(currentPath, event.ID)
+			if _, ok := seenNames[constName]; ok {
+				return fmt.Errorf("duplicate generated constant name %q", constName)
+			}
+			if err := validateTypedKeys(fullType, "metadata_keys", event.MetadataKeys); err != nil {
+				return err
+			}
+			if err := validateTypedKeys(fullType, "change_keys", event.ChangeKeys); err != nil {
+				return err
+			}
+			seenEventIDs[event.ID] = struct{}{}
+			seenTypes[fullType] = struct{}{}
+			seenNames[constName] = struct{}{}
 		}
-		if event.Subscriber == "" {
-			return fmt.Errorf("event %q has empty subscriber", event.Name)
+
+		if err := validateEventModules(module.Modules, currentPath, seenSubscribers, seenTypes, seenNames); err != nil {
+			return err
 		}
-		if _, ok := seenNames[event.Name]; ok {
-			return fmt.Errorf("duplicate event name %q", event.Name)
+	}
+	return nil
+}
+
+func validateTypedKeys(eventType, field string, keys []eventKey) error {
+	seenKeys := map[string]struct{}{}
+	for _, key := range keys {
+		if key.Key == "" {
+			return fmt.Errorf("event %q has empty %s key", eventType, field)
 		}
-		if _, ok := seenTypes[event.Type]; ok {
-			return fmt.Errorf("duplicate event type %q", event.Type)
+		if _, ok := seenKeys[key.Key]; ok {
+			return fmt.Errorf("event %q has duplicate %s key %q", eventType, field, key.Key)
 		}
-		if _, ok := seenSubscribers[event.Subscriber]; !ok {
-			return fmt.Errorf("event %q references unknown subscriber %q", event.Name, event.Subscriber)
-		}
-		seenNames[event.Name] = struct{}{}
-		seenTypes[event.Type] = struct{}{}
+		seenKeys[key.Key] = struct{}{}
 	}
 	return nil
 }
 
 func renderEventManifest(mf eventManifest) ([]byte, error) {
-	sort.Slice(mf.Events, func(i, j int) bool { return mf.Events[i].Type < mf.Events[j].Type })
+	events := flattenEventDefinitions(mf.Modules, nil)
+	sort.Slice(events, func(i, j int) bool { return events[i].Type < events[j].Type })
 
 	var b strings.Builder
 	b.WriteString("// Code generated by cmd/gen event; DO NOT EDIT.\n\n")
-	b.WriteString("package eventcatalog\n\n")
+	b.WriteString("package events\n\n")
 	b.WriteString("type Type string\n\n")
 	b.WriteString("type Subscriber string\n\n")
+	b.WriteString("type TypedKey struct {\n")
+	b.WriteString("\tKey string\n")
+	b.WriteString("\tGoType string\n")
+	b.WriteString("}\n\n")
 	b.WriteString("const (\n")
 	for _, subscriber := range mf.Subscribers {
 		fmt.Fprintf(&b, "\tSubscriber%s Subscriber = %q\n", subscriberName(subscriber.Name), subscriber.Name)
 	}
 	b.WriteString(")\n\n")
 	b.WriteString("type Definition struct {\n")
-	b.WriteString("\tName string\n")
+	b.WriteString("\tID string\n")
 	b.WriteString("\tType Type\n")
 	b.WriteString("\tModule string\n")
 	b.WriteString("\tSubscriber Subscriber\n")
@@ -130,57 +203,58 @@ func renderEventManifest(mf eventManifest) ([]byte, error) {
 	b.WriteString("\tSubcategory string\n")
 	b.WriteString("\tAction string\n")
 	b.WriteString("\tOutcome string\n")
-	b.WriteString("\tMetadataKeys []string\n")
-	b.WriteString("\tChangeKeys []string\n")
+	b.WriteString("\tDescription string\n")
+	b.WriteString("\tMetadataKeys []TypedKey\n")
+	b.WriteString("\tChangeKeys []TypedKey\n")
 	b.WriteString("}\n\n")
-
 	b.WriteString("const (\n")
-	for _, event := range mf.Events {
-		fmt.Fprintf(&b, "\t%s Type = %q\n", event.Name, event.Type)
+	for _, event := range events {
+		fmt.Fprintf(&b, "\t%s Type = %q\n", event.ConstantName, event.Type)
 	}
 	b.WriteString(")\n\n")
-
 	b.WriteString("var Definitions = map[Type]Definition{\n")
-	for _, event := range mf.Events {
+	for _, event := range events {
 		subscriberConst := "Subscriber" + subscriberName(event.Subscriber)
-		fmt.Fprintf(&b, "\t%s: {\n", event.Name)
-		fmt.Fprintf(&b, "\t\tName: %q,\n", event.Name)
-		fmt.Fprintf(&b, "\t\tType: %s,\n", event.Name)
+		fmt.Fprintf(&b, "\t%s: {\n", event.ConstantName)
+		fmt.Fprintf(&b, "\t\tID: %q,\n", event.ID)
+		fmt.Fprintf(&b, "\t\tType: %s,\n", event.ConstantName)
 		fmt.Fprintf(&b, "\t\tModule: %q,\n", event.Module)
 		fmt.Fprintf(&b, "\t\tSubscriber: %s,\n", subscriberConst)
 		fmt.Fprintf(&b, "\t\tCategory: %q,\n", event.Category)
 		fmt.Fprintf(&b, "\t\tSubcategory: %q,\n", event.Subcategory)
 		fmt.Fprintf(&b, "\t\tAction: %q,\n", event.Action)
 		fmt.Fprintf(&b, "\t\tOutcome: %q,\n", event.Outcome)
+		if event.Description != "" {
+			fmt.Fprintf(&b, "\t\tDescription: %q,\n", event.Description)
+		}
 		if len(event.MetadataKeys) > 0 {
-			fmt.Fprintf(&b, "\t\tMetadataKeys: []string{%s},\n", quoteStrings(event.MetadataKeys))
+			fmt.Fprintf(&b, "\t\tMetadataKeys: []TypedKey{%s},\n", renderTypedKeys(event.MetadataKeys))
 		}
 		if len(event.ChangeKeys) > 0 {
-			fmt.Fprintf(&b, "\t\tChangeKeys: []string{%s},\n", quoteStrings(event.ChangeKeys))
+			fmt.Fprintf(&b, "\t\tChangeKeys: []TypedKey{%s},\n", renderTypedKeys(event.ChangeKeys))
 		}
 		b.WriteString("\t},\n")
 	}
 	b.WriteString("}\n\n")
-
 	b.WriteString("var SubscriberDefinitions = map[Subscriber][]Type{\n")
 	for _, subscriber := range mf.Subscribers {
 		subscriberConst := "Subscriber" + subscriberName(subscriber.Name)
-		b.WriteString("\t" + subscriberConst + ": {\n")
-		for _, event := range mf.Events {
+		b.WriteString("\t")
+		b.WriteString(subscriberConst)
+		b.WriteString(": {\n")
+		for _, event := range events {
 			if event.Subscriber != subscriber.Name {
 				continue
 			}
-			fmt.Fprintf(&b, "\t\t%s,\n", event.Name)
+			fmt.Fprintf(&b, "\t\t%s,\n", event.ConstantName)
 		}
 		b.WriteString("\t},\n")
 	}
 	b.WriteString("}\n\n")
-
 	b.WriteString("func DefinitionFor(eventType Type) (Definition, bool) {\n")
 	b.WriteString("\tdefinition, ok := Definitions[eventType]\n")
 	b.WriteString("\treturn definition, ok\n")
 	b.WriteString("}\n\n")
-
 	b.WriteString("func EventsForSubscriber(subscriber Subscriber) []Definition {\n")
 	b.WriteString("\ttypes := SubscriberDefinitions[subscriber]\n")
 	b.WriteString("\tout := make([]Definition, 0, len(types))\n")
@@ -199,23 +273,114 @@ func renderEventManifest(mf eventManifest) ([]byte, error) {
 	return formatted, nil
 }
 
-func subscriberName(value string) string {
-	parts := strings.FieldsFunc(value, func(r rune) bool {
-		return r == '-' || r == '_' || r == '.'
-	})
-	for i, part := range parts {
+type flattenedEvent struct {
+	ID           string
+	Type         string
+	Module       string
+	Subscriber   string
+	Category     string
+	Subcategory  string
+	Action       string
+	Outcome      string
+	Description  string
+	MetadataKeys []eventKey
+	ChangeKeys   []eventKey
+	ConstantName string
+}
+
+func flattenEventDefinitions(modules []eventModule, modulePath []string) []flattenedEvent {
+	out := make([]flattenedEvent, 0)
+	for _, module := range modules {
+		currentPath := append(append([]string{}, modulePath...), module.ID)
+		for _, event := range module.Events {
+			out = append(out, flattenedEvent{
+				ID:           event.ID,
+				Type:         eventTypeFor(currentPath, event.ID),
+				Module:       displayPath(currentPath),
+				Subscriber:   event.Subscriber,
+				Category:     event.Category,
+				Subcategory:  event.Subcategory,
+				Action:       event.Action,
+				Outcome:      event.Outcome,
+				Description:  event.Description,
+				MetadataKeys: normalizeTypedKeys(event.MetadataKeys),
+				ChangeKeys:   normalizeTypedKeys(event.ChangeKeys),
+				ConstantName: eventConstantName(currentPath, event.ID),
+			})
+		}
+		out = append(out, flattenEventDefinitions(module.Modules, currentPath)...)
+	}
+	return out
+}
+
+func normalizeTypedKeys(keys []eventKey) []eventKey {
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([]eventKey, len(keys))
+	copy(out, keys)
+	for i := range out {
+		if out[i].GoType == "" {
+			out[i].GoType = "string"
+		}
+	}
+	return out
+}
+
+func renderTypedKeys(keys []eventKey) string {
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		goType := key.GoType
+		if goType == "" {
+			goType = "string"
+		}
+		parts = append(parts, fmt.Sprintf("{Key: %q, GoType: %q}", key.Key, goType))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func displayPath(parts []string) string {
+	cleaned := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
-		parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		cleaned = append(cleaned, part)
 	}
-	return strings.Join(parts, "")
+	if len(cleaned) == 0 {
+		return "<root>"
+	}
+	return strings.Join(cleaned, ".")
 }
 
-func quoteStrings(values []string) string {
-	quoted := make([]string, 0, len(values))
-	for _, value := range values {
-		quoted = append(quoted, fmt.Sprintf("%q", value))
+func eventTypeFor(modulePath []string, eventID string) string {
+	parts := append(append([]string{}, modulePath...), eventID)
+	return displayPath(parts)
+}
+
+func eventConstantName(modulePath []string, eventID string) string {
+	parts := append(append([]string{}, modulePath...), eventID)
+	var name strings.Builder
+	for _, part := range parts {
+		name.WriteString(goName(part))
 	}
-	return strings.Join(quoted, ", ")
+	return name.String()
+}
+
+func goName(value string) string {
+	segments := strings.FieldsFunc(value, func(r rune) bool {
+		return r == '-' || r == '_' || r == '.'
+	})
+	for i, segment := range segments {
+		if segment == "" {
+			continue
+		}
+		segments[i] = strings.ToUpper(segment[:1]) + strings.ToLower(segment[1:])
+	}
+	return strings.Join(segments, "")
+}
+
+func subscriberName(value string) string {
+	return goName(value)
 }

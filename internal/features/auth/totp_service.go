@@ -10,7 +10,7 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -52,12 +52,13 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	return s.publishEvent(ctx, eventbus.Event{
 		Category:    "security",
 		Subcategory: "two_factor",
-		EventType:   string(eventcatalog.AuthTwoFactorEnabled),
+		EventType:   string(events.AuthSecurityTwoFactorEnabled),
 		Action:      "enable_totp",
 		Outcome:     "succeeded",
 		ActorUserID: userID,
 		TargetType:  "user",
 		TargetID:    userID,
+		Metadata:    events.AuthSecurityTwoFactorEnabledMetadata{}.Map(),
 	})
 }
 
@@ -68,12 +69,13 @@ func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
 	return s.publishEvent(ctx, eventbus.Event{
 		Category:    "security",
 		Subcategory: "two_factor",
-		EventType:   string(eventcatalog.AuthTwoFactorDisabled),
+		EventType:   string(events.AuthSecurityTwoFactorDisabled),
 		Action:      "disable_totp",
 		Outcome:     "succeeded",
 		ActorUserID: userID,
 		TargetType:  "user",
 		TargetID:    userID,
+		Metadata:    events.AuthSecurityTwoFactorDisabledMetadata{}.Map(),
 	})
 }
 

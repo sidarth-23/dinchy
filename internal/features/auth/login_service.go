@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -19,12 +19,12 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 		auditErr := s.publishEvent(ctx, eventbus.Event{
 			Category:    "security",
 			Subcategory: "auth",
-			EventType:   string(eventcatalog.AuthLoginFailed),
+			EventType:   string(events.AuthSecurityAuthLoginFailed),
 			Action:      "login",
 			Outcome:     "failed",
 			IPAddress:   ip,
 			UserAgent:   userAgent,
-			Metadata:    map[string]any{"email": emailAddress},
+			Metadata:    events.AuthSecurityAuthLoginFailedMetadata{Email: emailAddress}.Map(),
 		})
 		if auditErr != nil {
 			return "", errors.Join(err, auditErr)
@@ -35,7 +35,7 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 		auditErr := s.publishEvent(ctx, eventbus.Event{
 			Category:      "security",
 			Subcategory:   "auth",
-			EventType:     string(eventcatalog.AuthLoginFailed),
+			EventType:     string(events.AuthSecurityAuthLoginFailed),
 			Action:        "login",
 			Outcome:       "failed",
 			ActorUserID:   user.ID,
@@ -44,7 +44,10 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 			TargetDisplay: user.Email,
 			IPAddress:     ip,
 			UserAgent:     userAgent,
-			Metadata:      map[string]any{"email": user.Email, "reason": "totp"},
+			Metadata: events.AuthSecurityAuthLoginFailedMetadata{
+				Email:  user.Email,
+				Reason: "totp",
+			}.Map(),
 		})
 		if auditErr != nil {
 			return "", errors.Join(err, auditErr)
@@ -62,7 +65,7 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 	if err := s.publishEvent(ctx, eventbus.Event{
 		Category:            "security",
 		Subcategory:         "auth",
-		EventType:           string(eventcatalog.AuthLoginSucceeded),
+		EventType:           string(events.AuthSecurityAuthLoginSucceeded),
 		Action:              "login",
 		Outcome:             "succeeded",
 		ActorUserID:         user.ID,
@@ -72,7 +75,10 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 		TargetDisplay:       user.Email,
 		IPAddress:           ip,
 		UserAgent:           userAgent,
-		Metadata:            map[string]any{"email": user.Email, "organisation_slug": organisation.Slug},
+		Metadata: events.AuthSecurityAuthLoginSucceededMetadata{
+			Email:            user.Email,
+			OrganisationSlug: organisation.Slug,
+		}.Map(),
 	}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageLogin))
 	}

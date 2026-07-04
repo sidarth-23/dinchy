@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/eventcatalog"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -69,14 +69,14 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 		if err := s.publishEvent(ctx, eventbus.Event{
 			Category:            "security",
 			Subcategory:         "auth",
-			EventType:           string(eventcatalog.AuthLogoutSucceeded),
+			EventType:           string(events.AuthSecurityAuthLogoutSucceeded),
 			Action:              "logout",
 			Outcome:             "succeeded",
 			ActorUserID:         session.UserID,
 			ActorOrganisationID: session.OrganisationID,
 			TargetType:          "session",
 			TargetID:            session.SessionID,
-			Metadata:            map[string]any{"email": session.Email},
+			Metadata:            events.AuthSecurityAuthLogoutSucceededMetadata{Email: session.Email}.Map(),
 		}); err != nil {
 			return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageLogout))
 		}
