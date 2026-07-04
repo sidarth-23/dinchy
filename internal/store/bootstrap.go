@@ -7,7 +7,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/store/types"
+	"github.com/sidarth-23/dinchy/internal/workers"
 )
 
 func (q *queries) EnsureDefaultSettings(ctx context.Context, now time.Time) error {
@@ -21,7 +21,7 @@ func (q *queries) GetInstanceName(ctx context.Context) (string, error) {
 	return q.q.GetInstanceName(ctx)
 }
 
-func (q *queries) EnsureTask(ctx context.Context, arg types.TaskParams) error {
+func (q *queries) EnsureTask(ctx context.Context, arg workers.TaskParams) error {
 	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err

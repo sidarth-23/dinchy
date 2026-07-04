@@ -9,7 +9,6 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (auth.User, error) {
@@ -25,7 +24,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 		if count > 0 {
 			return apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", int(count))))
 		}
-		if err := tx.Query().InsertUser(ctx, types.InsertUserParams{
+		if err := tx.Query().InsertUser(ctx, auth.InsertUserParams{
 			ID:              in.ID,
 			Email:           in.Email,
 			DisplayName:     in.DisplayName,
@@ -36,7 +35,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 		}); err != nil {
 			return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationInsertUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 		}
-		if err := tx.Query().InsertAccount(ctx, types.InsertAccountParams{
+		if err := tx.Query().InsertAccount(ctx, auth.InsertAccountParams{
 			ID:                in.AccountID,
 			UserID:            in.ID,
 			Provider:          string(auth.AccountProviderPassword),
@@ -47,7 +46,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 		}); err != nil {
 			return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationInsertAccount), apperrors.WithStage(apperrors.StageSetupFirstUser))
 		}
-		if err := tx.Query().InsertOrganisation(ctx, types.InsertOrganisationParams{
+		if err := tx.Query().InsertOrganisation(ctx, auth.InsertOrganisationParams{
 			ID:        in.OrganisationID,
 			Name:      in.OrganisationName,
 			Slug:      in.OrganisationSlug,
@@ -56,7 +55,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, in auth.CreateUserInput) (a
 		}); err != nil {
 			return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationInsertOrganisation), apperrors.WithStage(apperrors.StageSetupFirstUser))
 		}
-		if err := tx.Query().InsertOrganisationMember(ctx, types.InsertOrganisationMemberParams{
+		if err := tx.Query().InsertOrganisationMember(ctx, auth.InsertOrganisationMemberParams{
 			ID:             in.OrganisationMemberID,
 			OrganisationID: in.OrganisationID,
 			UserID:         in.ID,
@@ -142,7 +141,7 @@ func (s *Store) FindOrganisationByIDForUser(ctx context.Context, userID, organis
 }
 
 func (s *Store) UpdateUserPasswordHash(ctx context.Context, in auth.UpdateUserPasswordHashInput) error {
-	if err := s.Query().UpdateUserPasswordHash(ctx, types.UpdateUserPasswordHashParams{
+	if err := s.Query().UpdateUserPasswordHash(ctx, auth.UpdateUserPasswordHashParams{
 		UserID:       in.UserID,
 		PasswordHash: in.PasswordHash,
 		UpdatedAt:    in.Now.UTC(),
@@ -153,12 +152,12 @@ func (s *Store) UpdateUserPasswordHash(ctx context.Context, in auth.UpdateUserPa
 }
 
 func (s *Store) CreateSession(ctx context.Context, in auth.CreateSessionInput) (auth.Session, error) {
-	if err := s.Query().InsertSession(ctx, types.InsertSessionParams{
+	if err := s.Query().InsertSession(ctx, auth.InsertSessionParams{
 		ID:                   in.ID,
 		UserID:               in.UserID,
 		ActiveOrganisationID: in.OrganisationID,
 		TokenHash:            in.TokenHash,
-		IpAddress:            in.IP,
+		IPAddress:            in.IP,
 		UserAgent:            in.UserAgent,
 		LastSeenAt:           in.Now.UTC(),
 		IdleExpiresAt:        in.IdleExpiresAt.UTC(),
@@ -200,7 +199,7 @@ func (s *Store) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*a
 
 func (s *Store) RevokeSessionByTokenHash(ctx context.Context, tokenHash string) error {
 	now := time.Now().UTC()
-	if err := s.Query().RevokeSessionByTokenHash(ctx, types.RevokeSessionParams{
+	if err := s.Query().RevokeSessionByTokenHash(ctx, auth.RevokeSessionParams{
 		RevokedAt: now,
 		UpdatedAt: now,
 		TokenHash: tokenHash,
@@ -211,7 +210,7 @@ func (s *Store) RevokeSessionByTokenHash(ctx context.Context, tokenHash string) 
 }
 
 func (s *Store) RevokeSessionsForUser(ctx context.Context, userID string, now time.Time) error {
-	if err := s.Query().RevokeSessionsForUser(ctx, types.RevokeSessionsForUserParams{
+	if err := s.Query().RevokeSessionsForUser(ctx, auth.RevokeSessionsForUserParams{
 		RevokedAt: now.UTC(),
 		UpdatedAt: now.UTC(),
 		UserID:    userID,
@@ -222,7 +221,7 @@ func (s *Store) RevokeSessionsForUser(ctx context.Context, userID string, now ti
 }
 
 func (s *Store) CreateVerificationToken(ctx context.Context, token auth.VerificationToken) error {
-	if err := s.Query().InsertVerificationToken(ctx, types.InsertVerificationTokenParams{
+	if err := s.Query().InsertVerificationToken(ctx, auth.InsertVerificationTokenParams{
 		ID:          token.ID,
 		UserID:      token.UserID,
 		UserIDValid: token.UserIDValid,
@@ -260,7 +259,7 @@ func (s *Store) FindVerificationToken(ctx context.Context, tokenHash, purpose st
 }
 
 func (s *Store) ConsumeVerificationToken(ctx context.Context, tokenID string, now time.Time) error {
-	if err := s.Query().ConsumeVerificationToken(ctx, types.ConsumeVerificationTokenParams{
+	if err := s.Query().ConsumeVerificationToken(ctx, auth.ConsumeVerificationTokenParams{
 		ID:         tokenID,
 		ConsumedAt: now.UTC(),
 		UpdatedAt:  now.UTC(),
@@ -272,7 +271,7 @@ func (s *Store) ConsumeVerificationToken(ctx context.Context, tokenID string, no
 
 func (s *Store) SaveTwoFactor(ctx context.Context, in auth.TwoFactor) error {
 	now := time.Now().UTC()
-	if err := s.Query().SaveTwoFactor(ctx, types.SaveTwoFactorParams{
+	if err := s.Query().SaveTwoFactor(ctx, auth.SaveTwoFactorParams{
 		ID:        in.ID,
 		UserID:    in.UserID,
 		Secret:    in.Secret,
@@ -311,14 +310,14 @@ func (s *Store) FindTwoFactorByUserID(ctx context.Context, userID string) (*auth
 }
 
 func (s *Store) ConfirmTwoFactor(ctx context.Context, userID string, step int64, now time.Time) error {
-	if err := s.Query().ConfirmTwoFactor(ctx, types.UseTwoFactorParams{UserID: userID, LastUsedStep: step, UpdatedAt: now.UTC()}); err != nil {
+	if err := s.Query().ConfirmTwoFactor(ctx, auth.UseTwoFactorParams{UserID: userID, LastUsedStep: step, UpdatedAt: now.UTC()}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationConfirmTwoFactor))
 	}
 	return nil
 }
 
 func (s *Store) MarkTwoFactorUsed(ctx context.Context, userID string, step int64, now time.Time) error {
-	if err := s.Query().MarkTwoFactorUsed(ctx, types.UseTwoFactorParams{UserID: userID, LastUsedStep: step, UpdatedAt: now.UTC()}); err != nil {
+	if err := s.Query().MarkTwoFactorUsed(ctx, auth.UseTwoFactorParams{UserID: userID, LastUsedStep: step, UpdatedAt: now.UTC()}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationMarkTwoFactorUsed))
 	}
 	return nil
@@ -353,7 +352,7 @@ func (s *Store) ListSSOProviderSettings(ctx context.Context) ([]auth.SSOProvider
 }
 
 func (s *Store) UpsertSSOProviderSetting(ctx context.Context, in auth.UpsertSSOProviderSettingInput) error {
-	if err := s.Query().UpsertSSOProviderSetting(ctx, types.UpsertSSOProviderSettingParams{
+	if err := s.Query().UpsertSSOProviderSetting(ctx, auth.UpsertSSOProviderSettingParams{
 		ProviderID:    in.ProviderID,
 		ClientID:      in.ClientID,
 		ClientIDValid: in.ClientIDValid,
@@ -370,11 +369,11 @@ func (s *Store) UpsertSSOProviderSetting(ctx context.Context, in auth.UpsertSSOP
 	return nil
 }
 
-func userFromRow(row types.UserRow) *auth.User {
+func userFromRow(row auth.UserRow) *auth.User {
 	return &auth.User{ID: row.ID, Email: row.Email, DisplayName: row.DisplayName}
 }
 
-func accountFromRow(row types.AccountRow) *auth.Account {
+func accountFromRow(row auth.AccountRow) *auth.Account {
 	return &auth.Account{
 		ID:                row.ID,
 		UserID:            row.UserID,
@@ -384,6 +383,6 @@ func accountFromRow(row types.AccountRow) *auth.Account {
 	}
 }
 
-func organisationFromRow(row types.OrganisationRow) auth.Organisation {
+func organisationFromRow(row auth.OrganisationRow) auth.Organisation {
 	return auth.Organisation{ID: row.ID, Name: row.Name, Slug: row.Slug, Role: auth.Role(row.Role)}
 }

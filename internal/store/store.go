@@ -13,46 +13,48 @@ import (
 	"github.com/pressly/goose/v3"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features/audit"
+	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/store/types"
+	"github.com/sidarth-23/dinchy/internal/workers"
 )
 
 // Queries is the backend-neutral query contract implemented by the sqlc adapter.
 type Queries interface {
 	CountUsers(ctx context.Context) (int64, error)
-	InsertUser(ctx context.Context, arg types.InsertUserParams) error
-	InsertAccount(ctx context.Context, arg types.InsertAccountParams) error
-	InsertOrganisation(ctx context.Context, arg types.InsertOrganisationParams) error
-	InsertOrganisationMember(ctx context.Context, arg types.InsertOrganisationMemberParams) error
-	FindUserByEmail(ctx context.Context, email string) (types.UserRow, error)
-	FindPasswordAccountByUserID(ctx context.Context, userID string) (types.AccountRow, error)
-	FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (types.UserRow, error)
-	ListOrganisationsForUser(ctx context.Context, userID string) ([]types.OrganisationRow, error)
-	FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (types.OrganisationRow, error)
-	FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (types.OrganisationRow, error)
-	UpdateUserPasswordHash(ctx context.Context, arg types.UpdateUserPasswordHashParams) error
-	InsertVerificationToken(ctx context.Context, arg types.InsertVerificationTokenParams) error
-	FindVerificationToken(ctx context.Context, tokenHash, purpose string) (types.VerificationTokenRow, error)
-	ConsumeVerificationToken(ctx context.Context, arg types.ConsumeVerificationTokenParams) error
-	SaveTwoFactor(ctx context.Context, arg types.SaveTwoFactorParams) error
-	FindTwoFactorByUserID(ctx context.Context, userID string) (types.TwoFactorRow, error)
-	ConfirmTwoFactor(ctx context.Context, arg types.UseTwoFactorParams) error
-	MarkTwoFactorUsed(ctx context.Context, arg types.UseTwoFactorParams) error
+	InsertUser(ctx context.Context, arg auth.InsertUserParams) error
+	InsertAccount(ctx context.Context, arg auth.InsertAccountParams) error
+	InsertOrganisation(ctx context.Context, arg auth.InsertOrganisationParams) error
+	InsertOrganisationMember(ctx context.Context, arg auth.InsertOrganisationMemberParams) error
+	FindUserByEmail(ctx context.Context, email string) (auth.UserRow, error)
+	FindPasswordAccountByUserID(ctx context.Context, userID string) (auth.AccountRow, error)
+	FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (auth.UserRow, error)
+	ListOrganisationsForUser(ctx context.Context, userID string) ([]auth.OrganisationRow, error)
+	FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (auth.OrganisationRow, error)
+	FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (auth.OrganisationRow, error)
+	UpdateUserPasswordHash(ctx context.Context, arg auth.UpdateUserPasswordHashParams) error
+	InsertVerificationToken(ctx context.Context, arg auth.InsertVerificationTokenParams) error
+	FindVerificationToken(ctx context.Context, tokenHash, purpose string) (auth.VerificationTokenRow, error)
+	ConsumeVerificationToken(ctx context.Context, arg auth.ConsumeVerificationTokenParams) error
+	SaveTwoFactor(ctx context.Context, arg auth.SaveTwoFactorParams) error
+	FindTwoFactorByUserID(ctx context.Context, userID string) (auth.TwoFactor, error)
+	ConfirmTwoFactor(ctx context.Context, arg auth.UseTwoFactorParams) error
+	MarkTwoFactorUsed(ctx context.Context, arg auth.UseTwoFactorParams) error
 	DisableTwoFactor(ctx context.Context, userID string) error
-	ListSSOProviderSettings(ctx context.Context) ([]types.SSOProviderSettingRow, error)
-	UpsertSSOProviderSetting(ctx context.Context, arg types.UpsertSSOProviderSettingParams) error
-	InsertSession(ctx context.Context, arg types.InsertSessionParams) error
-	GetSessionByTokenHash(ctx context.Context, tokenHash string) (types.SessionRow, error)
-	RevokeSessionByTokenHash(ctx context.Context, arg types.RevokeSessionParams) error
-	RevokeSessionsForUser(ctx context.Context, arg types.RevokeSessionsForUserParams) error
+	ListSSOProviderSettings(ctx context.Context) ([]auth.SSOProviderSettingRow, error)
+	UpsertSSOProviderSetting(ctx context.Context, arg auth.UpsertSSOProviderSettingParams) error
+	InsertSession(ctx context.Context, arg auth.InsertSessionParams) error
+	GetSessionByTokenHash(ctx context.Context, tokenHash string) (auth.SessionRow, error)
+	RevokeSessionByTokenHash(ctx context.Context, arg auth.RevokeSessionParams) error
+	RevokeSessionsForUser(ctx context.Context, arg auth.RevokeSessionsForUserParams) error
 	DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time.Time) (int64, error)
 	EnsureDefaultSettings(ctx context.Context, now time.Time) error
 	GetInstanceName(ctx context.Context) (string, error)
-	EnsureTask(ctx context.Context, arg types.TaskParams) error
-	ClaimTask(ctx context.Context, arg types.ClaimTaskParams) (int64, error)
-	FinishTask(ctx context.Context, arg types.FinishTaskParams) error
-	InsertAuditLog(ctx context.Context, arg types.InsertAuditLogParams) error
-	ListAuditLogs(ctx context.Context, arg types.ListAuditLogsParams) ([]types.AuditLogRow, error)
+	EnsureTask(ctx context.Context, arg workers.TaskParams) error
+	ClaimTask(ctx context.Context, arg workers.ClaimTaskParams) (int64, error)
+	FinishTask(ctx context.Context, arg workers.FinishTaskParams) error
+	InsertAuditLog(ctx context.Context, arg audit.InsertAuditLogParams) error
+	ListAuditLogs(ctx context.Context, arg audit.ListAuditLogsParams) ([]audit.AuditLogRow, error)
 }
 
 // DBTX is the common interface satisfied by both *sql.DB and *sql.Tx.

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/store/types"
+	"github.com/sidarth-23/dinchy/internal/workers"
 )
 
 // DeleteEndedSessionsOlderThan removes ended sessions older than the cutoff.
@@ -18,7 +18,7 @@ func (s *Store) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time
 }
 
 func (s *Store) EnsureTask(ctx context.Context, taskName string, intervalSeconds int64, now time.Time) error {
-	if err := s.Query().EnsureTask(ctx, types.TaskParams{
+	if err := s.Query().EnsureTask(ctx, workers.TaskParams{
 		ID:                      taskIDForName(taskName),
 		TaskName:                taskName,
 		ScheduleIntervalSeconds: intervalSeconds,
@@ -31,7 +31,7 @@ func (s *Store) EnsureTask(ctx context.Context, taskName string, intervalSeconds
 }
 
 func (s *Store) ClaimTask(ctx context.Context, taskName, leaseOwner string, leaseExpiresAt, now time.Time) (bool, error) {
-	count, err := s.Query().ClaimTask(ctx, types.ClaimTaskParams{
+	count, err := s.Query().ClaimTask(ctx, workers.ClaimTaskParams{
 		TaskName:       taskName,
 		LeaseOwner:     leaseOwner,
 		LeaseExpiresAt: leaseExpiresAt.UTC(),
@@ -50,7 +50,7 @@ func (s *Store) FinishTask(ctx context.Context, taskName string, lastFinishedAt 
 	if !succeeded {
 		lastStatus = "failed"
 	}
-	if err := s.Query().FinishTask(ctx, types.FinishTaskParams{
+	if err := s.Query().FinishTask(ctx, workers.FinishTaskParams{
 		TaskName:         taskName,
 		LastFinishedAt:   lastFinishedAt.UTC(),
 		NextRunAt:        nextRunAt.UTC(),

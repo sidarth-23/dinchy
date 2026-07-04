@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
-func (q *queries) InsertAuditLog(ctx context.Context, arg types.InsertAuditLogParams) error {
+func (q *queries) InsertAuditLog(ctx context.Context, arg audit.InsertAuditLogParams) error {
 	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (q *queries) InsertAuditLog(ctx context.Context, arg types.InsertAuditLogPa
 	})
 }
 
-func (q *queries) ListAuditLogs(ctx context.Context, arg types.ListAuditLogsParams) ([]types.AuditLogRow, error) {
+func (q *queries) ListAuditLogs(ctx context.Context, arg audit.ListAuditLogsParams) ([]audit.AuditLogRow, error) {
 	actorUserID, err := id.NullUUID(arg.ActorUserID, arg.ActorUserID != "")
 	if err != nil {
 		return nil, err
@@ -73,15 +73,15 @@ func (q *queries) ListAuditLogs(ctx context.Context, arg types.ListAuditLogsPara
 	if err != nil {
 		return nil, err
 	}
-	out := make([]types.AuditLogRow, 0, len(rows))
+	out := make([]audit.AuditLogRow, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, auditLogRow(row))
 	}
 	return out, nil
 }
 
-func auditLogRow(row sqlcgen.AppAuditLog) types.AuditLogRow {
-	return types.AuditLogRow{
+func auditLogRow(row sqlcgen.AppAuditLog) audit.AuditLogRow {
+	return audit.AuditLogRow{
 		ID: row.ID.String(), Category: row.Category, Subcategory: row.Subcategory, EventType: row.EventType,
 		Action: row.Action, Outcome: row.Outcome, ActorUserID: row.ActorUserID.UUID.String(),
 		ActorUserIDValid: row.ActorUserID.Valid, ActorOrganisationID: row.ActorOrganisationID.UUID.String(),

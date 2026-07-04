@@ -6,17 +6,17 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 func (q *queries) CountUsers(ctx context.Context) (int64, error) {
 	return q.q.CountUsers(ctx)
 }
 
-func (q *queries) InsertUser(ctx context.Context, arg types.InsertUserParams) error {
+func (q *queries) InsertUser(ctx context.Context, arg auth.InsertUserParams) error {
 	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err
@@ -31,7 +31,7 @@ func (q *queries) InsertUser(ctx context.Context, arg types.InsertUserParams) er
 	})
 }
 
-func (q *queries) InsertAccount(ctx context.Context, arg types.InsertAccountParams) error {
+func (q *queries) InsertAccount(ctx context.Context, arg auth.InsertAccountParams) error {
 	values, err := id.ParseFields(
 		id.UUIDField{Key: "id", Value: arg.ID},
 		id.UUIDField{Key: "user_id", Value: arg.UserID},
@@ -50,7 +50,7 @@ func (q *queries) InsertAccount(ctx context.Context, arg types.InsertAccountPara
 	})
 }
 
-func (q *queries) InsertOrganisation(ctx context.Context, arg types.InsertOrganisationParams) error {
+func (q *queries) InsertOrganisation(ctx context.Context, arg auth.InsertOrganisationParams) error {
 	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func (q *queries) InsertOrganisation(ctx context.Context, arg types.InsertOrgani
 	})
 }
 
-func (q *queries) InsertOrganisationMember(ctx context.Context, arg types.InsertOrganisationMemberParams) error {
+func (q *queries) InsertOrganisationMember(ctx context.Context, arg auth.InsertOrganisationMemberParams) error {
 	values, err := id.ParseFields(
 		id.UUIDField{Key: "id", Value: arg.ID},
 		id.UUIDField{Key: "organisation_id", Value: arg.OrganisationID},
@@ -87,38 +87,38 @@ func (q *queries) InsertOrganisationMember(ctx context.Context, arg types.Insert
 	})
 }
 
-func (q *queries) FindUserByEmail(ctx context.Context, email string) (types.UserRow, error) {
+func (q *queries) FindUserByEmail(ctx context.Context, email string) (auth.UserRow, error) {
 	row, err := q.q.FindUserByEmail(ctx, email)
 	if err != nil {
-		return types.UserRow{}, err
+		return auth.UserRow{}, err
 	}
 	return userRow(row.ID, row.Email, row.DisplayName), nil
 }
 
-func (q *queries) FindPasswordAccountByUserID(ctx context.Context, userID string) (types.AccountRow, error) {
+func (q *queries) FindPasswordAccountByUserID(ctx context.Context, userID string) (auth.AccountRow, error) {
 	parsedUserID, err := id.Parse(userID)
 	if err != nil {
-		return types.AccountRow{}, err
+		return auth.AccountRow{}, err
 	}
 	row, err := q.q.FindPasswordAccountByUserID(ctx, parsedUserID)
 	if err != nil {
-		return types.AccountRow{}, err
+		return auth.AccountRow{}, err
 	}
 	return accountRow(row.ID, row.UserID, row.Provider, row.ProviderAccountID, row.PasswordHash), nil
 }
 
-func (q *queries) FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (types.UserRow, error) {
+func (q *queries) FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (auth.UserRow, error) {
 	row, err := q.q.FindUserByProviderAccount(ctx, sqlcgen.FindUserByProviderAccountParams{
 		Provider:          provider,
 		ProviderAccountID: providerAccountID,
 	})
 	if err != nil {
-		return types.UserRow{}, err
+		return auth.UserRow{}, err
 	}
 	return userRow(row.ID, row.Email, row.DisplayName), nil
 }
 
-func (q *queries) ListOrganisationsForUser(ctx context.Context, userID string) ([]types.OrganisationRow, error) {
+func (q *queries) ListOrganisationsForUser(ctx context.Context, userID string) ([]auth.OrganisationRow, error) {
 	parsedUserID, err := id.Parse(userID)
 	if err != nil {
 		return nil, err
@@ -127,47 +127,47 @@ func (q *queries) ListOrganisationsForUser(ctx context.Context, userID string) (
 	if err != nil {
 		return nil, err
 	}
-	out := make([]types.OrganisationRow, 0, len(rows))
+	out := make([]auth.OrganisationRow, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, organisationRow(row.ID, row.Name, row.Slug, row.Role))
 	}
 	return out, nil
 }
 
-func (q *queries) FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (types.OrganisationRow, error) {
+func (q *queries) FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (auth.OrganisationRow, error) {
 	parsedUserID, err := id.Parse(userID)
 	if err != nil {
-		return types.OrganisationRow{}, err
+		return auth.OrganisationRow{}, err
 	}
 	row, err := q.q.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{
 		UserID: parsedUserID,
 		Slug:   slug,
 	})
 	if err != nil {
-		return types.OrganisationRow{}, err
+		return auth.OrganisationRow{}, err
 	}
 	return organisationRow(row.ID, row.Name, row.Slug, row.Role), nil
 }
 
-func (q *queries) FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (types.OrganisationRow, error) {
+func (q *queries) FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (auth.OrganisationRow, error) {
 	values, err := id.ParseFields(
 		id.UUIDField{Key: "user_id", Value: userID},
 		id.UUIDField{Key: "organisation_id", Value: organisationID},
 	)
 	if err != nil {
-		return types.OrganisationRow{}, err
+		return auth.OrganisationRow{}, err
 	}
 	row, err := q.q.FindOrganisationByIDForUser(ctx, sqlcgen.FindOrganisationByIDForUserParams{
 		UserID: values[0],
 		ID:     values[1],
 	})
 	if err != nil {
-		return types.OrganisationRow{}, err
+		return auth.OrganisationRow{}, err
 	}
 	return organisationRow(row.ID, row.Name, row.Slug, row.Role), nil
 }
 
-func (q *queries) UpdateUserPasswordHash(ctx context.Context, arg types.UpdateUserPasswordHashParams) error {
+func (q *queries) UpdateUserPasswordHash(ctx context.Context, arg auth.UpdateUserPasswordHashParams) error {
 	userID, err := id.Parse(arg.UserID)
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func (q *queries) UpdateUserPasswordHash(ctx context.Context, arg types.UpdateUs
 	})
 }
 
-func (q *queries) InsertVerificationToken(ctx context.Context, arg types.InsertVerificationTokenParams) error {
+func (q *queries) InsertVerificationToken(ctx context.Context, arg auth.InsertVerificationTokenParams) error {
 	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err
@@ -204,12 +204,12 @@ func (q *queries) InsertVerificationToken(ctx context.Context, arg types.InsertV
 	})
 }
 
-func (q *queries) FindVerificationToken(ctx context.Context, tokenHash, purpose string) (types.VerificationTokenRow, error) {
+func (q *queries) FindVerificationToken(ctx context.Context, tokenHash, purpose string) (auth.VerificationTokenRow, error) {
 	row, err := q.q.FindVerificationToken(ctx, sqlcgen.FindVerificationTokenParams{TokenHash: tokenHash, Purpose: purpose})
 	if err != nil {
-		return types.VerificationTokenRow{}, err
+		return auth.VerificationTokenRow{}, err
 	}
-	return types.VerificationTokenRow{
+	return auth.VerificationTokenRow{
 		ID:              row.ID.String(),
 		UserID:          row.UserID.UUID.String(),
 		UserIDValid:     row.UserID.Valid,
@@ -222,7 +222,7 @@ func (q *queries) FindVerificationToken(ctx context.Context, tokenHash, purpose 
 	}, nil
 }
 
-func (q *queries) ConsumeVerificationToken(ctx context.Context, arg types.ConsumeVerificationTokenParams) error {
+func (q *queries) ConsumeVerificationToken(ctx context.Context, arg auth.ConsumeVerificationTokenParams) error {
 	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err
@@ -234,7 +234,7 @@ func (q *queries) ConsumeVerificationToken(ctx context.Context, arg types.Consum
 	})
 }
 
-func (q *queries) SaveTwoFactor(ctx context.Context, arg types.SaveTwoFactorParams) error {
+func (q *queries) SaveTwoFactor(ctx context.Context, arg auth.SaveTwoFactorParams) error {
 	values, err := id.ParseFields(
 		id.UUIDField{Key: "id", Value: arg.ID},
 		id.UUIDField{Key: "user_id", Value: arg.UserID},
@@ -252,16 +252,16 @@ func (q *queries) SaveTwoFactor(ctx context.Context, arg types.SaveTwoFactorPara
 	})
 }
 
-func (q *queries) FindTwoFactorByUserID(ctx context.Context, userID string) (types.TwoFactorRow, error) {
+func (q *queries) FindTwoFactorByUserID(ctx context.Context, userID string) (auth.TwoFactor, error) {
 	parsedUserID, err := id.Parse(userID)
 	if err != nil {
-		return types.TwoFactorRow{}, err
+		return auth.TwoFactor{}, err
 	}
 	row, err := q.q.FindTwoFactorByUserID(ctx, parsedUserID)
 	if err != nil {
-		return types.TwoFactorRow{}, err
+		return auth.TwoFactor{}, err
 	}
-	return types.TwoFactorRow{
+	return auth.TwoFactor{
 		ID:                      row.ID.String(),
 		UserID:                  row.UserID.String(),
 		Secret:                  row.Secret,
@@ -274,7 +274,7 @@ func (q *queries) FindTwoFactorByUserID(ctx context.Context, userID string) (typ
 	}, nil
 }
 
-func (q *queries) ConfirmTwoFactor(ctx context.Context, arg types.UseTwoFactorParams) error {
+func (q *queries) ConfirmTwoFactor(ctx context.Context, arg auth.UseTwoFactorParams) error {
 	userID, err := id.Parse(arg.UserID)
 	if err != nil {
 		return err
@@ -286,7 +286,7 @@ func (q *queries) ConfirmTwoFactor(ctx context.Context, arg types.UseTwoFactorPa
 	})
 }
 
-func (q *queries) MarkTwoFactorUsed(ctx context.Context, arg types.UseTwoFactorParams) error {
+func (q *queries) MarkTwoFactorUsed(ctx context.Context, arg auth.UseTwoFactorParams) error {
 	userID, err := id.Parse(arg.UserID)
 	if err != nil {
 		return err
@@ -306,14 +306,14 @@ func (q *queries) DisableTwoFactor(ctx context.Context, userID string) error {
 	return q.q.DisableTwoFactor(ctx, parsedUserID)
 }
 
-func (q *queries) ListSSOProviderSettings(ctx context.Context) ([]types.SSOProviderSettingRow, error) {
+func (q *queries) ListSSOProviderSettings(ctx context.Context) ([]auth.SSOProviderSettingRow, error) {
 	rows, err := q.q.ListSSOProviderSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]types.SSOProviderSettingRow, 0, len(rows))
+	out := make([]auth.SSOProviderSettingRow, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, types.SSOProviderSettingRow{
+		out = append(out, auth.SSOProviderSettingRow{
 			ProviderID:    row.ProviderID,
 			ClientID:      row.ClientID.String,
 			ClientIDValid: row.ClientID.Valid,
@@ -329,7 +329,7 @@ func (q *queries) ListSSOProviderSettings(ctx context.Context) ([]types.SSOProvi
 	return out, nil
 }
 
-func (q *queries) UpsertSSOProviderSetting(ctx context.Context, arg types.UpsertSSOProviderSettingParams) error {
+func (q *queries) UpsertSSOProviderSetting(ctx context.Context, arg auth.UpsertSSOProviderSettingParams) error {
 	return q.q.UpsertSSOProviderSetting(ctx, sqlcgen.UpsertSSOProviderSettingParams{
 		ProviderID:   arg.ProviderID,
 		ClientID:     sql.NullString{String: arg.ClientID, Valid: arg.ClientIDValid},
@@ -341,7 +341,7 @@ func (q *queries) UpsertSSOProviderSetting(ctx context.Context, arg types.Upsert
 	})
 }
 
-func (q *queries) InsertSession(ctx context.Context, arg types.InsertSessionParams) error {
+func (q *queries) InsertSession(ctx context.Context, arg auth.InsertSessionParams) error {
 	values, err := id.ParseFields(
 		id.UUIDField{Key: "id", Value: arg.ID},
 		id.UUIDField{Key: "user_id", Value: arg.UserID},
@@ -358,7 +358,7 @@ func (q *queries) InsertSession(ctx context.Context, arg types.InsertSessionPara
 		UserID:               values[1],
 		ActiveOrganisationID: organisationID,
 		TokenHash:            arg.TokenHash,
-		IpAddress:            arg.IpAddress,
+		IpAddress:            arg.IPAddress,
 		UserAgent:            arg.UserAgent,
 		LastSeenAt:           arg.LastSeenAt.UTC(),
 		IdleExpiresAt:        arg.IdleExpiresAt.UTC(),
@@ -368,12 +368,12 @@ func (q *queries) InsertSession(ctx context.Context, arg types.InsertSessionPara
 	})
 }
 
-func (q *queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (types.SessionRow, error) {
+func (q *queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (auth.SessionRow, error) {
 	row, err := q.q.GetSessionByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return types.SessionRow{}, err
+		return auth.SessionRow{}, err
 	}
-	return types.SessionRow{
+	return auth.SessionRow{
 		ID:                   row.ID.String(),
 		UserID:               row.UserID.String(),
 		Email:                row.Email,
@@ -389,7 +389,7 @@ func (q *queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 	}, nil
 }
 
-func (q *queries) RevokeSessionByTokenHash(ctx context.Context, arg types.RevokeSessionParams) error {
+func (q *queries) RevokeSessionByTokenHash(ctx context.Context, arg auth.RevokeSessionParams) error {
 	return q.q.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{
 		RevokedAt: sql.NullTime{Time: arg.RevokedAt.UTC(), Valid: true},
 		UpdatedAt: arg.UpdatedAt.UTC(),
@@ -397,7 +397,7 @@ func (q *queries) RevokeSessionByTokenHash(ctx context.Context, arg types.Revoke
 	})
 }
 
-func (q *queries) RevokeSessionsForUser(ctx context.Context, arg types.RevokeSessionsForUserParams) error {
+func (q *queries) RevokeSessionsForUser(ctx context.Context, arg auth.RevokeSessionsForUserParams) error {
 	userID, err := id.Parse(arg.UserID)
 	if err != nil {
 		return err
@@ -409,12 +409,12 @@ func (q *queries) RevokeSessionsForUser(ctx context.Context, arg types.RevokeSes
 	})
 }
 
-func userRow(parsedID uuid.UUID, email, displayName string) types.UserRow {
-	return types.UserRow{ID: parsedID.String(), Email: email, DisplayName: displayName}
+func userRow(parsedID uuid.UUID, email, displayName string) auth.UserRow {
+	return auth.UserRow{ID: parsedID.String(), Email: email, DisplayName: displayName}
 }
 
-func accountRow(parsedID, userID uuid.UUID, provider, providerAccountID string, passwordHash sql.NullString) types.AccountRow {
-	return types.AccountRow{
+func accountRow(parsedID, userID uuid.UUID, provider, providerAccountID string, passwordHash sql.NullString) auth.AccountRow {
+	return auth.AccountRow{
 		ID:                parsedID.String(),
 		UserID:            userID.String(),
 		Provider:          provider,
@@ -423,6 +423,6 @@ func accountRow(parsedID, userID uuid.UUID, provider, providerAccountID string, 
 	}
 }
 
-func organisationRow(parsedID uuid.UUID, name, slug, role string) types.OrganisationRow {
-	return types.OrganisationRow{ID: parsedID.String(), Name: name, Slug: slug, Role: role}
+func organisationRow(parsedID uuid.UUID, name, slug, role string) auth.OrganisationRow {
+	return auth.OrganisationRow{ID: parsedID.String(), Name: name, Slug: slug, Role: role}
 }
