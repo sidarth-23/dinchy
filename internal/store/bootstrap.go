@@ -2,9 +2,10 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/store/types"
 )
@@ -21,15 +22,15 @@ func (q *queries) GetInstanceName(ctx context.Context) (string, error) {
 }
 
 func (q *queries) EnsureTask(ctx context.Context, arg types.TaskParams) error {
-	id, err := parseUUID(arg.ID)
+	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err
 	}
 	return q.q.EnsureTask(ctx, sqlcgen.EnsureTaskParams{
-		ID:                      id,
+		ID:                      parsedID,
 		TaskName:                arg.TaskName,
 		ScheduleIntervalSeconds: arg.ScheduleIntervalSeconds,
-		NextRunAt:               sql.NullTime{Time: arg.NextRunAt.UTC(), Valid: true},
+		NextRunAt:               clock.NullTime(arg.NextRunAt, true),
 		UpdatedAt:               arg.UpdatedAt.UTC(),
 	})
 }

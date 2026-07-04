@@ -5,27 +5,27 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/google/uuid"
-
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 func (q *queries) InsertAuditLog(ctx context.Context, arg types.InsertAuditLogParams) error {
-	id, err := parseUUID(arg.ID)
+	parsedID, err := id.Parse(arg.ID)
 	if err != nil {
 		return err
 	}
-	actorUserID, err := nullUUID(arg.ActorUserID, arg.ActorUserIDValid)
+	actorUserID, err := id.NullUUID(arg.ActorUserID, arg.ActorUserIDValid)
 	if err != nil {
 		return err
 	}
-	actorOrganisationID, err := nullUUID(arg.ActorOrganisationID, arg.ActorOrganisationIDValid)
+	actorOrganisationID, err := id.NullUUID(arg.ActorOrganisationID, arg.ActorOrganisationIDValid)
 	if err != nil {
 		return err
 	}
 	return q.q.InsertAuditLog(ctx, sqlcgen.InsertAuditLogParams{
-		ID:                  id,
+		ID:                  parsedID,
 		Category:            arg.Category,
 		Subcategory:         arg.Subcategory,
 		EventType:           arg.EventType,
@@ -48,7 +48,7 @@ func (q *queries) InsertAuditLog(ctx context.Context, arg types.InsertAuditLogPa
 }
 
 func (q *queries) ListAuditLogs(ctx context.Context, arg types.ListAuditLogsParams) ([]types.AuditLogRow, error) {
-	actorUserID, err := nullUUID(arg.ActorUserID, arg.ActorUserID != "")
+	actorUserID, err := id.NullUUID(arg.ActorUserID, arg.ActorUserID != "")
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (q *queries) ListAuditLogs(ctx context.Context, arg types.ListAuditLogsPara
 		Column13:    arg.Outcome,
 		Outcome:     arg.Outcome,
 		Limit:       int32(arg.Limit),
-		Before:      sql.NullTime{Time: arg.Before.UTC(), Valid: arg.BeforeValid},
+		Before:      clock.NullTime(arg.Before, arg.BeforeValid),
 	})
 	if err != nil {
 		return nil, err
@@ -78,17 +78,6 @@ func (q *queries) ListAuditLogs(ctx context.Context, arg types.ListAuditLogsPara
 		out = append(out, auditLogRow(row))
 	}
 	return out, nil
-}
-
-func nullUUID(value string, valid bool) (uuid.NullUUID, error) {
-	if !valid {
-		return uuid.NullUUID{}, nil
-	}
-	parsed, err := parseUUID(value)
-	if err != nil {
-		return uuid.NullUUID{}, err
-	}
-	return uuid.NullUUID{UUID: parsed, Valid: true}, nil
 }
 
 func auditLogRow(row sqlcgen.AppAuditLog) types.AuditLogRow {
