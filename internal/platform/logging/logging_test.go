@@ -74,12 +74,12 @@ func TestRedactedValue_RevealsNilPointerAsNull(t *testing.T) {
 	require.Nil(t, record["secret"])
 }
 
-func TestFromContext_ReturnsAttachedLogger(t *testing.T) {
+func TestLoggerFromContext_ReturnsAttachedLogger(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
-	ctx := logging.WithContext(context.Background(), logger)
+	ctx := logging.WithLogger(context.Background(), logger)
 
-	require.Same(t, logger, logging.FromContext(ctx))
+	require.Same(t, logger, logging.LoggerFromContext(ctx))
 }
 
 func TestError_SkipsClientErrors(t *testing.T) {

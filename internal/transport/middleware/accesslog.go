@@ -31,7 +31,7 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 				attrs = append(attrs, slog.String("actor_user_id", session.UserID), slog.String("actor_organisation_id", session.OrganisationID))
 			}
 			requestLogger := logger.With(attrs...)
-			ctx := logging.WithContext(r.Context(), requestLogger)
+			ctx := logging.WithLogger(r.Context(), requestLogger)
 			next.ServeHTTP(ww, r.WithContext(ctx))
 			requestLogger.InfoContext(ctx, "HTTP request completed",
 				slog.Int("status", ww.Status()),

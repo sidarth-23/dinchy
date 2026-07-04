@@ -10,6 +10,7 @@
 *.out
 /vendor/
 /dist/
+tmp
 
 # Generated Go code
 /internal/errors/generated.go
