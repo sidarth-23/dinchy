@@ -5,6 +5,7 @@ import (
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 const (
@@ -56,7 +57,14 @@ func (w *SessionCleanupWorker) ExecutionStage() apperrors.Stage {
 
 func (w *SessionCleanupWorker) Execute(ctx context.Context) (WorkerOutcome, error) {
 	now := w.clock.Now()
-	deletedCount, err := w.store.DeleteEndedSessionsOlderThan(ctx, now.Add(-sessionCleanupRetentionDuration))
+	result, err := w.store.DeleteEndedSessionsOlderThan(ctx, sqlcgen.DeleteEndedSessionsOlderThanParams{
+		ExpiresAt: now.Add(-sessionCleanupRetentionDuration).UTC(),
+		UpdatedAt: now.UTC(),
+	})
+	if err != nil {
+		return WorkerOutcome{}, err
+	}
+	deletedCount, err := result.RowsAffected()
 	if err != nil {
 		return WorkerOutcome{}, err
 	}

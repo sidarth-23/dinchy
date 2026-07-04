@@ -3,10 +3,12 @@ package workers
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 // Runtime manages periodic background workers with lease-based execution.
@@ -78,7 +80,13 @@ func (r *Runtime) report(err error) {
 
 func (r *Runtime) registerWorker(ctx context.Context, worker Worker) error {
 	now := r.clock.Now()
-	if err := r.store.EnsureTask(ctx, worker.TaskName(), worker.IntervalSeconds(), now); err != nil {
+	if err := r.store.EnsureTask(ctx, sqlcgen.EnsureTaskParams{
+		ID:                      taskIDForName(worker.TaskName()),
+		TaskName:                worker.TaskName(),
+		ScheduleIntervalSeconds: worker.IntervalSeconds(),
+		NextRunAt:               sql.NullTime{Time: now.UTC(), Valid: true},
+		UpdatedAt:               now.UTC(),
+	}); err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
 			apperrors.WithStage(apperrors.StageEnsureTask),
@@ -89,20 +97,43 @@ func (r *Runtime) registerWorker(ctx context.Context, worker Worker) error {
 
 func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 	now := r.clock.Now()
-	ok, err := r.store.ClaimTask(ctx, worker.TaskName(), r.owner, now.Add(worker.LeaseDuration()), now)
+	result, err := r.store.ClaimTask(ctx, sqlcgen.ClaimTaskParams{
+		LeaseOwner:       sql.NullString{String: r.owner, Valid: true},
+		LeaseExpiresAt:   sql.NullTime{Time: now.Add(worker.LeaseDuration()).UTC(), Valid: true},
+		LastRunAt:        sql.NullTime{Time: now.UTC(), Valid: true},
+		UpdatedAt:        now.UTC(),
+		TaskName:         worker.TaskName(),
+		LeaseExpiresAt_2: sql.NullTime{Time: now.Add(worker.LeaseDuration()).UTC(), Valid: true},
+		NextRunAt:        sql.NullTime{Time: now.UTC(), Valid: true},
+	})
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
 			apperrors.WithStage(apperrors.StageClaimTask),
 		)
 	}
-	if !ok {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return apperrors.Annotate(err,
+			apperrors.WithTask(apperrors.Task(worker.TaskName())),
+			apperrors.WithStage(apperrors.StageClaimTask),
+		)
+	}
+	if rowsAffected == 0 {
 		return nil
 	}
 
 	outcome, executeErr := worker.Execute(ctx)
 	if executeErr != nil {
-		if finishErr := r.store.FinishTask(ctx, worker.TaskName(), now, false, worker.FailureErrorCode(), executeErr.Error(), now.Add(worker.RetryDelay())); finishErr != nil {
+		if finishErr := r.store.FinishTask(ctx, sqlcgen.FinishTaskParams{
+			LastFinishedAt:   sql.NullTime{Time: now.UTC(), Valid: true},
+			NextRunAt:        sql.NullTime{Time: now.Add(worker.RetryDelay()).UTC(), Valid: true},
+			LastStatus:       sql.NullString{String: "failed", Valid: true},
+			LastErrorCode:    sql.NullString{String: worker.FailureErrorCode(), Valid: true},
+			LastErrorMessage: sql.NullString{String: executeErr.Error(), Valid: true},
+			UpdatedAt:        now.UTC(),
+			TaskName:         worker.TaskName(),
+		}); finishErr != nil {
 			return apperrors.Annotate(finishErr,
 				apperrors.WithTask(apperrors.Task(worker.TaskName())),
 				apperrors.WithStage(apperrors.StageFinishFailedRun),
@@ -114,7 +145,13 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 		)
 	}
 
-	if err := r.store.FinishTask(ctx, worker.TaskName(), now, true, "", "", now.Add(worker.RetryDelay())); err != nil {
+	if err := r.store.FinishTask(ctx, sqlcgen.FinishTaskParams{
+		LastFinishedAt: sql.NullTime{Time: now.UTC(), Valid: true},
+		NextRunAt:      sql.NullTime{Time: now.Add(worker.RetryDelay()).UTC(), Valid: true},
+		LastStatus:     sql.NullString{String: "succeeded", Valid: true},
+		UpdatedAt:      now.UTC(),
+		TaskName:       worker.TaskName(),
+	}); err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
 			apperrors.WithStage(apperrors.StageFinishSuccess),

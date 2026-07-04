@@ -20,6 +20,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/store"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
 	"github.com/sidarth-23/dinchy/internal/workers"
 )
@@ -56,6 +57,7 @@ func (a *App) Start() error {
 		)
 	}
 	a.closer = s
+	queries := sqlcgen.New(s.DB())
 
 	cacheStore, err := cache.Open(ctx, a.cfg.Cache)
 	if err != nil {
@@ -63,7 +65,7 @@ func (a *App) Start() error {
 	}
 	a.cache = cacheStore
 	streamStore, _ := cacheStore.(cachecore.StreamStore)
-	auditSvc, err := audit.NewService(s, streamStore, id.NewGenerator(), a.cfg.Audit)
+	auditSvc, err := audit.NewService(queries, streamStore, id.NewGenerator(), a.cfg.Audit)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
@@ -80,7 +82,7 @@ func (a *App) Start() error {
 		}
 		sender = smtpSender
 	}
-	authSvc, err := auth.NewService(s, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, audit.NewAuthRecorder(auditSvc))
+	authSvc, err := auth.NewService(s.DB(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, audit.NewAuthRecorder(auditSvc))
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageSetup),
@@ -97,11 +99,11 @@ func (a *App) Start() error {
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
-	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(s, clk)}
+	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk)}
 	if auditSvc.Enabled() {
 		registeredWorkers = append(registeredWorkers, audit.NewWorker(auditSvc, a.cfg.Audit.WorkerIntervalSeconds))
 	}
-	a.workers = workers.NewRuntime(s, clk, a.errCh, registeredWorkers...)
+	a.workers = workers.NewRuntime(queries, clk, a.errCh, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageStartTaskRuntime),

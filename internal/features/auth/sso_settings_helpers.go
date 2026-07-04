@@ -56,7 +56,16 @@ func (s *Service) dbSSOProviderSettings(ctx context.Context) (map[string]SSOProv
 	}
 	out := make(map[string]SSOProviderSetting, len(settings))
 	for _, setting := range settings {
-		out[setting.ProviderID] = setting
+		out[setting.ProviderID] = SSOProviderSetting{
+			ProviderID:    setting.ProviderID,
+			ClientID:      setting.ClientID.String,
+			ClientIDValid: setting.ClientID.Valid,
+			Secret:        setting.ClientSecret.String,
+			SecretValid:   setting.ClientSecret.Valid,
+			CallbackURL:   setting.CallbackUrl.String,
+			CallbackValid: setting.CallbackUrl.Valid,
+			Enabled:       setting.Enabled,
+		}
 	}
 	return out, nil
 }

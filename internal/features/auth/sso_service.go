@@ -2,14 +2,17 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/url"
 	"strings"
+	"errors"
 
 	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func (s *Service) listSSOProviders(ctx context.Context) ([]SSOProviderOut, error) {
@@ -115,15 +118,22 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if err != nil {
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
-	user, err := s.store.FindUserByProviderAccount(ctx, providerID, gothUser.UserID)
+	userRow, err := s.store.FindUserByProviderAccount(ctx, sqlcgen.FindUserByProviderAccountParams{Provider: providerID, ProviderAccountID: gothUser.UserID})
 	if err != nil {
-		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
-	}
-	if user == nil && gothUser.Email != "" {
-		user, err = s.store.FindUserByEmail(ctx, transform.Email(gothUser.Email))
-		if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
 			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
 		}
+	}
+	user := userFromProviderAccountRow(userRow)
+	if user == nil && gothUser.Email != "" {
+		emailRow, emailErr := s.store.FindUserByEmail(ctx, transform.Email(gothUser.Email))
+		if emailErr != nil {
+			if errors.Is(emailErr, sql.ErrNoRows) {
+				return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
+			}
+			return "", "", nil, apperrors.Annotate(emailErr, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
+		}
+		user = userFromFindUserRow(emailRow)
 	}
 	if user == nil {
 		return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))

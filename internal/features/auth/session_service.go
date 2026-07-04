@@ -2,9 +2,12 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisationSlug, ip, userAgent string) (string, error) {
@@ -15,10 +18,14 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 	if session == nil {
 		return "", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	organisation, err := s.store.FindOrganisationBySlugForUser(ctx, session.UserID, organisationSlug)
+	organisationRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: mustParseUUID(session.UserID), Slug: organisationSlug})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
+		}
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageFindOrganisation))
 	}
+	organisation := organisationFromFindOrganisationRow(organisationRow)
 	if organisation == nil {
 		return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 	}
@@ -32,10 +39,14 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUse
 	if rawToken == "" {
 		return nil, nil
 	}
-	session, err := s.store.GetSessionByTokenHash(ctx, hashToken(rawToken))
-	if err != nil || session == nil {
+	row, err := s.store.GetSessionByTokenHash(ctx, hashToken(rawToken))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
 	}
+	session := sessionFromGetSessionRow(row)
 	now := s.clock.Now()
 	if session.RevokedAt.Valid || now.After(session.IdleExpiresAt) || now.After(session.ExpiresAt) {
 		return nil, nil
@@ -52,7 +63,7 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if s.audit != nil {
 		session, sessionErr = s.Session(ctx, rawToken)
 	}
-	err := s.store.RevokeSessionByTokenHash(ctx, hashToken(rawToken))
+	err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: s.clock.Now().UTC(), Valid: true}, UpdatedAt: s.clock.Now().UTC(), TokenHash: hashToken(rawToken)})
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}

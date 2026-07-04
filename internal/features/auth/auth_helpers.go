@@ -14,6 +14,7 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 var currentPasswordHashParams = config.DefaultPasswordHashParams()
@@ -27,16 +28,18 @@ func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua
 		)
 	}
 	now := s.clock.Now()
-	_, err = s.store.CreateSession(ctx, CreateSessionInput{
-		ID:             s.idg.New(),
-		UserID:         userID,
-		OrganisationID: organisationID,
-		TokenHash:      tokenHash,
-		IP:             ip,
-		UserAgent:      ua,
-		Now:            now,
-		IdleExpiresAt:  now.Add(s.authConfig.SessionIdleTimeout),
-		ExpiresAt:      now.Add(s.authConfig.SessionMaxLifetime),
+	err = s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{
+		ID:                   mustParseUUID(s.idg.New()),
+		UserID:               mustParseUUID(userID),
+		ActiveOrganisationID: mustParseUUID(organisationID),
+		TokenHash:            tokenHash,
+		IpAddress:            ip,
+		UserAgent:            ua,
+		LastSeenAt:           now.UTC(),
+		IdleExpiresAt:        now.Add(s.authConfig.SessionIdleTimeout).UTC(),
+		ExpiresAt:            now.Add(s.authConfig.SessionMaxLifetime).UTC(),
+		CreatedAt:            now.UTC(),
+		UpdatedAt:            now.UTC(),
 	})
 	if err != nil {
 		return "", apperrors.Annotate(err,

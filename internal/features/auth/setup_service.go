@@ -2,10 +2,20 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
+
+type setupTransaction struct {
+	queries  Store
+	commit   func() error
+	rollback func() error
+}
 
 func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName, password, ip, userAgent string) (string, error) {
 	hash, err := hashPassword(password)
@@ -15,7 +25,14 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	emailAddress = transform.Email(emailAddress)
 	now := s.clock.Now()
 	organisationID := s.idg.New()
-	user, err := s.store.CreateFirstUser(ctx, CreateUserInput{
+	if s.beginTx == nil {
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("transaction opener is required for first-user setup")))
+	}
+	tx, err := s.beginTx(ctx)
+	if err != nil {
+		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationBeginTx))
+	}
+	user, err := createFirstUser(ctx, tx.queries, CreateUserInput{
 		ID:                   s.idg.New(),
 		AccountID:            s.idg.New(),
 		OrganisationID:       organisationID,
@@ -28,7 +45,16 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 		Now:                  now,
 	})
 	if err != nil {
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageCreateFirstUser))
+		if rbErr := tx.rollback(); rbErr != nil {
+			return "", errors.Join(
+				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser)),
+				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationRollback)),
+			)
+		}
+		return "", err
+	}
+	if err := tx.commit(); err != nil {
+		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationCommit))
 	}
 	if err := s.recordAudit(ctx, AuditEvent{
 		Category:            "security",
@@ -48,4 +74,56 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
 	return s.newSession(ctx, user.ID, organisationID, ip, userAgent)
+}
+
+func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, error) {
+	count, err := q.CountUsers(ctx)
+	if err != nil {
+		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationCountUsers))
+	}
+	if count > 0 {
+		return User{}, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", int(count))))
+	}
+	now := in.Now.UTC()
+	if err := q.InsertUser(ctx, sqlcgen.InsertUserParams{
+		ID:          mustParseUUID(in.ID),
+		Email:       in.Email,
+		DisplayName: in.DisplayName,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertUser))
+	}
+	if err := q.InsertAccount(ctx, sqlcgen.InsertAccountParams{
+		ID:                mustParseUUID(in.AccountID),
+		UserID:            mustParseUUID(in.ID),
+		Provider:          string(AccountProviderPassword),
+		ProviderAccountID: in.Email,
+		PasswordHash:      nullString(in.PasswordHash),
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}); err != nil {
+		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertAccount))
+	}
+	if err := q.InsertOrganisation(ctx, sqlcgen.InsertOrganisationParams{
+		ID:        mustParseUUID(in.OrganisationID),
+		Name:      in.OrganisationName,
+		Slug:      in.OrganisationSlug,
+		Logo:      sql.NullString{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisation))
+	}
+	if err := q.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{
+		ID:             mustParseUUID(in.OrganisationMemberID),
+		OrganisationID: mustParseUUID(in.OrganisationID),
+		UserID:         mustParseUUID(in.ID),
+		Role:           string(RoleOwner),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}); err != nil {
+		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisationMember))
+	}
+	return User{ID: in.ID, Email: in.Email, DisplayName: in.DisplayName}, nil
 }

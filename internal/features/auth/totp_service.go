@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress string) (secret string, url string, err error) {
@@ -16,11 +19,13 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 	if err != nil {
 		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))
 	}
-	if err := s.store.SaveTwoFactor(ctx, TwoFactor{
-		ID:       s.idg.New(),
-		UserID:   userID,
-		Secret:   key.Secret(),
-		Verified: false,
+	if err := s.store.InsertOrReplaceTwoFactor(ctx, sqlcgen.InsertOrReplaceTwoFactorParams{
+		ID:        mustParseUUID(s.idg.New()),
+		UserID:    mustParseUUID(userID),
+		Secret:    key.Secret(),
+		Verified:  false,
+		CreatedAt: s.clock.Now().UTC(),
+		UpdatedAt: s.clock.Now().UTC(),
 	}); err != nil {
 		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))
 	}
@@ -28,14 +33,18 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 }
 
 func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
-	twoFactor, err := s.store.FindTwoFactorByUserID(ctx, userID)
+	twoFactorRow, err := s.store.FindTwoFactorByUserID(ctx, mustParseUUID(userID))
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
+		}
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
 	}
-	if twoFactor == nil || !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
+	twoFactor := twoFactorFromFindTwoFactorRow(twoFactorRow)
+	if !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
 		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
-	if err := s.store.ConfirmTwoFactor(ctx, userID, totpStep(s.clock.Now()), s.clock.Now()); err != nil {
+	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: mustParseUUID(userID), LastUsedStep: sql.NullInt64{Int64: totpStep(s.clock.Now()), Valid: true}, UpdatedAt: s.clock.Now().UTC()}); err != nil {
 		return err
 	}
 	return s.recordAudit(ctx, AuditEvent{
@@ -51,7 +60,7 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 }
 
 func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
-	if err := s.store.DisableTwoFactor(ctx, userID); err != nil {
+	if err := s.store.DisableTwoFactor(ctx, mustParseUUID(userID)); err != nil {
 		return err
 	}
 	return s.recordAudit(ctx, AuditEvent{
@@ -67,11 +76,12 @@ func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
 }
 
 func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) error {
-	twoFactor, err := s.store.FindTwoFactorByUserID(ctx, userID)
+	twoFactorRow, err := s.store.FindTwoFactorByUserID(ctx, mustParseUUID(userID))
 	if err != nil {
 		return err
 	}
-	if twoFactor == nil || !twoFactor.Verified {
+	twoFactor := twoFactorFromFindTwoFactorRow(twoFactorRow)
+	if !twoFactor.Verified {
 		return nil
 	}
 	step := totpStep(s.clock.Now())
@@ -81,7 +91,7 @@ func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) e
 	if twoFactor.LastUsedStepValid && twoFactor.LastUsedStep == step {
 		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
-	return s.store.MarkTwoFactorUsed(ctx, userID, step, s.clock.Now())
+	return s.store.MarkTwoFactorUsed(ctx, sqlcgen.MarkTwoFactorUsedParams{UserID: mustParseUUID(userID), LastUsedStep: sql.NullInt64{Int64: step, Valid: true}, UpdatedAt: s.clock.Now().UTC()})
 }
 
 func totpStep(t time.Time) int64 {

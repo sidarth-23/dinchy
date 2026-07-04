@@ -5,6 +5,10 @@ import (
 	"database/sql"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 //go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
@@ -330,28 +334,33 @@ type RevokeSessionsForUserParams struct {
 }
 
 type Store interface {
-	CreateFirstUser(ctx context.Context, in CreateUserInput) (User, error)
-	FindUserByEmail(ctx context.Context, email string) (*User, error)
-	FindPasswordAccountByUserID(ctx context.Context, userID string) (*Account, error)
-	FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (*User, error)
-	ListOrganisationsForUser(ctx context.Context, userID string) ([]Organisation, error)
-	FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (*Organisation, error)
-	FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (*Organisation, error)
-	UpdateUserPasswordHash(ctx context.Context, in UpdateUserPasswordHashInput) error
-	CreateSession(ctx context.Context, in CreateSessionInput) (Session, error)
-	GetSessionByTokenHash(ctx context.Context, tokenHash string) (*SessionWithUser, error)
-	RevokeSessionByTokenHash(ctx context.Context, tokenHash string) error
-	RevokeSessionsForUser(ctx context.Context, userID string, now time.Time) error
-	CreateVerificationToken(ctx context.Context, token VerificationToken) error
-	FindVerificationToken(ctx context.Context, tokenHash, purpose string) (*VerificationToken, error)
-	ConsumeVerificationToken(ctx context.Context, tokenID string, now time.Time) error
-	SaveTwoFactor(ctx context.Context, in TwoFactor) error
-	FindTwoFactorByUserID(ctx context.Context, userID string) (*TwoFactor, error)
-	ConfirmTwoFactor(ctx context.Context, userID string, step int64, now time.Time) error
-	MarkTwoFactorUsed(ctx context.Context, userID string, step int64, now time.Time) error
-	DisableTwoFactor(ctx context.Context, userID string) error
-	ListSSOProviderSettings(ctx context.Context) ([]SSOProviderSetting, error)
-	UpsertSSOProviderSetting(ctx context.Context, in UpsertSSOProviderSettingInput) error
+	CountUsers(ctx context.Context) (int64, error)
+	InsertUser(ctx context.Context, arg sqlcgen.InsertUserParams) error
+	InsertAccount(ctx context.Context, arg sqlcgen.InsertAccountParams) error
+	InsertOrganisation(ctx context.Context, arg sqlcgen.InsertOrganisationParams) error
+	InsertOrganisationMember(ctx context.Context, arg sqlcgen.InsertOrganisationMemberParams) error
+	FindUserByEmail(ctx context.Context, email string) (sqlcgen.FindUserByEmailRow, error)
+	FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindPasswordAccountByUserIDRow, error)
+	FindUserByProviderAccount(ctx context.Context, arg sqlcgen.FindUserByProviderAccountParams) (sqlcgen.FindUserByProviderAccountRow, error)
+	ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganisationsForUserRow, error)
+	FindOrganisationBySlugForUser(ctx context.Context, arg sqlcgen.FindOrganisationBySlugForUserParams) (sqlcgen.FindOrganisationBySlugForUserRow, error)
+	FindOrganisationByIDForUser(ctx context.Context, arg sqlcgen.FindOrganisationByIDForUserParams) (sqlcgen.FindOrganisationByIDForUserRow, error)
+	UpdateUserPasswordHash(ctx context.Context, arg sqlcgen.UpdateUserPasswordHashParams) error
+	InsertVerificationToken(ctx context.Context, arg sqlcgen.InsertVerificationTokenParams) error
+	FindVerificationToken(ctx context.Context, arg sqlcgen.FindVerificationTokenParams) (sqlcgen.FindVerificationTokenRow, error)
+	ConsumeVerificationToken(ctx context.Context, arg sqlcgen.ConsumeVerificationTokenParams) error
+	InsertOrReplaceTwoFactor(ctx context.Context, arg sqlcgen.InsertOrReplaceTwoFactorParams) error
+	FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error)
+	ConfirmTwoFactor(ctx context.Context, arg sqlcgen.ConfirmTwoFactorParams) error
+	MarkTwoFactorUsed(ctx context.Context, arg sqlcgen.MarkTwoFactorUsedParams) error
+	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
+	ListSSOProviderSettings(ctx context.Context) ([]sqlcgen.SsoProviderSetting, error)
+	UpsertSSOProviderSetting(ctx context.Context, arg sqlcgen.UpsertSSOProviderSettingParams) error
+	InsertSession(ctx context.Context, arg sqlcgen.InsertSessionParams) error
+	GetSessionByTokenHash(ctx context.Context, tokenHash string) (sqlcgen.GetSessionByTokenHashRow, error)
+	RevokeSessionByTokenHash(ctx context.Context, arg sqlcgen.RevokeSessionByTokenHashParams) error
+	RevokeSessionsForUser(ctx context.Context, arg sqlcgen.RevokeSessionsForUserParams) error
+	GetInstanceName(ctx context.Context) (string, error)
 }
 
 type SSOProviderSetting struct {

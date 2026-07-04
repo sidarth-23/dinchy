@@ -5,6 +5,7 @@ import (
 	"time"
 
 	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 const (
@@ -28,8 +29,8 @@ type StreamStore interface {
 type StreamMessage = cachecore.StreamMessage
 
 type Store interface {
-	InsertAuditLog(ctx context.Context, in InsertAuditLogParams) error
-	ListAuditLogs(ctx context.Context, in ListAuditLogsParams) ([]AuditLogRow, error)
+	InsertAuditLog(ctx context.Context, arg sqlcgen.InsertAuditLogParams) error
+	ListAuditLogs(ctx context.Context, arg sqlcgen.ListAuditLogsParams) ([]sqlcgen.AppAuditLog, error)
 }
 
 type InsertAuditLogParams struct {

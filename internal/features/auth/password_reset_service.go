@@ -2,12 +2,17 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error {
@@ -15,10 +20,14 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		return apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
 	emailAddress = transform.Email(emailAddress)
-	user, err := s.store.FindUserByEmail(ctx, emailAddress)
+	userRow, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageFindUser))
 	}
+	user := userFromFindUserRow(userRow)
 	if user == nil {
 		return nil
 	}
@@ -27,14 +36,15 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
 	now := s.clock.Now()
-	if err := s.store.CreateVerificationToken(ctx, VerificationToken{
-		ID:          s.idg.New(),
-		UserID:      user.ID,
-		UserIDValid: true,
-		Email:       emailAddress,
-		Purpose:     string(VerificationPurposePasswordReset),
-		TokenHash:   tokenHash,
-		ExpiresAt:   now.Add(s.authConfig.PasswordResetLifetime),
+	if err := s.store.InsertVerificationToken(ctx, sqlcgen.InsertVerificationTokenParams{
+		ID:        mustParseUUID(s.idg.New()),
+		UserID:    uuid.NullUUID{UUID: mustParseUUID(user.ID), Valid: true},
+		Email:     emailAddress,
+		Purpose:   string(VerificationPurposePasswordReset),
+		TokenHash: tokenHash,
+		ExpiresAt: now.Add(s.authConfig.PasswordResetLifetime),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageCreateVerificationToken))
 	}
@@ -46,23 +56,27 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 }
 
 func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) error {
-	token, err := s.store.FindVerificationToken(ctx, hashToken(rawToken), string(VerificationPurposePasswordReset))
+	tokenRow, err := s.store.FindVerificationToken(ctx, sqlcgen.FindVerificationTokenParams{TokenHash: hashToken(rawToken), Purpose: string(VerificationPurposePasswordReset)})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))
+		}
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageFindVerificationToken))
 	}
+	token := verificationTokenFromFindVerificationRow(tokenRow)
 	now := s.clock.Now()
-	if token == nil || token.ConsumedAtValid || now.After(token.ExpiresAt) || !token.UserIDValid {
+	if !token.UserIDValid || token.ConsumedAtValid || now.After(token.ExpiresAt) {
 		return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))
 	}
 	hash, err := hashPassword(password)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StagePasswordHash))
 	}
-	if err := s.store.UpdateUserPasswordHash(ctx, UpdateUserPasswordHashInput{UserID: token.UserID, PasswordHash: hash, Now: now}); err != nil {
+	if err := s.store.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{UserID: mustParseUUID(token.UserID), PasswordHash: nullString(hash), UpdatedAt: now}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StagePasswordHash))
 	}
-	if err := s.store.ConsumeVerificationToken(ctx, token.ID, now); err != nil {
+	if err := s.store.ConsumeVerificationToken(ctx, sqlcgen.ConsumeVerificationTokenParams{ID: mustParseUUID(token.ID), ConsumedAt: sql.NullTime{Time: now.UTC(), Valid: true}, UpdatedAt: now}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageConsumeVerificationToken))
 	}
-	return s.store.RevokeSessionsForUser(ctx, token.UserID, now)
+	return s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: mustParseUUID(token.UserID), RevokedAt: sql.NullTime{Time: now.UTC(), Valid: true}, UpdatedAt: now})
 }

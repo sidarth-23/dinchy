@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"database/sql/driver"
 	stderrors "errors"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func TestSessionCleanupWorker_Execute_UsesRetentionWindow(t *testing.T) {
@@ -19,8 +21,11 @@ func TestSessionCleanupWorker_Execute_UsesRetentionWindow(t *testing.T) {
 	store := NewMockStore(ctrl)
 
 	store.EXPECT().
-		DeleteEndedSessionsOlderThan(gomock.Any(), fixedTime.Add(-sessionCleanupRetentionDuration)).
-		Return(int64(7), nil)
+		DeleteEndedSessionsOlderThan(gomock.Any(), sqlcgen.DeleteEndedSessionsOlderThanParams{
+			ExpiresAt: fixedTime.Add(-sessionCleanupRetentionDuration).UTC(),
+			UpdatedAt: fixedTime.UTC(),
+		}).
+		Return(driver.RowsAffected(7), nil)
 
 	worker := NewSessionCleanupWorker(store, fakeClock{now: fixedTime})
 	outcome, err := worker.Execute(context.Background())
@@ -35,8 +40,11 @@ func TestSessionCleanupWorker_Execute_PropagatesError(t *testing.T) {
 	sentinel := stderrors.New("delete failed")
 
 	store.EXPECT().
-		DeleteEndedSessionsOlderThan(gomock.Any(), fixedTime.Add(-sessionCleanupRetentionDuration)).
-		Return(int64(0), sentinel)
+		DeleteEndedSessionsOlderThan(gomock.Any(), sqlcgen.DeleteEndedSessionsOlderThanParams{
+			ExpiresAt: fixedTime.Add(-sessionCleanupRetentionDuration).UTC(),
+			UpdatedAt: fixedTime.UTC(),
+		}).
+		Return(driver.RowsAffected(0), sentinel)
 
 	worker := NewSessionCleanupWorker(store, fakeClock{now: fixedTime})
 	outcome, err := worker.Execute(context.Background())

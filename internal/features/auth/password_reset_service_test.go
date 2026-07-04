@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 type fakeSender struct {
@@ -33,8 +35,15 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
-	svc, err := NewService(store, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), sender)
+	svc, err := NewService(nil, store, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), sender)
 	require.NoError(t, err)
+	svc.beginTx = func(context.Context) (*setupTransaction, error) {
+		return &setupTransaction{
+			queries:  store,
+			commit:   func() error { return nil },
+			rollback: func() error { return nil },
+		}, nil
+	}
 	return svc, store
 }
 
@@ -51,7 +60,7 @@ func TestForgotPassword_UnknownUserIsSilent(t *testing.T) {
 	sender := &fakeSender{configured: true}
 	svc, store := newServiceWithSender(t, sender)
 
-	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").Return(nil, nil)
+	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").Return(sqlcgen.FindUserByEmailRow{}, sql.ErrNoRows)
 	// No token created and no mail sent for an unknown address (no user enumeration).
 
 	require.NoError(t, svc.ForgotPassword(testCtx, "user@example.com"))
@@ -64,11 +73,11 @@ func TestForgotPassword_CreatesTokenAndSends(t *testing.T) {
 	svc, store := newServiceWithSender(t, sender)
 
 	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com"}, nil)
-	store.EXPECT().CreateVerificationToken(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, token VerificationToken) error {
-			assert.Equal(t, "u1", token.UserID)
-			assert.True(t, token.UserIDValid)
+		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
+	store.EXPECT().InsertVerificationToken(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, token sqlcgen.InsertVerificationTokenParams) error {
+			assert.Equal(t, testUserID, token.UserID.UUID.String())
+			assert.True(t, token.UserID.Valid)
 			assert.Equal(t, string(VerificationPurposePasswordReset), token.Purpose)
 			assert.NotEmpty(t, token.TokenHash)
 			assert.True(t, token.ExpiresAt.After(fixedTime), "token must expire in the future")
@@ -87,12 +96,12 @@ func TestResetPassword_InvalidToken(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		token *VerificationToken
+		token sqlcgen.FindVerificationTokenRow
 	}{
-		{name: "not found", token: nil},
-		{name: "expired", token: &VerificationToken{UserID: "u1", UserIDValid: true, ExpiresAt: fixedTime.Add(-time.Minute)}},
-		{name: "already consumed", token: &VerificationToken{UserID: "u1", UserIDValid: true, ExpiresAt: fixedTime.Add(time.Hour), ConsumedAtValid: true}},
-		{name: "no associated user", token: &VerificationToken{UserID: "", UserIDValid: false, ExpiresAt: fixedTime.Add(time.Hour)}},
+		{name: "not found", token: sqlcgen.FindVerificationTokenRow{},},
+		{name: "expired", token: verificationTokenRow(testVerificationTokenID, testUserID, "user@example.com", string(VerificationPurposePasswordReset), "hash", fixedTime.Add(-time.Minute), time.Time{}, false)},
+		{name: "already consumed", token: verificationTokenRow(testVerificationTokenID, testUserID, "user@example.com", string(VerificationPurposePasswordReset), "hash", fixedTime.Add(time.Hour), fixedTime, true)},
+		{name: "no associated user", token: verificationTokenRow(testVerificationTokenID, "", "user@example.com", string(VerificationPurposePasswordReset), "hash", fixedTime.Add(time.Hour), time.Time{}, false)},
 	}
 
 	for _, tc := range cases {
@@ -100,7 +109,7 @@ func TestResetPassword_InvalidToken(t *testing.T) {
 			t.Parallel()
 			svc, store := newTestService(t)
 			store.EXPECT().
-				FindVerificationToken(gomock.Any(), gomock.Any(), string(VerificationPurposePasswordReset)).
+				FindVerificationToken(gomock.Any(), gomock.Any()).
 				Return(tc.token, nil)
 
 			err := svc.ResetPassword(testCtx, "raw-token", "newpassword123")
@@ -113,25 +122,19 @@ func TestResetPassword_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	token := &VerificationToken{
-		ID:          "vt-1",
-		UserID:      "u1",
-		UserIDValid: true,
-		Purpose:     string(VerificationPurposePasswordReset),
-		ExpiresAt:   fixedTime.Add(time.Hour),
-	}
+	token := verificationTokenRow(testVerificationTokenID, testUserID, "user@example.com", string(VerificationPurposePasswordReset), "hash", fixedTime.Add(time.Hour), time.Time{}, false)
 	store.EXPECT().
-		FindVerificationToken(gomock.Any(), gomock.Any(), string(VerificationPurposePasswordReset)).
+		FindVerificationToken(gomock.Any(), gomock.Any()).
 		Return(token, nil)
 	store.EXPECT().UpdateUserPasswordHash(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in UpdateUserPasswordHashInput) error {
-			assert.Equal(t, "u1", in.UserID)
-			assert.NotEmpty(t, in.PasswordHash)
+		DoAndReturn(func(_ context.Context, in sqlcgen.UpdateUserPasswordHashParams) error {
+			assert.Equal(t, testUserID, in.UserID.String())
+			assert.NotEmpty(t, in.PasswordHash.String)
 			return nil
 		})
-	store.EXPECT().ConsumeVerificationToken(gomock.Any(), "vt-1", fixedTime).Return(nil)
+	store.EXPECT().ConsumeVerificationToken(gomock.Any(), gomock.Any()).Return(nil)
 	// Resetting the password must revoke every existing session for the user.
-	store.EXPECT().RevokeSessionsForUser(gomock.Any(), "u1", fixedTime).Return(nil)
+	store.EXPECT().RevokeSessionsForUser(gomock.Any(), gomock.Any()).Return(nil)
 
 	require.NoError(t, svc.ResetPassword(testCtx, "raw-token", "newpassword123"))
 }

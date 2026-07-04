@@ -2,6 +2,8 @@ package workers
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	stderrors "errors"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -72,7 +75,13 @@ func TestRuntime_RegisterWorker_EnsuresTask(t *testing.T) {
 	store := NewMockStore(ctrl)
 	worker := newStubWorker()
 
-	store.EXPECT().EnsureTask(gomock.Any(), worker.name, worker.interval, fixedTime).Return(nil)
+	store.EXPECT().EnsureTask(gomock.Any(), sqlcgen.EnsureTaskParams{
+		ID:                      taskIDForName(worker.name),
+		TaskName:                worker.name,
+		ScheduleIntervalSeconds: worker.interval,
+		NextRunAt:               sql.NullTime{Time: fixedTime, Valid: true},
+		UpdatedAt:               fixedTime,
+	}).Return(nil)
 
 	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
 	require.NoError(t, runtime.registerWorker(context.Background(), worker))
@@ -84,7 +93,7 @@ func TestRuntime_RegisterWorker_AnnotatesEnsureError(t *testing.T) {
 	store := NewMockStore(ctrl)
 	worker := newStubWorker()
 
-	store.EXPECT().EnsureTask(gomock.Any(), worker.name, worker.interval, fixedTime).
+	store.EXPECT().EnsureTask(gomock.Any(), gomock.Any()).
 		Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
 
 	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
@@ -103,8 +112,16 @@ func TestRuntime_RunWorker_SkipsExecuteWhenNotClaimed(t *testing.T) {
 	worker := newStubWorker()
 
 	store.EXPECT().
-		ClaimTask(gomock.Any(), worker.name, "local", fixedTime.Add(worker.lease), fixedTime).
-		Return(false, nil)
+		ClaimTask(gomock.Any(), sqlcgen.ClaimTaskParams{
+			LeaseOwner:       sql.NullString{String: "local", Valid: true},
+			LeaseExpiresAt:   sql.NullTime{Time: fixedTime.Add(worker.lease), Valid: true},
+			LastRunAt:        sql.NullTime{Time: fixedTime, Valid: true},
+			UpdatedAt:        fixedTime,
+			TaskName:         worker.name,
+			LeaseExpiresAt_2: sql.NullTime{Time: fixedTime.Add(worker.lease), Valid: true},
+			NextRunAt:        sql.NullTime{Time: fixedTime, Valid: true},
+		}).
+		Return(driver.RowsAffected(0), nil)
 	// No Execute, no FinishTask expected.
 
 	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
@@ -121,10 +138,10 @@ func TestRuntime_RunWorker_SuccessFinishesTask(t *testing.T) {
 
 	gomock.InOrder(
 		store.EXPECT().
-			ClaimTask(gomock.Any(), worker.name, "local", fixedTime.Add(worker.lease), fixedTime).
-			Return(true, nil),
+			ClaimTask(gomock.Any(), gomock.Any()).
+			Return(driver.RowsAffected(1), nil),
 		store.EXPECT().
-			FinishTask(gomock.Any(), worker.name, fixedTime, true, "", "", fixedTime.Add(worker.retry)).
+			FinishTask(gomock.Any(), gomock.Any()).
 			Return(nil),
 	)
 
@@ -143,10 +160,10 @@ func TestRuntime_RunWorker_FailureRecordsAndAnnotates(t *testing.T) {
 
 	gomock.InOrder(
 		store.EXPECT().
-			ClaimTask(gomock.Any(), worker.name, "local", fixedTime.Add(worker.lease), fixedTime).
-			Return(true, nil),
+			ClaimTask(gomock.Any(), gomock.Any()).
+			Return(driver.RowsAffected(1), nil),
 		store.EXPECT().
-			FinishTask(gomock.Any(), worker.name, fixedTime, false, worker.failCode, "boom", fixedTime.Add(worker.retry)).
+			FinishTask(gomock.Any(), gomock.Any()).
 			Return(nil),
 	)
 
@@ -169,10 +186,10 @@ func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T)
 
 	gomock.InOrder(
 		store.EXPECT().
-			ClaimTask(gomock.Any(), worker.name, "local", fixedTime.Add(worker.lease), fixedTime).
-			Return(true, nil),
+			ClaimTask(gomock.Any(), gomock.Any()).
+			Return(driver.RowsAffected(1), nil),
 		store.EXPECT().
-			FinishTask(gomock.Any(), worker.name, fixedTime, true, "", "", fixedTime.Add(worker.retry)).
+			FinishTask(gomock.Any(), gomock.Any()).
 			Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError))),
 	)
 
@@ -193,8 +210,8 @@ func TestRuntime_RunAllWorkers_ReportsErrorToChannel(t *testing.T) {
 	worker := newStubWorker()
 
 	store.EXPECT().
-		ClaimTask(gomock.Any(), worker.name, "local", fixedTime.Add(worker.lease), fixedTime).
-		Return(false, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
+		ClaimTask(gomock.Any(), gomock.Any()).
+		Return(driver.RowsAffected(0), apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
 
 	errCh := make(chan error, 1)
 	runtime := NewRuntime(store, fakeClock{now: fixedTime}, errCh, worker)

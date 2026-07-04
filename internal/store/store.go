@@ -113,6 +113,11 @@ func (s *Store) Query() Queries {
 	return s.q
 }
 
+// DB exposes the underlying database handle for callers that need the raw sqlc queries.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
 // PingContext verifies the database connection is alive.
 func (s *Store) PingContext(ctx context.Context) error {
 	if s.db == nil {

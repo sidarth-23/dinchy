@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 const (
@@ -70,16 +72,14 @@ func (s *Service) updateSSOProviderSetting(ctx context.Context, providerID strin
 	if enabled && s.cache == nil {
 		return SSOProviderSettingOut{}, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOCacheRequired))
 	}
-	if err := s.store.UpsertSSOProviderSetting(ctx, UpsertSSOProviderSettingInput{
+	if err := s.store.UpsertSSOProviderSetting(ctx, sqlcgen.UpsertSSOProviderSettingParams{
 		ProviderID:    providerID,
-		ClientID:      clientID,
-		ClientIDValid: clientIDValid,
-		Secret:        secret,
-		SecretValid:   secretValid,
-		CallbackURL:   callbackURL,
-		CallbackValid: callbackURLValid,
+		ClientID:      sql.NullString{String: clientID, Valid: clientIDValid},
+		ClientSecret:  sql.NullString{String: secret, Valid: secretValid},
+		CallbackUrl:   sql.NullString{String: callbackURL, Valid: callbackURLValid},
 		Enabled:       enabled,
-		Now:           s.clock.Now(),
+		CreatedAt:     s.clock.Now().UTC(),
+		UpdatedAt:     s.clock.Now().UTC(),
 	}); err != nil {
 		return SSOProviderSettingOut{}, err
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"database/sql"
 	"net/http"
 	"net/url"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 type fakeSSOSession struct {
@@ -182,17 +184,16 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 	state := parsedAuthURL.Query().Get("state")
 
 	store.EXPECT().
-		FindUserByProviderAccount(gomock.Any(), "github", "provider-user").
-		Return(nil, nil)
+		FindUserByProviderAccount(gomock.Any(), sqlcgen.FindUserByProviderAccountParams{Provider: "github", ProviderAccountID: "provider-user"}).
+		Return(sqlcgen.FindUserByProviderAccountRow{}, sql.ErrNoRows)
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "candidate@example.com").
-		Return(&User{ID: "user-1", Email: "candidate@example.com"}, nil)
+		Return(findUserRow(testUserID, "candidate@example.com", "User"), nil)
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), "user-1").
-		Return([]Organisation{{ID: "org-1", Name: "Default", Slug: "default", Role: RoleAdmin}}, nil)
-	store.EXPECT().
-		CreateSession(gomock.Any(), gomock.Any()).
-		Return(Session{ID: "sess-1"}, nil)
+		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		AnyTimes()
+	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
 	returnTo, token, clearedCookies, err := svc.completeSSO(
 		testCtx,
