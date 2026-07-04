@@ -47,17 +47,13 @@ func defaultConfig() Config {
 	return Config{
 		Addr:         ":8080",
 		InternalAddr: ":9090",
-		Database: DatabaseConfig{
-			DBBackend: DBBackendSQLite,
-			DBPath:    "./dinchy.db",
-		},
-		DevProxyURL: "http://127.0.0.1:5173",
-		Auth:        DefaultAuth(),
-		SMTP:        DefaultSMTP(),
-		Cache:       DefaultCache(),
-		Logging:     DefaultLogging(),
-		Telemetry:   DefaultTelemetry(),
-		Audit:       DefaultAudit(),
+		DevProxyURL:  "http://127.0.0.1:5173",
+		Auth:         DefaultAuth(),
+		SMTP:         DefaultSMTP(),
+		Cache:        DefaultCache(),
+		Logging:      DefaultLogging(),
+		Telemetry:    DefaultTelemetry(),
+		Audit:        DefaultAudit(),
 	}
 }
 

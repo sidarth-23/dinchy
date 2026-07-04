@@ -17,8 +17,7 @@ func TestLoad_Defaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ":8080", cfg.Addr)
 	assert.Equal(t, ":9090", cfg.InternalAddr)
-	assert.Equal(t, config.DBBackendSQLite, cfg.Database.DBBackend)
-	assert.Equal(t, "./dinchy.db", cfg.Database.DBPath)
+	assert.Equal(t, testPostgresDSN, cfg.Database.PostgresDSN)
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 	assert.False(t, cfg.DevMode)
 	assert.False(t, cfg.RequireHTTPSForAuth)
@@ -40,8 +39,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_ADDR", ":9999")
 	t.Setenv("DINCHY_INTERNAL_ADDR", ":8888")
-	t.Setenv("DINCHY_DB_BACKEND", "sqlite")
-	t.Setenv("DINCHY_DB_PATH", "/tmp/test.db")
+	t.Setenv("DINCHY_POSTGRES_DSN", "postgres://test:test@localhost:5432/dinchy?sslmode=disable")
 	t.Setenv("DINCHY_DEV", "true")
 	t.Setenv("DINCHY_DEV_PROXY_URL", "http://localhost:3000")
 	t.Setenv("DINCHY_REQUIRE_HTTPS_FOR_AUTH", "1")
@@ -61,7 +59,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ":9999", cfg.Addr)
 	assert.Equal(t, ":8888", cfg.InternalAddr)
-	assert.Equal(t, "/tmp/test.db", cfg.Database.DBPath)
+	assert.Equal(t, "postgres://test:test@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
 	assert.True(t, cfg.DevMode)
 	assert.Equal(t, "http://localhost:3000", cfg.DevProxyURL)
 	assert.True(t, cfg.RequireHTTPSForAuth)
@@ -107,14 +105,6 @@ func TestLoad_DevMode_DefaultProxyURLPassesValidation(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 }
 
-func TestLoad_InvalidDatabaseBackend_Fails(t *testing.T) {
-	clearDinchyEnv(t)
-	t.Setenv("DINCHY_DB_BACKEND", "oracle")
-
-	_, err := config.Load()
-	require.Error(t, err)
-}
-
 func TestLoad_InvalidCacheBackend_Fails(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_CACHE_BACKEND", "memcached")
@@ -158,9 +148,9 @@ func TestLoad_MissingExplicitEnvFile_Fails(t *testing.T) {
 	require.Error(t, err, "explicit env file that doesn't exist should fail")
 }
 
-func TestLoad_PostgresBackendRequiresDSN(t *testing.T) {
+func TestLoad_MissingPostgresDSNFails(t *testing.T) {
 	clearDinchyEnv(t)
-	t.Setenv("DINCHY_DB_BACKEND", "postgres")
+	t.Setenv("DINCHY_POSTGRES_DSN", "")
 
 	_, err := config.Load()
 	require.Error(t, err)
@@ -170,8 +160,7 @@ func TestLoad_PostgresBackendRequiresDSN(t *testing.T) {
 func clearDinchyEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
-		"DINCHY_ADDR", "DINCHY_INTERNAL_ADDR", "DINCHY_DB_PATH",
-		"DINCHY_DB_BACKEND", "DINCHY_POSTGRES_DSN",
+		"DINCHY_ADDR", "DINCHY_INTERNAL_ADDR", "DINCHY_POSTGRES_DSN",
 		"DINCHY_DEV", "DINCHY_DEV_PROXY_URL", "DINCHY_REQUIRE_HTTPS_FOR_AUTH",
 		"DINCHY_GOOGLE_CLIENT_ID", "DINCHY_GOOGLE_CLIENT_SECRET", "DINCHY_GOOGLE_CALLBACK_URL",
 		"DINCHY_GITHUB_CLIENT_ID", "DINCHY_GITHUB_CLIENT_SECRET", "DINCHY_GITHUB_CALLBACK_URL",
@@ -188,4 +177,7 @@ func clearDinchyEnv(t *testing.T) {
 	} {
 		t.Setenv(key, "")
 	}
+	t.Setenv("DINCHY_POSTGRES_DSN", testPostgresDSN)
 }
+
+const testPostgresDSN = "postgres://test:test@localhost:5432/dinchy?sslmode=disable"

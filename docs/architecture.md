@@ -12,20 +12,18 @@ Dinchy needs direct system access: spawning PTYs for web terminal, talking to th
 
 ---
 
-## SQLite over PostgreSQL/Redis
+## PostgreSQL over SQLite/Redis
 
-Dokploy uses PostgreSQL + Redis. PostgreSQL idles at 50-200MB. Redis adds another 10-50MB. That's 60-250MB of memory consumed before your app even starts — just for the platform's own data layer.
+SQLite was originally considered for the platform's own data layer, but the implementation now standardizes on PostgreSQL. That keeps the runtime simple while avoiding a backend switch or multiple code paths.
 
-SQLite with WAL mode handles everything Dinchy needs:
+PostgreSQL handles everything Dinchy needs:
 - App state, deployment configs, user accounts — relational data
 - Encrypted secrets — application-layer AES-256-GCM on sensitive columns
-- Logs with full-text search — SQLite FTS5 extension
+- Logs with full-text search — Postgres text search / indexed query patterns
 - Container stats with rolling retention — simple time-series table with auto-prune
-- Durable internal scheduled tasks and future job state — persisted in SQLite with lease-based recovery
+- Durable internal scheduled tasks and future job state — persisted in Postgres with lease-based recovery
 
-At homelab scale (10-50 containers, tens of thousands of log lines/day), SQLite is never the bottleneck. The single-file database means backups are `cp dinchy.db dinchy.db.backup`.
-
-**Driver:** `modernc.org/sqlite` — pure Go, no CGO. Keeps cross-compilation clean (no need for platform-specific CGO toolchains).
+At homelab scale (10-50 containers, tens of thousands of log lines/day), PostgreSQL remains the source of truth. Backups are handled with normal Postgres tooling.
 
 ---
 
@@ -37,7 +35,7 @@ Caddy can be imported as a Go library (`github.com/caddyserver/caddy/v2`) and ru
 2. **Independent upgrades** — Caddy releases security patches frequently. Users should not need to wait for a Dinchy release to get a Caddy fix. The sidecar can be updated independently.
 3. **Plugin flexibility** — homelab users want Caddy plugins (`caddy-cloudflare` for DNS-01 challenges behind NAT, `caddy-security` for auth middleware, etc.). With embedded Caddy, plugins are compiled in at build time. With a sidecar, users swap in their own `xcaddy` build.
 
-The sidecar is controlled entirely via Caddy's [JSON Admin API](https://caddyserver.com/docs/api) at `localhost:2019`. Dinchy is the single source of truth — routes are stored in SQLite and pushed to Caddy on change. No Docker labels, no config file templating, no process reloads.
+The sidecar is controlled entirely via Caddy's [JSON Admin API](https://caddyserver.com/docs/api) at `localhost:2019`. Dinchy is the single source of truth — routes are stored in PostgreSQL and pushed to Caddy on change. No Docker labels, no config file templating, no process reloads.
 
 ---
 

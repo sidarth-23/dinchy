@@ -11,7 +11,7 @@ type testStore interface {
 }
 
 // OpenTestDB opens a fully migrated test store and registers cleanup for it.
-// The opener can be sqlite.Open, postgres.Open, or any compatible backend opener.
+// The opener can be store.Open or any compatible backend opener.
 func OpenTestDB[T testStore](t testing.TB, open func(context.Context, string) (T, error), conn string) T {
 	t.Helper()
 

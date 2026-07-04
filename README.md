@@ -11,7 +11,7 @@ A lightweight, self-hosted deployment manager for homelabs and small teams. A be
 | SSO out of the box | No | Partial | **Yes** |
 | Build safety | None | None | **Memory guardian** |
 | Distribution | Docker | Docker | **Single binary** |
-| Tech stack | Next.js + PostgreSQL + Redis | Laravel + PostgreSQL | **Go + SQLite** |
+| Tech stack | Next.js + PostgreSQL + Redis | Laravel + PostgreSQL | **Go + PostgreSQL** |
 
 ## Architecture
 
@@ -25,7 +25,7 @@ A lightweight, self-hosted deployment manager for homelabs and small teams. A be
 │  - React UI      │                  └────────────────────┘
 │  - WebSocket     │
 │  - Terminal (PTY)│                  ┌────────────────────┐
-│  - SQLite (WAL)  │ ── Docker sock ─→│  User containers   │
+│  - PostgreSQL    │ ── Docker/Podman ─→│  User containers   │
 └──────────────────┘                  └────────────────────┘
         ↑
   systemd / OpenRC
@@ -36,7 +36,7 @@ Single-node, single binary. Caddy runs alongside as a sidecar and handles all ro
 ## Tech Stack
 
 - **Backend:** Go — single binary, no runtime dependencies
-- **Database:** SQLite with WAL mode — one file, zero config, zero extra processes
+- **Database:** PostgreSQL — single supported datastore
 - **Frontend:** React + Vite + Tanstack Router + Shadcn/ui — statically served from the binary via `embed.FS`
 - **Reverse proxy:** Caddy — programmatically controlled via JSON Admin API, automatic HTTPS
 - **Process supervision:** systemd (Debian, Ubuntu, Fedora, Arch, Proxmox) + OpenRC (Alpine, Gentoo)
@@ -93,7 +93,7 @@ mise run test         # run the test suite
 mise run lint         # run the linter
 mise run build        # build the production binary
 mise run generate     # regenerate generated Go code and sqlc queries
-mise run db:migrate   # run database migrations
+mise run db:migrate   # run database migrations against DINCHY_POSTGRES_DSN
 ```
 
 When the frontend exists:
@@ -105,6 +105,8 @@ mise run web:build    # build production frontend assets
 ```
 
 Bun is the primary JS runtime for this project. Node is available via mise for compatibility, but all frontend tasks run through Bun.
+
+The database is PostgreSQL only. Set `DINCHY_POSTGRES_DSN` before running the app, tests, or migration tasks.
 
 ## License
 

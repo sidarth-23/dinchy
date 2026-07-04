@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,8 +15,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/core"
-	"github.com/sidarth-23/dinchy/internal/store/sqlite"
+	"github.com/sidarth-23/dinchy/internal/store/testsupport"
 	"github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
@@ -31,7 +29,7 @@ var sessionFixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newSessionService(t *testing.T) *auth.Service {
 	t.Helper()
-	db := core.OpenTestDB(t, sqlite.Open, filepath.Join(t.TempDir(), "test.db"))
+	db := testsupport.OpenPostgresStore(t)
 	svc, err := auth.NewService(
 		db,
 		id.NewGenerator(),

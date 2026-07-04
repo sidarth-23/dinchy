@@ -71,17 +71,11 @@ internal/
     store.go                    #   Consumer-defined Store interface
 
   store/                        # Persistence layer
-    store.go                    #   Shared DBTX interface
-    sqlite/                     #   SQLite implementation
-      store.go                  #     Open, Close, WithTx, pragmas, goose migrations
-      users.go                  #     CreateFirstUser, FindUserByEmail
-      sessions.go               #     CreateSession, GetSessionByTokenHash, ...
-      settings.go               #     Bootstrap, ensureDefaultSettings
-      tasks.go                  #     EnsureTask, ClaimTask, FinishTask
-      queries/                  #     sqlc query files (.sql) — SQLite syntax
+    store.go                    #   PostgreSQL implementation
+      Open, Close, WithTx, migrations, store methods, sqlc adapter
+      queries/                  #     sqlc query files (.sql) — PostgreSQL syntax
       sqlcgen/                  #     sqlc generated code (DO NOT EDIT)
-      migrations/               #     goose migrations — SQLite DDL
-    # Future: postgres/, mysql/ — same internal shape as sqlite/
+      migrations/               #     goose migrations — PostgreSQL DDL
 
   server/                       # HTTP transport layer
     server.go                   #   Chi router setup, middleware stack, Huma mount, frontend serving
@@ -108,21 +102,21 @@ web/                            # Frontend source (Vite + React)
 - `internal/domain` owns all shared business types — zero project imports; the root of the dependency graph.
 - `internal/auth` owns password hashing, session issuance/validation/revocation, and declares its own `Store` interface.
 - `internal/tasks` owns the durable internal scheduler and declares its own `Store` interface.
-- `internal/store/sqlite` is the only package that imports sqlc-generated code; it implements all consumer-defined store interfaces and translates between sqlcgen row types and domain types.
+- `internal/store` is the only package that imports sqlc-generated code; it implements all consumer-defined store interfaces and translates between sqlcgen row types and domain types.
 - `internal/server` owns the Chi router, all middleware, and all Huma API handlers. No router-specific types leak past the middleware layer into handlers.
 - `internal/server/api` handlers receive `context.Context`, call service methods, and return domain errors. Transport concerns (cookies, IP, UA, language) are injected via `internal/server/support` context accessors.
 - `internal/server/middleware` houses every middleware as its own file with a `func(http.Handler) http.Handler` signature. `server.go` only imports `mw.*` — swapping a middleware implementation touches one file.
 - `internal/platform` owns standalone infrastructure utilities that have no domain knowledge.
-- `internal/app` is the only package allowed to import concrete store implementations (`store/sqlite`); all other packages depend on interfaces.
+- `internal/app` is the only package allowed to import the concrete store implementation (`store`); all other packages depend on interfaces.
 
 ## Multi-Database Seam
 
-Each database backend (`store/sqlite/`, future `store/postgres/`) has an identical internal structure:
+The store has a single Postgres-backed structure:
 - `queries/*.sql` — database-specific SQL (placeholders, DDL, functions)
 - `sqlcgen/` — sqlc-generated Go code for that engine
-- `migrations/` — goose migration files in that database's DDL dialect
+- `migrations/` — goose migration files in the Postgres DDL dialect
 
-The `sqlc.yaml` at the project root has one `sql:` block per engine. Adding a new database means adding a new sub-package that implements `auth.Store`, `workers.Store`, and `domain.SettingsReader`. Nothing outside `store/` changes.
+The `sqlc.yaml` at the project root has one `sql:` block. Nothing outside `store/` changes.
 
 ## App Lifecycle
 

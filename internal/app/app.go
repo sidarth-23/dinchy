@@ -49,7 +49,7 @@ func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
 func (a *App) Start() error {
 	ctx := context.Background()
 
-	s, err := store.Open(ctx, a.cfg)
+	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN)
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageOpenStore),

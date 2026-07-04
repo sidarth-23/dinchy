@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/sidarth-23/dinchy/internal/store/core"
-	"github.com/sidarth-23/dinchy/internal/store/sqlite/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/postgres/sqlcgen"
 )
 
 func (q *queries) EnsureDefaultSettings(ctx context.Context, now time.Time) error {
 	return q.q.EnsureDefaultSettings(ctx, sqlcgen.EnsureDefaultSettingsParams{
-		CreatedAt: formatTime(now),
-		UpdatedAt: formatTime(now),
+		CreatedAt: now.UTC(),
+		UpdatedAt: now.UTC(),
 	})
 }
 
@@ -21,11 +21,15 @@ func (q *queries) GetInstanceName(ctx context.Context) (string, error) {
 }
 
 func (q *queries) EnsureTask(ctx context.Context, arg core.TaskParams) error {
+	id, err := parseUUID(arg.ID)
+	if err != nil {
+		return err
+	}
 	return q.q.EnsureTask(ctx, sqlcgen.EnsureTaskParams{
-		ID:                      arg.ID,
+		ID:                      id,
 		TaskName:                arg.TaskName,
 		ScheduleIntervalSeconds: arg.ScheduleIntervalSeconds,
-		NextRunAt:               sql.NullString{String: formatTime(arg.NextRunAt), Valid: true},
-		UpdatedAt:               formatTime(arg.UpdatedAt),
+		NextRunAt:               sql.NullTime{Time: arg.NextRunAt.UTC(), Valid: true},
+		UpdatedAt:               arg.UpdatedAt.UTC(),
 	})
 }

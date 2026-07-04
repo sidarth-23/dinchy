@@ -35,7 +35,7 @@ func loadFromEnv(cfg any) error {
 		switch field.Type.Kind() {
 		case reflect.String:
 			switch envKey {
-			case "DINCHY_DB_BACKEND", "DINCHY_CACHE_BACKEND", "DINCHY_LOG_LEVEL", "DINCHY_LOG_FORMAT":
+			case "DINCHY_CACHE_BACKEND", "DINCHY_LOG_LEVEL", "DINCHY_LOG_FORMAT":
 				v.Field(i).SetString(strings.ToLower(transform.Trim(raw)))
 			default:
 				v.Field(i).SetString(raw)

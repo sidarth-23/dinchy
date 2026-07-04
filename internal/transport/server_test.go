@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -18,8 +17,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/core"
-	"github.com/sidarth-23/dinchy/internal/store/sqlite"
+	"github.com/sidarth-23/dinchy/internal/store/testsupport"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
@@ -35,7 +33,7 @@ var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler {
 	t.Helper()
-	db := core.OpenTestDB(t, sqlite.Open, filepath.Join(t.TempDir(), "test.db"))
+	db := testsupport.OpenPostgresStore(t)
 	svc, err := auth.NewService(db, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), email.NoopSender{})
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}

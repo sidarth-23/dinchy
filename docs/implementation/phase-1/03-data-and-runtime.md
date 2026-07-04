@@ -1,26 +1,16 @@
 # Data And Runtime
 
-## SQLite Initialization
+## PostgreSQL Initialization
 
-Phase 1 uses SQLite via `modernc.org/sqlite`.
+Phase 1 uses PostgreSQL via `pgx`.
 
 Startup initialization path:
 
 1. load startup config
-2. open SQLite
-3. create DB parent directory if needed
-4. apply SQLite pragmas
-5. run embedded Goose migrations
-6. ensure default singleton settings row exists
-7. initialize stores, services, task runtime, and HTTP runtime
-
-Required pragmas:
-
-- `journal_mode = WAL`
-- `foreign_keys = ON`
-- `busy_timeout = 5000`
-- `synchronous = NORMAL`
-- optional `temp_store = MEMORY`
+2. open PostgreSQL
+3. run embedded Goose migrations
+4. ensure default singleton settings row exists
+5. initialize stores, services, task runtime, and HTTP runtime
 
 ## Migrations
 
@@ -33,18 +23,16 @@ Required pragmas:
 ## `sqlc` And Store Boundaries
 
 - `sqlc` is used from Phase 1, configured via `sqlc.yaml` at the project root.
-- SQLite is the only concrete implementation now; the architecture has explicit seams for adding other databases.
-- The `sqlc.yaml` has one `sql:` block per database engine. Adding PostgreSQL means adding a new block and a new `store/postgres/` sub-package.
+- PostgreSQL is the only concrete implementation.
+- The `sqlc.yaml` has one `sql:` block for the Postgres store.
 
 **Query organisation:**
 
 ```
-internal/store/sqlite/queries/    ← .sql files (SQLite syntax — ?, ON CONFLICT DO NOTHING)
-internal/store/sqlite/sqlcgen/    ← sqlc-generated Go code (DO NOT EDIT)
-internal/store/sqlite/migrations/ ← goose migrations (SQLite DDL — TEXT timestamps, etc.)
+internal/store/postgres/queries/    ← .sql files (PostgreSQL syntax — $1, RETURNING)
+internal/store/postgres/sqlcgen/    ← sqlc-generated Go code (DO NOT EDIT)
+internal/store/postgres/migrations/ ← goose migrations (PostgreSQL DDL — TIMESTAMPTZ, etc.)
 ```
-
-Future PostgreSQL queries go in `internal/store/postgres/queries/` with PostgreSQL syntax (`$1`, `RETURNING`, `TIMESTAMPTZ`), separate generated code, and separate migrations.
 
 **Consumer-defined interfaces (no monolithic Store):**
 
@@ -53,7 +41,7 @@ Each service declares the exact data access it needs:
 - `internal/workers/store.go` — `workers.Store` interface
 - `internal/domain/settings.go` — `domain.SettingsReader` interface
 
-The concrete `sqlite.Store` (in `internal/store/sqlite/`) implements all three. `internal/app/app.go` is the only place that imports the concrete store; it passes it to each service typed as that service's narrow interface.
+The concrete `store.Store` implements all three. `internal/app/app.go` is the only place that imports the concrete store; it passes it to each service typed as that service's narrow interface.
 
 **WithTx closure pattern:**
 
@@ -70,7 +58,7 @@ err := s.WithTx(ctx, func(tx *Store) error {
 
 **Wrapper translation:**
 
-Generated sqlcgen structs are internal to the `store/sqlite/` package. Wrapper methods in `sqlite/users.go`, `sqlite/sessions.go` etc. translate between sqlcgen row types and the canonical domain types in `internal/domain/`. No code outside `store/sqlite/` ever imports `sqlcgen`.
+Generated sqlcgen structs are internal to the `store/` package. Wrapper methods translate between sqlcgen row types and the canonical domain types in `internal/domain/`. No code outside `store/` imports `sqlcgen`.
 
 ## IDs, Time, And Internal Types
 

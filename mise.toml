@@ -10,15 +10,15 @@ node = "24.15.0"
 dev = "go generate ./internal/errors ./internal/i18n && sqlc generate && go run ./cmd/dinchy"
 build = "go generate ./internal/errors ./internal/i18n && sqlc generate && go build -o dinchy ./cmd/dinchy"
 test = "go generate ./internal/errors ./internal/i18n && sqlc generate && go test ./..."
-# The race detector requires cgo; the app itself stays cgo-free (pure-Go sqlite),
-# so race is an opt-in task for environments that have a C toolchain.
+# The race detector requires cgo; the app itself stays cgo-free, so race is an
+# opt-in task for environments that have a C toolchain.
 "test:race" = "go generate ./internal/errors ./internal/i18n && sqlc generate && CGO_ENABLED=1 go test -race ./..."
 "test:cover" = "go generate ./internal/errors ./internal/i18n && sqlc generate && go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
 lint = "golangci-lint run"
 fmt = "golangci-lint fmt"
 generate = "go generate ./internal/errors ./internal/i18n && sqlc generate"
-"db:migrate" = "goose -dir internal/store/sqlite/migrations sqlite3 dinchy.db up"
-"db:status" = "goose -dir internal/store/sqlite/migrations sqlite3 dinchy.db status"
+"db:migrate" = 'goose -dir internal/store/postgres/migrations postgres "$DINCHY_POSTGRES_DSN" up'
+"db:status" = 'goose -dir internal/store/postgres/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }
 "web:dev" = { dir = "web", run = "bun run dev" }
 "web:install" = { dir = "web", run = "bun install" }

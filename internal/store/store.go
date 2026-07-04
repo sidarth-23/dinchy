@@ -1,37 +1,61 @@
-// Package store selects the concrete persistence backend.
+// Package store is the postgres-backed persistence implementation.
 package store
 
 import (
 	"context"
-	"fmt"
-	"io"
+	"database/sql"
+	"embed"
+	"errors"
 
-	"github.com/sidarth-23/dinchy/internal/config"
-	"github.com/sidarth-23/dinchy/internal/features/audit"
-	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/store/postgres"
-	"github.com/sidarth-23/dinchy/internal/store/sqlite"
-	"github.com/sidarth-23/dinchy/internal/workers"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
+
+	"github.com/sidarth-23/dinchy/internal/store/core"
+	"github.com/sidarth-23/dinchy/internal/store/postgres/sqlcgen"
 )
 
-// Store is the application-facing persistence contract.
-type Store interface {
-	auth.Store
-	audit.Store
-	workers.Store
-	auth.SettingsReader
-	io.Closer
-	PingContext(ctx context.Context) error
+//go:embed postgres/migrations/*.sql
+var migrationsFS embed.FS
+
+// Store is the PostgreSQL-backed persistence implementation.
+type Store struct {
+	*core.Store
 }
 
-// Open returns the configured backend implementation.
-func Open(ctx context.Context, cfg config.Config) (Store, error) {
-	switch cfg.Database.DBBackend {
-	case "", config.DBBackendSQLite:
-		return sqlite.Open(ctx, cfg.Database.DBPath)
-	case config.DBBackendPostgres:
-		return postgres.Open(ctx, cfg.Database.PostgresDSN)
-	default:
-		return nil, fmt.Errorf("unsupported database backend %q", cfg.Database.DBBackend)
+// Open creates a PostgreSQL store, runs migrations, and seeds default settings.
+func Open(ctx context.Context, dsn string) (*Store, error) {
+	if err := goose.SetDialect("postgres"); err != nil {
+		return nil, err
 	}
+	goose.SetBaseFS(migrationsFS)
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+	if err := goose.Up(db, "postgres/migrations"); err != nil {
+		return nil, closeWithErr(db, err)
+	}
+
+	s := &Store{Store: core.New(db, "postgres", func(dbtx core.DBTX) core.Queries {
+		return newQueries(sqlcgen.New(dbtx))
+	})}
+	if err := s.EnsureDefaultSettings(ctx); err != nil {
+		return nil, closeWithErr(db, err)
+	}
+	return s, nil
+}
+
+// WithTx wraps the shared transaction helper so callers keep the concrete Store type.
+func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
+	return s.Store.WithTx(ctx, func(tx *core.Store) error {
+		return fn(&Store{Store: tx})
+	})
+}
+
+func closeWithErr(c interface{ Close() error }, cause error) error {
+	if closeErr := c.Close(); closeErr != nil {
+		return errors.Join(cause, closeErr)
+	}
+	return cause
 }

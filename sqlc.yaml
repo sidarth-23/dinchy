@@ -1,15 +1,5 @@
 version: "2"
 sql:
-  - engine: "sqlite"
-    queries: "internal/store/sqlite/queries"
-    schema: "internal/store/sqlite/migrations"
-    gen:
-      go:
-        package: "sqlcgen"
-        out: "internal/store/sqlite/sqlcgen"
-        emit_json_tags: false
-        emit_exact_table_names: false
-        emit_empty_slices: true
   - engine: "postgresql"
     queries: "internal/store/postgres/queries"
     schema: "internal/store/postgres/migrations"

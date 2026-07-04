@@ -6,13 +6,13 @@
 
 ## Phase 1: Foundation
 
-**Goal:** Runnable skeleton — Go backend serves a React frontend, SQLite is set up, basic auth works.
+**Goal:** Runnable skeleton - Go backend serves a React frontend, Postgres is set up, basic auth works.
 
 **Backend:**
 - Layered Go project structure (`cmd/dinchy/`, `internal/{app,config,domain,auth,tasks,store,server,platform}`)
 - Chi + Huma API with typed operations, OpenAPI metadata, input validation, and structured error responses
-- SQLite setup with WAL mode (`modernc.org/sqlite`), sqlc-generated queries (`sqlc.yaml`)
-- Database migrations (`pressly/goose`) per database backend — multi-database seam: `store/sqlite/` now, `store/postgres/` ready to add
+- PostgreSQL-backed store (`pgx`, `pressly/goose`), sqlc-generated queries (`sqlc.yaml`)
+- Database migrations (`pressly/goose`) for the single Postgres store implementation
 - Consumer-defined store interfaces per domain (`auth.Store`, `workers.Store`, `domain.SettingsReader`)
 - Initial schema: users, sessions, app_settings, auth_audit_logs, scheduled_tasks
 - Chi middleware stack: request ID, real IP, CORS, CSRF double-submit, session validation, security headers, HTTPS detection
