@@ -19,6 +19,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/store"
 	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
@@ -103,7 +104,7 @@ func (a *App) Start() error {
 	if auditSvc.Enabled() {
 		registeredWorkers = append(registeredWorkers, audit.NewWorker(auditSvc, a.cfg.Audit.WorkerIntervalSeconds))
 	}
-	a.workers = workers.NewRuntime(queries, clk, a.errCh, registeredWorkers...)
+	a.workers = workers.NewRuntime(queries, clk, a.logger, a.errCh, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageStartTaskRuntime),
@@ -112,6 +113,11 @@ func (a *App) Start() error {
 
 	go func() { a.errCh <- a.public.ListenAndServe() }()
 	go func() { a.errCh <- a.internal.ListenAndServe() }()
+	logging.Info(ctx, a.logger, "Application started",
+		slog.String("public_addr", a.cfg.Addr),
+		slog.String("internal_addr", a.cfg.InternalAddr),
+		slog.Bool("dev_mode", a.cfg.DevMode),
+	)
 	return nil
 }
 
@@ -120,6 +126,7 @@ func (a *App) Start() error {
 // the database.
 func (a *App) Shutdown(ctx context.Context) error {
 	var shutdownErr error
+	logging.Info(ctx, a.logger, "Application stopping")
 	if a.workers != nil {
 		a.workers.Stop()
 	}
@@ -142,6 +149,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 		if err := a.closer.Close(); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
+	}
+	if shutdownErr == nil {
+		logging.Info(ctx, a.logger, "Application stopped")
 	}
 	return shutdownErr
 }

@@ -6,12 +6,13 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 // EnsureDefaultSettings seeds singleton settings if they are missing.
 func (s *Store) EnsureDefaultSettings(ctx context.Context) error {
 	now := time.Now().UTC()
-	if err := s.Query().EnsureDefaultSettings(ctx, now); err != nil {
+	if err := s.Query().EnsureDefaultSettings(ctx, sqlcgen.EnsureDefaultSettingsParams{CreatedAt: now, UpdatedAt: now}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationEnsureDefaultSettings))
 	}
 	return nil

@@ -7,54 +7,20 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/audit"
-	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/workers"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
-// Queries is the backend-neutral query contract implemented by the sqlc adapter.
+// Queries is the backend-neutral query contract used by the store package.
 type Queries interface {
 	CountUsers(ctx context.Context) (int64, error)
-	InsertUser(ctx context.Context, arg auth.InsertUserParams) error
-	InsertAccount(ctx context.Context, arg auth.InsertAccountParams) error
-	InsertOrganisation(ctx context.Context, arg auth.InsertOrganisationParams) error
-	InsertOrganisationMember(ctx context.Context, arg auth.InsertOrganisationMemberParams) error
-	FindUserByEmail(ctx context.Context, email string) (auth.UserRow, error)
-	FindPasswordAccountByUserID(ctx context.Context, userID string) (auth.AccountRow, error)
-	FindUserByProviderAccount(ctx context.Context, provider, providerAccountID string) (auth.UserRow, error)
-	ListOrganisationsForUser(ctx context.Context, userID string) ([]auth.OrganisationRow, error)
-	FindOrganisationBySlugForUser(ctx context.Context, userID, slug string) (auth.OrganisationRow, error)
-	FindOrganisationByIDForUser(ctx context.Context, userID, organisationID string) (auth.OrganisationRow, error)
-	UpdateUserPasswordHash(ctx context.Context, arg auth.UpdateUserPasswordHashParams) error
-	InsertVerificationToken(ctx context.Context, arg auth.InsertVerificationTokenParams) error
-	FindVerificationToken(ctx context.Context, tokenHash, purpose string) (auth.VerificationTokenRow, error)
-	ConsumeVerificationToken(ctx context.Context, arg auth.ConsumeVerificationTokenParams) error
-	SaveTwoFactor(ctx context.Context, arg auth.SaveTwoFactorParams) error
-	FindTwoFactorByUserID(ctx context.Context, userID string) (auth.TwoFactor, error)
-	ConfirmTwoFactor(ctx context.Context, arg auth.UseTwoFactorParams) error
-	MarkTwoFactorUsed(ctx context.Context, arg auth.UseTwoFactorParams) error
-	DisableTwoFactor(ctx context.Context, userID string) error
-	ListSSOProviderSettings(ctx context.Context) ([]auth.SSOProviderSettingRow, error)
-	UpsertSSOProviderSetting(ctx context.Context, arg auth.UpsertSSOProviderSettingParams) error
-	InsertSession(ctx context.Context, arg auth.InsertSessionParams) error
-	GetSessionByTokenHash(ctx context.Context, tokenHash string) (auth.SessionRow, error)
-	RevokeSessionByTokenHash(ctx context.Context, arg auth.RevokeSessionParams) error
-	RevokeSessionsForUser(ctx context.Context, arg auth.RevokeSessionsForUserParams) error
-	DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time.Time) (int64, error)
-	EnsureDefaultSettings(ctx context.Context, now time.Time) error
+	EnsureDefaultSettings(ctx context.Context, arg sqlcgen.EnsureDefaultSettingsParams) error
 	GetInstanceName(ctx context.Context) (string, error)
-	EnsureTask(ctx context.Context, arg workers.TaskParams) error
-	ClaimTask(ctx context.Context, arg workers.ClaimTaskParams) (int64, error)
-	FinishTask(ctx context.Context, arg workers.FinishTaskParams) error
-	InsertAuditLog(ctx context.Context, arg audit.InsertAuditLogParams) error
-	ListAuditLogs(ctx context.Context, arg audit.ListAuditLogsParams) ([]audit.AuditLogRow, error)
 }
 
 // DBTX is the common interface satisfied by both *sql.DB and *sql.Tx.
@@ -102,6 +68,10 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 // New opens a root store backed by db.
 func New(db *sql.DB, name string, newQ func(DBTX) Queries) *Store {
 	return &Store{db: db, q: newQ(db), newQ: newQ, name: name}
+}
+
+func newQueries(db DBTX) Queries {
+	return sqlcgen.New(db)
 }
 
 func newTxStore(tx *sql.Tx, name string, newQ func(DBTX) Queries) *Store {

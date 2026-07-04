@@ -6,13 +6,18 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/sidarth-23/dinchy/internal/config"
 )
 
-func New(cfg config.LoggingConfig, otel slog.Handler) *slog.Logger {
+var revealRedacted atomic.Bool
+
+func New(cfg config.LoggingConfig, revealSensitive bool, otel slog.Handler) *slog.Logger {
+	SetRedactionVisible(revealSensitive)
+
 	level := slog.LevelInfo
 	switch cfg.Level {
 	case config.LogLevelDebug:
@@ -39,6 +44,16 @@ func New(cfg config.LoggingConfig, otel slog.Handler) *slog.Logger {
 
 func Default() *slog.Logger {
 	return slog.Default()
+}
+
+// SetRedactionVisible controls whether redacted log values render their
+// underlying value instead of a placeholder.
+func SetRedactionVisible(visible bool) {
+	revealRedacted.Store(visible)
+}
+
+func redactionVisible() bool {
+	return revealRedacted.Load()
 }
 
 func CloseAll(ctx context.Context, closers ...io.Closer) error {

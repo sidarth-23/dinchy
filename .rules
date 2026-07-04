@@ -62,6 +62,36 @@
 * Never return `err` by itself when a richer error can be returned.
   * Preserve the original error as context when it adds value, but add the missing details around it.
 
+## Logging
+
+* Log each application event once, at the boundary that owns it.
+  * Services and helpers return context-rich results.
+  * Callers log only when they are the first layer that can observe the full outcome.
+  * Do not log the same event in both a callee and its caller.
+* Use `Info` for completed milestones and state transitions.
+  * Examples: application started, worker registered, worker run completed, session cleanup finished.
+* Use `Warn` for recoverable anomalies and fallbacks that do not fail the operation.
+  * Examples: dev proxy URL is invalid, no workers are registered, a non-fatal subsystem is unavailable.
+* Keep application log messages consistent.
+  * Use sentence case.
+  * Use present tense for starting or stopping actions.
+  * Use past tense for completed outcomes.
+  * Capitalize acronyms such as `HTTP`, `URL`, and `ID`.
+  * Do not end log messages with a period.
+  * Keep messages short, factual, and stable.
+* Prefer structured fields over repeating free-form text.
+  * Use stable names such as `component`, `operation`, `task`, `status`, `duration`, `request_id`, `trace_id`, and `span_id`.
+  * Include only fields the caller cannot already infer.
+* Keep error logging boundary-only.
+  * Lower layers annotate and return structured `AppError` values.
+  * The owning boundary logs internal and fatal failures once.
+  * Expected client and validation failures are returned, not logged again.
+  * `main` logs startup and shutdown failures when they escape the application boundary.
+  * HTTP handlers log only the final 5xx failure at the transport boundary.
+* Treat warnings as recoverable signals, not soft errors.
+  * A warning should explain what was skipped, degraded, or fell back.
+  * If the condition should fail the request or process, use an error instead of `Warn`.
+
 ## Project conventions
 
 * Feature packages under `internal/features/*` use the `*_*.go` naming pattern on purpose.

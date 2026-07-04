@@ -11,7 +11,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/app"
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
-	"github.com/sidarth-23/dinchy/internal/platform/telemetry"
 )
 
 func main() {
@@ -21,29 +20,29 @@ func main() {
 func run() int {
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Default().Error("load configuration", slog.Any("error", err))
+		slog.Default().Error("Load configuration", slog.Any("error", err))
 		return 1
 	}
-	telemetryRuntime, err := telemetry.New(context.Background(), cfg.Telemetry)
+	telemetryRuntime, err := logging.NewTelemetry(context.Background(), cfg.Telemetry)
 	if err != nil {
-		slog.Default().Error("initialize telemetry", slog.Any("error", err))
+		slog.Default().Error("Initialize telemetry", slog.Any("error", err))
 		return 1
 	}
 	defer func() {
 		if err := telemetryRuntime.Close(); err != nil {
-			slog.Default().Error("shutdown telemetry", slog.Any("error", err))
+			slog.Default().Error("Shut down telemetry", slog.Any("error", err))
 		}
 	}()
 
-	logger := logging.New(cfg.Logging, telemetryRuntime.LogHandler)
+	logger := logging.New(cfg.Logging, cfg.DevMode, telemetryRuntime.LogHandler)
 	slog.SetDefault(logger)
 	a, err := app.NewApp(cfg, logger)
 	if err != nil {
-		logger.Error("create app", slog.Any("error", err))
+		logging.Error(context.Background(), logger, "Create app", err)
 		return 1
 	}
 	if err := a.Start(); err != nil {
-		logger.Error("start app", slog.Any("error", err))
+		logging.Error(context.Background(), logger, "Start app", err)
 		return 1
 	}
 
@@ -58,12 +57,12 @@ func run() int {
 	select {
 	case err := <-waitCh:
 		if err != nil {
-			logger.Error("server stopped", slog.Any("error", err))
+			logging.Error(context.Background(), logger, "Server stopped", err)
 			return 1
 		}
 	case <-ctx.Done():
 		if err := a.Shutdown(context.Background()); err != nil {
-			logger.Error("shutdown app", slog.Any("error", err))
+			logging.Error(context.Background(), logger, "Shut down app", err)
 			return 1
 		}
 	}

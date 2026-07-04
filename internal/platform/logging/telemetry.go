@@ -1,5 +1,5 @@
-// Package telemetry configures OpenTelemetry logs and traces.
-package telemetry
+// Package logging configures structured application logging and telemetry.
+package logging
 
 import (
 	"context"
@@ -20,14 +20,16 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 )
 
-type Runtime struct {
+// TelemetryRuntime owns the OpenTelemetry log and trace exporters.
+type TelemetryRuntime struct {
 	LogHandler slog.Handler
 	closers    []io.Closer
 }
 
-func New(ctx context.Context, cfg config.TelemetryConfig) (*Runtime, error) {
+// NewTelemetry creates an OpenTelemetry runtime for logs and traces.
+func NewTelemetry(ctx context.Context, cfg config.TelemetryConfig) (*TelemetryRuntime, error) {
 	if !cfg.Enabled {
-		return &Runtime{}, nil
+		return &TelemetryRuntime{}, nil
 	}
 
 	res, err := resource.Merge(resource.Default(), resource.NewWithAttributes(
@@ -80,7 +82,7 @@ func New(ctx context.Context, cfg config.TelemetryConfig) (*Runtime, error) {
 	)
 	global.SetLoggerProvider(logProvider)
 
-	return &Runtime{
+	return &TelemetryRuntime{
 		LogHandler: otelslog.NewHandler("github.com/sidarth-23/dinchy", otelslog.WithLoggerProvider(logProvider)),
 		closers: []io.Closer{
 			shutdownCloser{fn: traceProvider.Shutdown},
@@ -89,7 +91,8 @@ func New(ctx context.Context, cfg config.TelemetryConfig) (*Runtime, error) {
 	}, nil
 }
 
-func (r *Runtime) Close() error {
+// Close shuts down telemetry exporters and providers.
+func (r *TelemetryRuntime) Close() error {
 	if r == nil {
 		return nil
 	}

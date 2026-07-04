@@ -83,7 +83,7 @@ func TestRuntime_RegisterWorker_EnsuresTask(t *testing.T) {
 		UpdatedAt:               fixedTime,
 	}).Return(nil)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
+	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
 	require.NoError(t, runtime.registerWorker(context.Background(), worker))
 }
 
@@ -96,7 +96,7 @@ func TestRuntime_RegisterWorker_AnnotatesEnsureError(t *testing.T) {
 	store.EXPECT().EnsureTask(gomock.Any(), gomock.Any()).
 		Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
+	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
 	err := runtime.registerWorker(context.Background(), worker)
 	require.Error(t, err)
 
@@ -124,7 +124,7 @@ func TestRuntime_RunWorker_SkipsExecuteWhenNotClaimed(t *testing.T) {
 		Return(driver.RowsAffected(0), nil)
 	// No Execute, no FinishTask expected.
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
+	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
 	require.NoError(t, runtime.runWorker(context.Background(), worker))
 	assert.Zero(t, worker.executed, "Execute must not run when the task was not claimed")
 }
@@ -145,7 +145,7 @@ func TestRuntime_RunWorker_SuccessFinishesTask(t *testing.T) {
 			Return(nil),
 	)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
+	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
 	require.NoError(t, runtime.runWorker(context.Background(), worker))
 	assert.Equal(t, 1, worker.executed)
 }
@@ -167,7 +167,7 @@ func TestRuntime_RunWorker_FailureRecordsAndAnnotates(t *testing.T) {
 			Return(nil),
 	)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
+	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
 	err := runtime.runWorker(context.Background(), worker)
 	require.Error(t, err)
 	require.ErrorIs(t, err, execErr, "the execution error must be preserved as the cause")
@@ -193,7 +193,7 @@ func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T)
 			Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError))),
 	)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, worker)
+	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
 	err := runtime.runWorker(context.Background(), worker)
 	require.Error(t, err)
 
@@ -214,7 +214,7 @@ func TestRuntime_RunAllWorkers_ReportsErrorToChannel(t *testing.T) {
 		Return(driver.RowsAffected(0), apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
 
 	errCh := make(chan error, 1)
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, errCh, worker)
+	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, errCh, worker)
 	runtime.runAllWorkers(context.Background())
 
 	select {

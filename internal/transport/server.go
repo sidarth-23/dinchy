@@ -2,6 +2,7 @@
 package transport
 
 import (
+	"context"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -34,6 +36,13 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 		return apperrors.ResponseFor(language.English, i18n.Default, status, errs...)
 	}
 	huma.NewErrorWithContext = func(ctx huma.Context, status int, _ string, errs ...error) huma.StatusError {
+		for _, err := range errs {
+			if err == nil {
+				continue
+			}
+			logging.HTTPError(ctx.Context(), logger, status, "Request failed", err)
+			break
+		}
 		return apperrors.ResponseFor(support.LangFrom(ctx.Context()), i18n.Default, status, errs...)
 	}
 
@@ -64,7 +73,10 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 	if devMode {
 		target, err := url.Parse(devProxyURL)
 		if err != nil {
-			logger.Error("invalid dev proxy url", slog.String("url", devProxyURL), slog.Any("error", err))
+			logging.Warn(context.Background(), logger, "Invalid dev proxy URL",
+				slog.String("url", devProxyURL),
+				slog.Any("error", err),
+			)
 			r.Handle("/*", http.NotFoundHandler())
 		} else {
 			proxy := httputil.NewSingleHostReverseProxy(target)

@@ -4,10 +4,12 @@ package workers
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
+	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
@@ -15,19 +17,26 @@ import (
 type Runtime struct {
 	store   Store
 	clock   clock.Clock
+	logger  *slog.Logger
 	owner   string
 	cancel  context.CancelFunc
 	errCh   chan<- error
 	workers []Worker
 }
 
-// NewRuntime creates a worker runtime with the given store, clock, and registered workers.
-func NewRuntime(s Store, clk clock.Clock, errCh chan<- error, registeredWorkers ...Worker) *Runtime {
-	return &Runtime{store: s, clock: clk, owner: "local", errCh: errCh, workers: registeredWorkers}
+// NewRuntime creates a worker runtime with the given store, clock, logger, and registered workers.
+func NewRuntime(s Store, clk clock.Clock, logger *slog.Logger, errCh chan<- error, registeredWorkers ...Worker) *Runtime {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Runtime{store: s, clock: clk, logger: logger, owner: "local", errCh: errCh, workers: registeredWorkers}
 }
 
 // Start registers all workers and begins the background ticker loop.
 func (r *Runtime) Start(ctx context.Context) error {
+	if len(r.workers) == 0 {
+		logging.Warn(ctx, r.logger, "No workers registered")
+	}
 	for _, worker := range r.workers {
 		if err := r.registerWorker(ctx, worker); err != nil {
 			return err
@@ -36,6 +45,9 @@ func (r *Runtime) Start(ctx context.Context) error {
 	cctx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
 	go r.loop(cctx)
+	logging.Info(ctx, r.logger, "Worker runtime started",
+		slog.Int("worker_count", len(r.workers)),
+	)
 	return nil
 }
 
@@ -44,6 +56,7 @@ func (r *Runtime) Stop() {
 	if r.cancel != nil {
 		r.cancel()
 	}
+	logging.Info(context.Background(), r.logger, "Worker runtime stopping")
 }
 
 func (r *Runtime) loop(ctx context.Context) {
@@ -92,6 +105,10 @@ func (r *Runtime) registerWorker(ctx context.Context, worker Worker) error {
 			apperrors.WithStage(apperrors.StageEnsureTask),
 		)
 	}
+	logging.Info(ctx, r.logger, "Registered worker",
+		slog.String("task", worker.TaskName()),
+		slog.Int64("interval_seconds", worker.IntervalSeconds()),
+	)
 	return nil
 }
 
@@ -156,6 +173,12 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
 			apperrors.WithStage(apperrors.StageFinishSuccess),
 			apperrors.WithDeletedCount(apperrors.DeletedCount(outcome.DeletedCount)),
+		)
+	}
+	if outcome.DeletedCount > 0 {
+		logging.Info(ctx, r.logger, "Completed worker run",
+			slog.String("task", worker.TaskName()),
+			slog.Int64("affected_count", outcome.DeletedCount),
 		)
 	}
 	return nil

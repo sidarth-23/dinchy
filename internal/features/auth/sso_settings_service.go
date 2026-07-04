@@ -73,13 +73,13 @@ func (s *Service) updateSSOProviderSetting(ctx context.Context, providerID strin
 		return SSOProviderSettingOut{}, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOCacheRequired))
 	}
 	if err := s.store.UpsertSSOProviderSetting(ctx, sqlcgen.UpsertSSOProviderSettingParams{
-		ProviderID:    providerID,
-		ClientID:      sql.NullString{String: clientID, Valid: clientIDValid},
-		ClientSecret:  sql.NullString{String: secret, Valid: secretValid},
-		CallbackUrl:   sql.NullString{String: callbackURL, Valid: callbackURLValid},
-		Enabled:       enabled,
-		CreatedAt:     s.clock.Now().UTC(),
-		UpdatedAt:     s.clock.Now().UTC(),
+		ProviderID:   providerID,
+		ClientID:     sql.NullString{String: clientID, Valid: clientIDValid},
+		ClientSecret: sql.NullString{String: secret, Valid: secretValid},
+		CallbackUrl:  sql.NullString{String: callbackURL, Valid: callbackURLValid},
+		Enabled:      enabled,
+		CreatedAt:    s.clock.Now().UTC(),
+		UpdatedAt:    s.clock.Now().UTC(),
 	}); err != nil {
 		return SSOProviderSettingOut{}, err
 	}
