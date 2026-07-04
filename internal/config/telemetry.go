@@ -4,10 +4,6 @@ import (
 	"strings"
 )
 
-const (
-	DefaultTelemetryServiceName = "dinchy"
-)
-
 type TelemetryConfig struct {
 	// Enabled turns on OpenTelemetry trace and log exporters.
 	Enabled bool `env:"DINCHY_OTEL_ENABLED"`
@@ -24,12 +20,12 @@ type TelemetryConfig struct {
 	// Insecure disables TLS for the OTLP gRPC connection.
 	Insecure bool `env:"DINCHY_OTEL_EXPORTER_OTLP_INSECURE"`
 	// SampleRatio is the parent-based trace sampling ratio from 0 to 1.
-	SampleRatio float64 `env:"DINCHY_OTEL_TRACES_SAMPLE_RATIO"`
+	SampleRatio float64 `env:"DINCHY_OTEL_TRACES_SAMPLE_RATIO" validate:"gte=0,lte=1"`
 }
 
 func DefaultTelemetry() TelemetryConfig {
 	return TelemetryConfig{
-		ServiceName: DefaultTelemetryServiceName,
+		ServiceName: "dinchy",
 		SampleRatio: 1,
 	}
 }

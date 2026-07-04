@@ -1,6 +1,6 @@
 package config
 
-import "strings"
+import "github.com/sidarth-23/dinchy/internal/platform/transform"
 
 type SSOProviderID string
 
@@ -13,6 +13,12 @@ const (
 type SSOProviderDefinition struct {
 	ID   SSOProviderID
 	Name string
+}
+
+var supportedSSOProviderDefinitions = []SSOProviderDefinition{
+	{ID: SSOProviderGoogle, Name: "Google"},
+	{ID: SSOProviderGitHub, Name: "GitHub"},
+	{ID: SSOProviderGitLab, Name: "GitLab"},
 }
 
 type SSOProviderConfig struct {
@@ -52,11 +58,7 @@ type SSOEnvConfig struct {
 }
 
 func SupportedSSOProviders() []SSOProviderDefinition {
-	return []SSOProviderDefinition{
-		{ID: SSOProviderGoogle, Name: "Google"},
-		{ID: SSOProviderGitHub, Name: "GitHub"},
-		{ID: SSOProviderGitLab, Name: "GitLab"},
-	}
+	return append([]SSOProviderDefinition(nil), supportedSSOProviderDefinitions...)
 }
 
 func IsSupportedSSOProvider(providerID string) bool {
@@ -69,16 +71,28 @@ func IsSupportedSSOProvider(providerID string) bool {
 }
 
 func configuredSSOProviders(cfg Config) []SSOProviderConfig {
-	candidates := []SSOProviderConfig{
-		{ID: SSOProviderGoogle, Name: "Google", ClientID: cfg.SSO.GoogleClientID, Secret: cfg.SSO.GoogleSecret, CallbackURL: cfg.SSO.GoogleCallbackURL},
-		{ID: SSOProviderGitHub, Name: "GitHub", ClientID: cfg.SSO.GitHubClientID, Secret: cfg.SSO.GitHubSecret, CallbackURL: cfg.SSO.GitHubCallbackURL},
-		{ID: SSOProviderGitLab, Name: "GitLab", ClientID: cfg.SSO.GitLabClientID, Secret: cfg.SSO.GitLabSecret, CallbackURL: cfg.SSO.GitLabCallbackURL},
-	}
-	providers := make([]SSOProviderConfig, 0, len(candidates))
-	for _, provider := range candidates {
-		provider.ClientID = strings.TrimSpace(provider.ClientID)
-		provider.Secret = strings.TrimSpace(provider.Secret)
-		provider.CallbackURL = strings.TrimSpace(provider.CallbackURL)
+	providers := make([]SSOProviderConfig, 0, len(supportedSSOProviderDefinitions))
+	for _, definition := range supportedSSOProviderDefinitions {
+		var provider SSOProviderConfig
+		provider.ID = definition.ID
+		provider.Name = definition.Name
+		switch definition.ID {
+		case SSOProviderGoogle:
+			provider.ClientID = cfg.SSO.GoogleClientID
+			provider.Secret = cfg.SSO.GoogleSecret
+			provider.CallbackURL = cfg.SSO.GoogleCallbackURL
+		case SSOProviderGitHub:
+			provider.ClientID = cfg.SSO.GitHubClientID
+			provider.Secret = cfg.SSO.GitHubSecret
+			provider.CallbackURL = cfg.SSO.GitHubCallbackURL
+		case SSOProviderGitLab:
+			provider.ClientID = cfg.SSO.GitLabClientID
+			provider.Secret = cfg.SSO.GitLabSecret
+			provider.CallbackURL = cfg.SSO.GitLabCallbackURL
+		}
+		provider.ClientID = transform.Trim(provider.ClientID)
+		provider.Secret = transform.Trim(provider.Secret)
+		provider.CallbackURL = transform.Trim(provider.CallbackURL)
 		provider.Enabled = provider.ClientID != "" && provider.Secret != "" && provider.CallbackURL != ""
 		if provider.ClientID != "" || provider.Secret != "" || provider.CallbackURL != "" {
 			providers = append(providers, provider)

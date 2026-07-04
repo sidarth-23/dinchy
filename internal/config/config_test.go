@@ -18,7 +18,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, ":8080", cfg.Addr)
 	assert.Equal(t, ":9090", cfg.InternalAddr)
 	assert.Equal(t, config.DBBackendSQLite, cfg.Database.DBBackend)
-	assert.Equal(t, config.DefaultSQLiteDBPath, cfg.Database.DBPath)
+	assert.Equal(t, "./dinchy.db", cfg.Database.DBPath)
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 	assert.False(t, cfg.DevMode)
 	assert.False(t, cfg.RequireHTTPSForAuth)
@@ -28,10 +28,10 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 7*24*time.Hour, cfg.Auth.SessionMaxLifetime)
 	assert.Equal(t, time.Hour, cfg.Auth.PasswordResetLifetime)
 	assert.Empty(t, cfg.Cache.Backend)
-	assert.Equal(t, config.DefaultCacheAddr, cfg.Cache.Addr)
-	assert.Equal(t, config.DefaultCacheDatabase, cfg.Cache.Database)
-	assert.Equal(t, config.DefaultCacheKeyPrefix, cfg.Cache.KeyPrefix)
-	assert.Equal(t, config.DefaultSMTPPort, cfg.SMTP.Port)
+	assert.Equal(t, "127.0.0.1:6379", cfg.Cache.Addr)
+	assert.Equal(t, 0, cfg.Cache.Database)
+	assert.Equal(t, "dinchy", cfg.Cache.KeyPrefix)
+	assert.Equal(t, uint16(587), cfg.SMTP.Port)
 	assert.Empty(t, cfg.SSOProviders)
 	assert.False(t, cfg.SMTP.Enabled())
 }
@@ -69,7 +69,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, config.SSOProviderGitHub, cfg.SSOProviders[0].ID)
 	assert.Equal(t, "custom_session", cfg.Auth.SessionCookieName)
 	assert.Equal(t, 45*time.Minute, cfg.Auth.SessionIdleTimeout)
-	assert.Equal(t, "redis", cfg.Cache.Backend)
+	assert.Equal(t, config.CacheBackendRedis, cfg.Cache.Backend)
 	assert.Equal(t, "127.0.0.1:6379", cfg.Cache.Addr)
 	assert.Equal(t, 2, cfg.Cache.Database)
 	assert.Equal(t, "dinchy-test", cfg.Cache.KeyPrefix)
@@ -107,6 +107,49 @@ func TestLoad_DevMode_DefaultProxyURLPassesValidation(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 }
 
+func TestLoad_InvalidDatabaseBackend_Fails(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_DB_BACKEND", "oracle")
+
+	_, err := config.Load()
+	require.Error(t, err)
+}
+
+func TestLoad_InvalidCacheBackend_Fails(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_CACHE_BACKEND", "memcached")
+
+	_, err := config.Load()
+	require.Error(t, err)
+}
+
+func TestLoad_InvalidLoggingConfig_Fails(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_LOG_LEVEL", "verbose")
+
+	_, err := config.Load()
+	require.Error(t, err)
+}
+
+func TestLoad_AuditEnabledRequiresRedisCache(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_AUDIT_ENABLED", "true")
+
+	_, err := config.Load()
+	require.Error(t, err)
+}
+
+func TestLoad_AuditEnabledRequiresPositiveBatchSize(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_AUDIT_ENABLED", "true")
+	t.Setenv("DINCHY_CACHE_BACKEND", "redis")
+	t.Setenv("DINCHY_CACHE_ADDR", "127.0.0.1:6379")
+	t.Setenv("DINCHY_AUDIT_BATCH_SIZE", "0")
+
+	_, err := config.Load()
+	require.Error(t, err)
+}
+
 func TestLoad_MissingExplicitEnvFile_Fails(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_ENV_FILE", "/tmp/definitely-does-not-exist-dinchy.env")
@@ -132,7 +175,6 @@ func clearDinchyEnv(t *testing.T) {
 		"DINCHY_DEV", "DINCHY_DEV_PROXY_URL", "DINCHY_REQUIRE_HTTPS_FOR_AUTH",
 		"DINCHY_GOOGLE_CLIENT_ID", "DINCHY_GOOGLE_CLIENT_SECRET", "DINCHY_GOOGLE_CALLBACK_URL",
 		"DINCHY_GITHUB_CLIENT_ID", "DINCHY_GITHUB_CLIENT_SECRET", "DINCHY_GITHUB_CALLBACK_URL",
-		"DINCHY_MICROSOFT_CLIENT_ID", "DINCHY_MICROSOFT_CLIENT_SECRET", "DINCHY_MICROSOFT_CALLBACK_URL",
 		"DINCHY_GITLAB_CLIENT_ID", "DINCHY_GITLAB_CLIENT_SECRET", "DINCHY_GITLAB_CALLBACK_URL",
 		"DINCHY_AUTH_SESSION_COOKIE_NAME", "DINCHY_AUTH_SSO_STATE_COOKIE_NAME",
 		"DINCHY_AUTH_SESSION_IDLE_TIMEOUT", "DINCHY_AUTH_SESSION_MAX_LIFETIME",

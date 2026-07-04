@@ -3,7 +3,6 @@ package email
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/wneessen/go-mail"
 
@@ -44,9 +43,6 @@ func NewSMTPSender(cfg config.SMTPConfig) (*SMTPSender, error) {
 	if cfg.Host == "" || cfg.From == "" {
 		return nil, fmt.Errorf("DINCHY_SMTP_HOST and DINCHY_SMTP_FROM are required when SMTP is configured")
 	}
-	if _, err := strconv.Atoi(cfg.Port); err != nil {
-		return nil, fmt.Errorf("parse DINCHY_SMTP_PORT %q: %w", cfg.Port, err)
-	}
 	return &SMTPSender{cfg: cfg}, nil
 }
 
@@ -55,10 +51,6 @@ func (s *SMTPSender) Configured() bool {
 }
 
 func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
-	port, err := strconv.Atoi(s.cfg.Port)
-	if err != nil {
-		return fmt.Errorf("parse smtp port %q: %w", s.cfg.Port, err)
-	}
 	m := mail.NewMsg()
 	if err := m.From(s.cfg.From); err != nil {
 		return fmt.Errorf("set email from address %q: %w", s.cfg.From, err)
@@ -69,7 +61,7 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 	m.Subject(msg.Subject)
 	m.SetBodyString(mail.TypeTextPlain, msg.Text)
 
-	options := []mail.Option{mail.WithPort(port)}
+	options := []mail.Option{mail.WithPort(int(s.cfg.Port))}
 	if s.cfg.Username != "" {
 		options = append(options, mail.WithSMTPAuth(mail.SMTPAuthPlain), mail.WithUsername(s.cfg.Username), mail.WithPassword(s.cfg.Password))
 	}

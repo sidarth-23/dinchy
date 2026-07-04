@@ -21,7 +21,7 @@ type Config struct {
 	DevMode bool `env:"DINCHY_DEV"`
 	// DevProxyURL is the Vite dev server URL to proxy frontend requests to in dev mode.
 	// Required when DevMode is true.
-	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,url"`
+	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,http_url"`
 	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
 	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
 	// Auth contains authentication behavior and lifetime settings.
@@ -48,8 +48,8 @@ func defaultConfig() Config {
 		Addr:         ":8080",
 		InternalAddr: ":9090",
 		Database: DatabaseConfig{
-			DBBackend: DefaultDBBackend,
-			DBPath:    DefaultSQLiteDBPath,
+			DBBackend: DBBackendSQLite,
+			DBPath:    "./dinchy.db",
 		},
 		DevProxyURL: "http://127.0.0.1:5173",
 		Auth:        DefaultAuth(),
@@ -100,14 +100,10 @@ func Load() (Config, error) {
 	cfg.SSOProviders = configuredSSOProviders(cfg)
 
 	v := validation.New()
+	if err := registerValidationRules(v); err != nil {
+		return Config{}, err
+	}
 	if err := v.Struct(cfg); err != nil {
-		return Config{}, err
-	}
-
-	if err := validateDatabaseConfig(cfg); err != nil {
-		return Config{}, err
-	}
-	if err := validateAuditConfig(cfg); err != nil {
 		return Config{}, err
 	}
 

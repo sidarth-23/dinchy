@@ -12,7 +12,7 @@ type Validator struct {
 }
 
 func New() *Validator {
-	return &Validator{validate: validator.New()}
+	return &Validator{validate: validator.New(validator.WithRequiredStructEnabled())}
 }
 
 func (v *Validator) Struct(value any) error {
@@ -20,4 +20,12 @@ func (v *Validator) Struct(value any) error {
 		return apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(err))
 	}
 	return nil
+}
+
+func (v *Validator) RegisterValidation(tag string, fn validator.Func, callValidationEvenIfNull ...bool) error {
+	return v.validate.RegisterValidation(tag, fn, callValidationEvenIfNull...)
+}
+
+func (v *Validator) RegisterStructValidation(fn validator.StructLevelFunc, types ...any) {
+	v.validate.RegisterStructValidation(fn, types...)
 }

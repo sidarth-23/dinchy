@@ -8,13 +8,13 @@ type AuthConfig struct {
 	// SSOStateCookieName is the temporary HTTP cookie name used during SSO redirects.
 	SSOStateCookieName string `env:"DINCHY_AUTH_SSO_STATE_COOKIE_NAME" validate:"required"`
 	// SessionIdleTimeout is the maximum idle time before a session is considered expired.
-	SessionIdleTimeout time.Duration `env:"DINCHY_AUTH_SESSION_IDLE_TIMEOUT"`
+	SessionIdleTimeout time.Duration `env:"DINCHY_AUTH_SESSION_IDLE_TIMEOUT" validate:"gt=0"`
 	// SessionMaxLifetime is the absolute maximum age of a session regardless of activity.
-	SessionMaxLifetime time.Duration `env:"DINCHY_AUTH_SESSION_MAX_LIFETIME"`
+	SessionMaxLifetime time.Duration `env:"DINCHY_AUTH_SESSION_MAX_LIFETIME" validate:"gt=0"`
 	// SSOStateLifetime is the maximum age of a pending SSO redirect transaction.
-	SSOStateLifetime time.Duration `env:"DINCHY_AUTH_SSO_STATE_LIFETIME"`
+	SSOStateLifetime time.Duration `env:"DINCHY_AUTH_SSO_STATE_LIFETIME" validate:"gt=0"`
 	// PasswordResetLifetime is the validity window for password reset tokens.
-	PasswordResetLifetime time.Duration `env:"DINCHY_AUTH_PASSWORD_RESET_LIFETIME"`
+	PasswordResetLifetime time.Duration `env:"DINCHY_AUTH_PASSWORD_RESET_LIFETIME" validate:"gt=0"`
 	// TOTPIssuer is the issuer label shown in authenticator apps for Dinchy TOTP secrets.
 	TOTPIssuer string `env:"DINCHY_AUTH_TOTP_ISSUER" validate:"required"`
 	// DefaultOrganisationName is the organisation name created during first-user setup.

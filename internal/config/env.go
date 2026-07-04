@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 // loadFromEnv iterates Config fields, reads the env tag to find the env var name,
@@ -32,7 +34,12 @@ func loadFromEnv(cfg any) error {
 		}
 		switch field.Type.Kind() {
 		case reflect.String:
-			v.Field(i).SetString(raw)
+			switch envKey {
+			case "DINCHY_DB_BACKEND", "DINCHY_CACHE_BACKEND", "DINCHY_LOG_LEVEL", "DINCHY_LOG_FORMAT":
+				v.Field(i).SetString(strings.ToLower(transform.Trim(raw)))
+			default:
+				v.Field(i).SetString(raw)
+			}
 		case reflect.Bool:
 			v.Field(i).SetBool(parseBool(raw))
 		case reflect.Int:
@@ -55,6 +62,16 @@ func loadFromEnv(cfg any) error {
 				)
 			}
 			v.Field(i).SetInt(int64(duration))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			parsed, err := strconv.ParseUint(raw, 10, 64)
+			if err != nil {
+				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+					apperrors.WithCause(fmt.Errorf("parse unsigned integer env %q for %q: %w", envKey, field.Name, err)),
+					apperrors.WithField(apperrors.FieldName(field.Name)),
+					apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
+				)
+			}
+			v.Field(i).SetUint(parsed)
 		default:
 			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),

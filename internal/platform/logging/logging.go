@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strings"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -15,7 +14,7 @@ import (
 
 func New(cfg config.LoggingConfig, otel slog.Handler) *slog.Logger {
 	level := slog.LevelInfo
-	switch strings.ToLower(strings.TrimSpace(cfg.Level)) {
+	switch cfg.Level {
 	case config.LogLevelDebug:
 		level = slog.LevelDebug
 	case config.LogLevelWarn:
@@ -26,7 +25,7 @@ func New(cfg config.LoggingConfig, otel slog.Handler) *slog.Logger {
 
 	opts := &slog.HandlerOptions{Level: level, AddSource: cfg.AddSource}
 	var base slog.Handler
-	if strings.EqualFold(strings.TrimSpace(cfg.Format), config.LogFormatText) {
+	if cfg.Format == config.LogFormatText {
 		base = slog.NewTextHandler(os.Stdout, opts)
 	} else {
 		base = slog.NewJSONHandler(os.Stdout, opts)

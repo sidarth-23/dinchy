@@ -1,19 +1,17 @@
 package config
 
 const (
-	CacheBackendDisabled  = ""
-	CacheBackendRedis     = "redis"
-	DefaultCacheBackend   = CacheBackendDisabled
-	DefaultCacheAddr      = "127.0.0.1:6379"
-	DefaultCacheDatabase  = 0
-	DefaultCacheKeyPrefix = "dinchy"
+	CacheBackendDisabled CacheBackend = ""
+	CacheBackendRedis    CacheBackend = "redis"
 )
+
+type CacheBackend string
 
 type CacheConfig struct {
 	// Backend selects the cache implementation. Empty disables the cache.
-	Backend string `env:"DINCHY_CACHE_BACKEND"`
+	Backend CacheBackend `env:"DINCHY_CACHE_BACKEND" validate:"omitempty,oneof=redis"`
 	// Addr is the network address for the configured cache backend.
-	Addr string `env:"DINCHY_CACHE_ADDR"`
+	Addr string `env:"DINCHY_CACHE_ADDR" validate:"required_if=Backend redis,hostname_port"`
 	// Username is the optional cache username.
 	Username string `env:"DINCHY_CACHE_USERNAME"`
 	// Password is the optional cache password.
@@ -26,9 +24,9 @@ type CacheConfig struct {
 
 func DefaultCache() CacheConfig {
 	return CacheConfig{
-		Backend:   DefaultCacheBackend,
-		Addr:      DefaultCacheAddr,
-		Database:  DefaultCacheDatabase,
-		KeyPrefix: DefaultCacheKeyPrefix,
+		Backend:   CacheBackendDisabled,
+		Addr:      "127.0.0.1:6379",
+		Database:  0,
+		KeyPrefix: "dinchy",
 	}
 }
