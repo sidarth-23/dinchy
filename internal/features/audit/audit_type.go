@@ -5,7 +5,7 @@ import (
 	"time"
 
 	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
-	"github.com/sidarth-23/dinchy/internal/store/core"
+	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 const (
@@ -29,8 +29,8 @@ type StreamStore interface {
 type StreamMessage = cachecore.StreamMessage
 
 type Store interface {
-	InsertAuditLog(ctx context.Context, in core.InsertAuditLogParams) error
-	ListAuditLogs(ctx context.Context, in core.ListAuditLogsParams) ([]core.AuditLogRow, error)
+	InsertAuditLog(ctx context.Context, in types.InsertAuditLogParams) error
+	ListAuditLogs(ctx context.Context, in types.ListAuditLogsParams) ([]types.AuditLogRow, error)
 }
 
 type Event struct {

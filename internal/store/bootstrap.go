@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/store/core"
-	"github.com/sidarth-23/dinchy/internal/store/postgres/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 func (q *queries) EnsureDefaultSettings(ctx context.Context, now time.Time) error {
@@ -20,7 +20,7 @@ func (q *queries) GetInstanceName(ctx context.Context) (string, error) {
 	return q.q.GetInstanceName(ctx)
 }
 
-func (q *queries) EnsureTask(ctx context.Context, arg core.TaskParams) error {
+func (q *queries) EnsureTask(ctx context.Context, arg types.TaskParams) error {
 	id, err := parseUUID(arg.ID)
 	if err != nil {
 		return err

@@ -10,7 +10,7 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/core"
+	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 type Service struct {
@@ -100,7 +100,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]Log, error) {
 	if in.Limit <= 0 || in.Limit > 200 {
 		in.Limit = 50
 	}
-	rows, err := s.store.ListAuditLogs(ctx, core.ListAuditLogsParams{
+	rows, err := s.store.ListAuditLogs(ctx, types.ListAuditLogsParams{
 		Category: in.Category, Subcategory: in.Subcategory, EventType: in.EventType,
 		ActorUserID: in.ActorUserID, TargetType: in.TargetType, TargetID: in.TargetID,
 		Outcome: in.Outcome, Before: in.Before, BeforeValid: in.BeforeValid, Limit: in.Limit,
@@ -119,16 +119,16 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]Log, error) {
 	return out, nil
 }
 
-func insertParams(event Event) (core.InsertAuditLogParams, error) {
+func insertParams(event Event) (types.InsertAuditLogParams, error) {
 	metadataJSON, err := marshalMap("audit metadata", event.EventType, event.Metadata)
 	if err != nil {
-		return core.InsertAuditLogParams{}, err
+		return types.InsertAuditLogParams{}, err
 	}
 	changesJSON, err := marshalMap("audit changes", event.EventType, event.Changes)
 	if err != nil {
-		return core.InsertAuditLogParams{}, err
+		return types.InsertAuditLogParams{}, err
 	}
-	return core.InsertAuditLogParams{
+	return types.InsertAuditLogParams{
 		ID: event.ID, Category: event.Category, Subcategory: event.Subcategory, EventType: event.EventType,
 		Action: event.Action, Outcome: event.Outcome, ActorUserID: event.ActorUserID,
 		ActorUserIDValid: event.ActorUserID != "", ActorOrganisationID: event.ActorOrganisationID,
@@ -142,7 +142,7 @@ func insertParams(event Event) (core.InsertAuditLogParams, error) {
 	}, nil
 }
 
-func logFromRow(row core.AuditLogRow) (Log, error) {
+func logFromRow(row types.AuditLogRow) (Log, error) {
 	metadata, err := unmarshalMap("audit metadata", row.EventType, row.MetadataJSON)
 	if err != nil {
 		return Log{}, err

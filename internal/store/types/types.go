@@ -1,18 +1,6 @@
-package core
+package types
 
-import (
-	"context"
-	"database/sql"
-	"time"
-)
-
-// DBTX is the common interface satisfied by both *sql.DB and *sql.Tx.
-type DBTX interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
+import "time"
 
 type UserRow struct {
 	ID          string
@@ -31,7 +19,8 @@ type SessionRow struct {
 	Role                 string
 	IdleExpiresAt        time.Time
 	ExpiresAt            time.Time
-	RevokedAt            sql.NullTime
+	RevokedAt            time.Time
+	RevokedAtValid       bool
 }
 
 type AccountRow struct {

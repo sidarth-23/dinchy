@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sidarth-23/dinchy/internal/store/core"
-	"github.com/sidarth-23/dinchy/internal/store/postgres/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
-func (q *queries) InsertAuditLog(ctx context.Context, arg core.InsertAuditLogParams) error {
+func (q *queries) InsertAuditLog(ctx context.Context, arg types.InsertAuditLogParams) error {
 	id, err := parseUUID(arg.ID)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (q *queries) InsertAuditLog(ctx context.Context, arg core.InsertAuditLogPar
 	})
 }
 
-func (q *queries) ListAuditLogs(ctx context.Context, arg core.ListAuditLogsParams) ([]core.AuditLogRow, error) {
+func (q *queries) ListAuditLogs(ctx context.Context, arg types.ListAuditLogsParams) ([]types.AuditLogRow, error) {
 	actorUserID, err := nullUUID(arg.ActorUserID, arg.ActorUserID != "")
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (q *queries) ListAuditLogs(ctx context.Context, arg core.ListAuditLogsParam
 	if err != nil {
 		return nil, err
 	}
-	out := make([]core.AuditLogRow, 0, len(rows))
+	out := make([]types.AuditLogRow, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, auditLogRow(row))
 	}
@@ -91,8 +91,8 @@ func nullUUID(value string, valid bool) (uuid.NullUUID, error) {
 	return uuid.NullUUID{UUID: parsed, Valid: true}, nil
 }
 
-func auditLogRow(row sqlcgen.AppAuditLog) core.AuditLogRow {
-	return core.AuditLogRow{
+func auditLogRow(row sqlcgen.AppAuditLog) types.AuditLogRow {
+	return types.AuditLogRow{
 		ID: row.ID.String(), Category: row.Category, Subcategory: row.Subcategory, EventType: row.EventType,
 		Action: row.Action, Outcome: row.Outcome, ActorUserID: row.ActorUserID.UUID.String(),
 		ActorUserIDValid: row.ActorUserID.Valid, ActorOrganisationID: row.ActorOrganisationID.UUID.String(),

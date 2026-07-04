@@ -5,16 +5,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sidarth-23/dinchy/internal/store/core"
-	"github.com/sidarth-23/dinchy/internal/store/postgres/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 type queries struct {
 	q *sqlcgen.Queries
 }
 
-func newQueries(q *sqlcgen.Queries) core.Queries {
-	return &queries{q: q}
+func newQueries(db DBTX) Queries {
+	return &queries{q: sqlcgen.New(db)}
 }
 
 func nullString(v string) sql.NullString {

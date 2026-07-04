@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/store/core"
-	"github.com/sidarth-23/dinchy/internal/store/postgres/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 func (q *queries) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan time.Time) (int64, error) {
@@ -20,7 +20,7 @@ func (q *queries) DeleteEndedSessionsOlderThan(ctx context.Context, olderThan ti
 	return res.RowsAffected()
 }
 
-func (q *queries) ClaimTask(ctx context.Context, arg core.ClaimTaskParams) (int64, error) {
+func (q *queries) ClaimTask(ctx context.Context, arg types.ClaimTaskParams) (int64, error) {
 	res, err := q.q.ClaimTask(ctx, sqlcgen.ClaimTaskParams{
 		LeaseOwner:       sql.NullString{String: arg.LeaseOwner, Valid: true},
 		LeaseExpiresAt:   sql.NullTime{Time: arg.LeaseExpiresAt.UTC(), Valid: true},
@@ -36,7 +36,7 @@ func (q *queries) ClaimTask(ctx context.Context, arg core.ClaimTaskParams) (int6
 	return res.RowsAffected()
 }
 
-func (q *queries) FinishTask(ctx context.Context, arg core.FinishTaskParams) error {
+func (q *queries) FinishTask(ctx context.Context, arg types.FinishTaskParams) error {
 	return q.q.FinishTask(ctx, sqlcgen.FinishTaskParams{
 		LastFinishedAt:   sql.NullTime{Time: arg.LastFinishedAt.UTC(), Valid: true},
 		NextRunAt:        sql.NullTime{Time: arg.NextRunAt.UTC(), Valid: true},

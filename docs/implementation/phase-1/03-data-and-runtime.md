@@ -29,9 +29,9 @@ Startup initialization path:
 **Query organisation:**
 
 ```
-internal/store/postgres/queries/    ← .sql files (PostgreSQL syntax — $1, RETURNING)
-internal/store/postgres/sqlcgen/    ← sqlc-generated Go code (DO NOT EDIT)
-internal/store/postgres/migrations/ ← goose migrations (PostgreSQL DDL — TIMESTAMPTZ, etc.)
+internal/store/queries/    ← .sql files (PostgreSQL syntax — $1, RETURNING)
+internal/store/sqlcgen/    ← sqlc-generated Go code (DO NOT EDIT)
+internal/store/migrations/ ← goose migrations (PostgreSQL DDL — TIMESTAMPTZ, etc.)
 ```
 
 **Consumer-defined interfaces (no monolithic Store):**
@@ -62,8 +62,8 @@ Generated sqlcgen structs are internal to the `store/` package. Wrapper methods 
 
 ## IDs, Time, And Internal Types
 
-- ULID is the primary key format for user/session/audit/task rows
-- store ULIDs as canonical 26-character text in SQLite
+- UUID is the primary key format for user/session/audit/task rows
+- store UUIDs as canonical text in PostgreSQL
 - generate IDs in application code through a shared `IDGenerator`
 - the generator uses the shared `Clock`
 - monotonic ULID generation should be used

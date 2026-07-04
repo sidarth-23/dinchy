@@ -9,8 +9,8 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/store"
-	"github.com/sidarth-23/dinchy/internal/store/core"
 	"github.com/sidarth-23/dinchy/internal/store/testsupport"
+	"github.com/sidarth-23/dinchy/internal/store/types"
 )
 
 var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -142,7 +142,7 @@ func TestStoreAuditLogRoundTrip(t *testing.T) {
 	store := newTestStore(t)
 
 	now := fixedTime
-	require.NoError(t, store.InsertAuditLog(t.Context(), core.InsertAuditLogParams{
+	require.NoError(t, store.InsertAuditLog(t.Context(), types.InsertAuditLogParams{
 		ID:          "00000000-0000-0000-0000-00000000000a",
 		Category:    "security",
 		Subcategory: "auth",
@@ -154,7 +154,7 @@ func TestStoreAuditLogRoundTrip(t *testing.T) {
 		CreatedAt:   now,
 	}))
 
-	rows, err := store.ListAuditLogs(t.Context(), core.ListAuditLogsParams{
+	rows, err := store.ListAuditLogs(t.Context(), types.ListAuditLogsParams{
 		Category:    "security",
 		Subcategory: "auth",
 		EventType:   "login",
