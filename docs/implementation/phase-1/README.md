@@ -32,7 +32,7 @@ This is the source of truth for how Phase 1 should be built.
 - Production is a single Go binary serving embedded frontend assets.
 - Development uses `DINCHY_DEV=1` mode; embedded assets are not required in this mode.
 - Chi is the outer HTTP router and middleware host. Huma owns the typed API contract and OpenAPI generation under `/api` via the `humachi` adapter. Handler signatures are `func(context.Context, *I) (*O, error)` — no router-specific context leaks into handlers. All middleware uses standard `func(http.Handler) http.Handler`.
-- PostgreSQL is the only Phase 1 database implementation. sqlc generates queries from `internal/store/queries/*.sql`. The `internal/store` package owns the concrete Postgres store.
+- PostgreSQL is the only Phase 1 database implementation. sqlc generates queries from `internal/platform/store/queries/*.sql`. The `internal/platform/store` package owns the concrete Postgres store.
 - Consumer-defined store interfaces: `auth.Store`, `workers.Store`, `domain.SettingsReader`. `internal/app/app.go` imports the concrete `store.Store`.
 - Internal packages are grouped by layer: `domain/` (pure types), `auth/` + `tasks/` (business logic), `store/` (persistence), `server/` (HTTP), `platform/` (utilities). The top-level under `internal/` stays stable through all 8 phases.
 - First-user setup is race-safe (transactional count check) and closes permanently once the first admin exists.

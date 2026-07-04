@@ -1,12 +1,12 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "internal/store/queries"
-    schema: "internal/store/migrations"
+    queries: "internal/platform/store/queries"
+    schema: "internal/platform/store/migrations"
     gen:
       go:
         package: "sqlcgen"
-        out: "internal/store/sqlcgen"
+        out: "internal/platform/store/sqlcgen"
         emit_json_tags: false
         emit_exact_table_names: false
         emit_empty_slices: true

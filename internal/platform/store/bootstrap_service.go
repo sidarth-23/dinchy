@@ -6,7 +6,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 // EnsureDefaultSettings seeds singleton settings if they are missing.

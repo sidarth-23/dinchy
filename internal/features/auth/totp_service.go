@@ -11,7 +11,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress string) (secret string, url string, err error) {

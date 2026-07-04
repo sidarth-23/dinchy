@@ -14,7 +14,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)

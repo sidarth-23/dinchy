@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 type MockStore struct {

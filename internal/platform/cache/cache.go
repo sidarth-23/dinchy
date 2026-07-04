@@ -7,9 +7,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/sidarth-23/dinchy/internal/cache/core"
-	cacheredis "github.com/sidarth-23/dinchy/internal/cache/redis"
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	cacheredis "github.com/sidarth-23/dinchy/internal/platform/cache/redis"
 )
 
 type Store interface {

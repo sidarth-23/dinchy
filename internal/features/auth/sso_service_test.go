@@ -1,10 +1,10 @@
 package auth
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"database/sql"
 	"net/http"
 	"net/url"
 	"testing"
@@ -16,11 +16,11 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 type fakeSSOSession struct {

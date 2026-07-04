@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 )
 
 type SSOProviderOut struct {

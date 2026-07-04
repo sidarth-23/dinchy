@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/gitlab"
 	"github.com/markbates/goth/providers/google"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 )
 
 func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig, cacheKeyer cachecore.Keyer) (*ssoRegistry, error) {
@@ -58,6 +59,20 @@ func validateSSOState(session goth.Session, queryState string) error {
 		return fmt.Errorf("state token mismatch")
 	}
 	return nil
+}
+
+func internalReturnPath(raw string) string {
+	if raw == "" {
+		return "/"
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.IsAbs() || !strings.HasPrefix(parsed.Path, "/") {
+		return "/"
+	}
+	if parsed.Path == "" {
+		parsed.Path = "/"
+	}
+	return parsed.RequestURI()
 }
 
 func (s *Service) clearSSOCookies() []http.Cookie {

@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/testsupport"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/testsupport"
 	"github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 

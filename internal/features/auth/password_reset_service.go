@@ -11,8 +11,8 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error {

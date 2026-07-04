@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 const (

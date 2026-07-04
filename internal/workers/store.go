@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 //go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/workers -destination=store_mockdata_test.go -package=workers . Store

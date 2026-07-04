@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"database/sql"
+	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func (s *Service) Login(ctx context.Context, emailAddress, password, organisationSlug, totpCode, ip, userAgent string) (string, error) {

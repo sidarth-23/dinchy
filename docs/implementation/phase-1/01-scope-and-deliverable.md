@@ -102,7 +102,7 @@ web/                            # Frontend source (Vite + React)
 - `internal/domain` owns all shared business types — zero project imports; the root of the dependency graph.
 - `internal/auth` owns password hashing, session issuance/validation/revocation, and declares its own `Store` interface.
 - `internal/tasks` owns the durable internal scheduler and declares its own `Store` interface.
-- `internal/store` is the only package that imports sqlc-generated code; it implements all consumer-defined store interfaces and translates between sqlcgen row types and domain types.
+- `internal/platform/store` is the only package that imports sqlc-generated code; it implements all consumer-defined store interfaces and translates between sqlcgen row types and domain types.
 - `internal/server` owns the Chi router, all middleware, and all Huma API handlers. No router-specific types leak past the middleware layer into handlers.
 - `internal/server/api` handlers receive `context.Context`, call service methods, and return domain errors. Transport concerns (cookies, IP, UA, language) are injected via `internal/server/support` context accessors.
 - `internal/server/middleware` houses every middleware as its own file with a `func(http.Handler) http.Handler` signature. `server.go` only imports `mw.*` — swapping a middleware implementation touches one file.

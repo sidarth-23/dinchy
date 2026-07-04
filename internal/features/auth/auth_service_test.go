@@ -7,23 +7,23 @@ import (
 	"testing"
 	"time"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
+	"github.com/google/uuid"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"github.com/google/uuid"
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 var (
-	fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-	testCtx   = context.Background()
+	fixedTime                = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	testCtx                  = context.Background()
 	testUserID               = "00000000-0000-0000-0000-000000000001"
 	testAccountID            = "00000000-0000-0000-0000-000000000002"
 	testOrganisationID       = "00000000-0000-0000-0000-000000000003"

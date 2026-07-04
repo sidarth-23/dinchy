@@ -12,7 +12,7 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 type Service struct {
@@ -83,13 +83,13 @@ func (s *Service) Process(ctx context.Context) (int64, error) {
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			return processed, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("decode audit stream message %q: %w", message.ID, err)))
 		}
-			params, err := insertParams(event)
-			if err != nil {
-				return processed, err
-			}
-			if err := s.store.InsertAuditLog(ctx, params); err != nil {
-				return processed, apperrors.Annotate(err)
-			}
+		params, err := insertParams(event)
+		if err != nil {
+			return processed, err
+		}
+		if err := s.store.InsertAuditLog(ctx, params); err != nil {
+			return processed, apperrors.Annotate(err)
+		}
 		if err := s.stream.AckStream(ctx, s.cfg.StreamName, s.cfg.ConsumerGroup, message.ID); err != nil {
 			return processed, apperrors.Annotate(err)
 		}

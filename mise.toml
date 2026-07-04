@@ -17,8 +17,8 @@ test = "go generate ./internal/errors ./internal/i18n && sqlc generate && go tes
 lint = "golangci-lint run"
 fmt = "golangci-lint fmt"
 generate = "go generate ./internal/errors ./internal/i18n && sqlc generate"
-"db:migrate" = 'goose -dir internal/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
-"db:status" = 'goose -dir internal/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
+"db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
+"db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }
 "web:dev" = { dir = "web", run = "bun run dev" }
 "web:install" = { dir = "web", run = "bun install" }

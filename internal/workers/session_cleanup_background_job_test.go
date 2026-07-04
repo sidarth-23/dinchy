@@ -12,7 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 func TestSessionCleanupWorker_Execute_UsesRetentionWindow(t *testing.T) {

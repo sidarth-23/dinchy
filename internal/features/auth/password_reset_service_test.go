@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 type fakeSender struct {
@@ -98,7 +98,7 @@ func TestResetPassword_InvalidToken(t *testing.T) {
 		name  string
 		token sqlcgen.FindVerificationTokenRow
 	}{
-		{name: "not found", token: sqlcgen.FindVerificationTokenRow{},},
+		{name: "not found", token: sqlcgen.FindVerificationTokenRow{}},
 		{name: "expired", token: verificationTokenRow(testVerificationTokenID, testUserID, "user@example.com", string(VerificationPurposePasswordReset), "hash", fixedTime.Add(-time.Minute), time.Time{}, false)},
 		{name: "already consumed", token: verificationTokenRow(testVerificationTokenID, testUserID, "user@example.com", string(VerificationPurposePasswordReset), "hash", fixedTime.Add(time.Hour), fixedTime, true)},
 		{name: "no associated user", token: verificationTokenRow(testVerificationTokenID, "", "user@example.com", string(VerificationPurposePasswordReset), "hash", fixedTime.Add(time.Hour), time.Time{}, false)},

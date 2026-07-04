@@ -3,16 +3,16 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
-	"errors"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/cache/core"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
-	"github.com/sidarth-23/dinchy/internal/store/sqlcgen"
 )
 
 func (s *Service) listSSOProviders(ctx context.Context) ([]SSOProviderOut, error) {
@@ -63,7 +63,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	}
 	cacheState := ssoCacheState{
 		ProviderID:       providerID,
-		ReturnTo:         transform.InternalReturnPath(returnTo),
+		ReturnTo:         internalReturnPath(returnTo),
 		OrganisationSlug: strings.TrimSpace(organisationSlug),
 		State:            stateToken,
 		Session:          session.Marshal(),

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/store"
+	"github.com/sidarth-23/dinchy/internal/platform/store"
 )
 
 const postgresImage = "postgres:16-alpine"

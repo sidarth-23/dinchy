@@ -29,9 +29,9 @@ Startup initialization path:
 **Query organisation:**
 
 ```
-internal/store/queries/    ← .sql files (PostgreSQL syntax — $1, RETURNING)
-internal/store/sqlcgen/    ← sqlc-generated Go code (DO NOT EDIT)
-internal/store/migrations/ ← goose migrations (PostgreSQL DDL — TIMESTAMPTZ, etc.)
+internal/platform/store/queries/    ← .sql files (PostgreSQL syntax — $1, RETURNING)
+internal/platform/store/sqlcgen/    ← sqlc-generated Go code (DO NOT EDIT)
+internal/platform/store/migrations/ ← goose migrations (PostgreSQL DDL — TIMESTAMPTZ, etc.)
 ```
 
 **Consumer-defined interfaces (no monolithic Store):**
