@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -17,6 +18,24 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
+
+type VerificationPurpose string
+
+const (
+	VerificationPurposePasswordReset VerificationPurpose = "password_reset"
+)
+
+type VerificationToken struct {
+	ID              string
+	UserID          string
+	UserIDValid     bool
+	Email           string
+	Purpose         string
+	TokenHash       string
+	ExpiresAt       time.Time
+	ConsumedAt      time.Time
+	ConsumedAtValid bool
+}
 
 func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error {
 	if !s.email.Configured() {

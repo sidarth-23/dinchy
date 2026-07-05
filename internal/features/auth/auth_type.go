@@ -27,12 +27,6 @@ const (
 	AccountProviderPassword AccountProvider = "password"
 )
 
-type VerificationPurpose string
-
-const (
-	VerificationPurposePasswordReset VerificationPurpose = "password_reset"
-)
-
 type User struct {
 	ID          string
 	Email       string
@@ -65,18 +59,6 @@ type TwoFactor struct {
 	FailedVerificationCount int64
 	LockedUntil             time.Time
 	LockedUntilValid        bool
-}
-
-type VerificationToken struct {
-	ID              string
-	UserID          string
-	UserIDValid     bool
-	Email           string
-	Purpose         string
-	TokenHash       string
-	ExpiresAt       time.Time
-	ConsumedAt      time.Time
-	ConsumedAtValid bool
 }
 
 type CreateUserInput struct {
@@ -147,18 +129,6 @@ type OrganisationRow struct {
 	Name string
 	Slug string
 	Role string
-}
-
-type VerificationTokenRow struct {
-	ID              string
-	UserID          string
-	UserIDValid     bool
-	Email           string
-	Purpose         string
-	TokenHash       string
-	ExpiresAt       time.Time
-	ConsumedAt      time.Time
-	ConsumedAtValid bool
 }
 
 type SSOProviderSettingRow struct {
