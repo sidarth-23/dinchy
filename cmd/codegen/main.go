@@ -27,11 +27,11 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "gen: %v\n", err)
+		fmt.Fprintf(os.Stderr, "codegen: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gen <error|i18n|event> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: codegen <error|i18n|event> [flags]")
 }

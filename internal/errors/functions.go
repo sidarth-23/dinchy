@@ -1,6 +1,6 @@
 package errors
 
-//go:generate go run ../../cmd/gen error -input catalog.json -output generated.go
+//go:generate go run ../../cmd/codegen error -input catalog.json -output generated.go
 
 import (
 	"maps"
