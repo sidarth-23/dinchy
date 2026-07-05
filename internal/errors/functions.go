@@ -1,5 +1,7 @@
 package errors
 
+//go:generate go run ../../cmd/gen error -input catalog.json -output generated.go
+
 import (
 	"maps"
 	"net/http"
