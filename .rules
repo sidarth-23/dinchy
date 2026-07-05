@@ -140,5 +140,3 @@
 * Keep new rules high-signal.
   * Add a rule only when it captures a repeated, non-obvious trap.
   * If a naming pattern or workflow changes, get it approved and add it here before using it.
-* Do not add Rust-specific or build-system guidance here unless the repo actually needs it.
-  * Keep this file focused on the current Go codebase and its agent workflow.

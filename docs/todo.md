@@ -3,7 +3,6 @@
 - potentially adding todo md in the root with checkboxes for features
 - cleanup mise toml
 - setup dev setup with debugger setup
-- setup proper json schemas and make sure the schemas are scalable and the generator functions does the heavy work for go and not let the user set go values
 
 - setup workers properly with packages for each worker with store functions in it instead of the current way
 - cleanup auth module
