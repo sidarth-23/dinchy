@@ -18,6 +18,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -89,9 +90,43 @@ func (c fakeClock) Now() time.Time {
 
 func HashPasswordForTest(t *testing.T, password string) string {
 	t.Helper()
-	hash, err := hashPassword(password)
+	hash, err := security.HashPassword(password)
 	require.NoError(t, err)
 	return hash
+}
+
+func findUserRow(rowID, email, displayName string) sqlcgen.FindUserByEmailRow {
+	return sqlcgen.FindUserByEmailRow{ID: id.MustParse(rowID), Email: email, DisplayName: displayName}
+}
+
+func passwordAccountRow(rowID, userID, provider, providerAccountID, passwordHash string) sqlcgen.FindPasswordAccountByUserIDRow {
+	return sqlcgen.FindPasswordAccountByUserIDRow{
+		ID:                id.MustParse(rowID),
+		UserID:            id.MustParse(userID),
+		Provider:          provider,
+		ProviderAccountID: providerAccountID,
+		PasswordHash:      sql.NullString{String: passwordHash, Valid: passwordHash != ""},
+	}
+}
+
+func organisationRow(rowID, name, slug, role string) sqlcgen.ListOrganisationsForUserRow {
+	return sqlcgen.ListOrganisationsForUserRow{ID: id.MustParse(rowID), Name: name, Slug: slug, Role: role}
+}
+
+func sessionRow(rowID, userID, email, displayName, organisationID, organisationName, organisationSlug, role string, idleExpiresAt, expiresAt time.Time, revokedAt sql.NullTime) sqlcgen.GetSessionByTokenHashRow {
+	return sqlcgen.GetSessionByTokenHashRow{
+		ID:                   id.MustParse(rowID),
+		UserID:               id.MustParse(userID),
+		Email:                email,
+		DisplayName:          displayName,
+		ActiveOrganisationID: id.MustParse(organisationID),
+		OrganisationName:     organisationName,
+		OrganisationSlug:     organisationSlug,
+		Role:                 role,
+		IdleExpiresAt:        idleExpiresAt,
+		ExpiresAt:            expiresAt,
+		RevokedAt:            revokedAt,
+	}
 }
 
 func TestSetupFirstUser_Success(t *testing.T) {
@@ -168,11 +203,11 @@ func TestLogin_Success(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
 	store.EXPECT().
-		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		FindPasswordAccountByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", hashed), nil)
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil)
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
@@ -189,7 +224,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
 	store.EXPECT().
-		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		FindPasswordAccountByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "correct")), nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "", "", "")
@@ -214,11 +249,11 @@ func TestLogin_EmailNormalized(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
 	store.EXPECT().
-		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		FindPasswordAccountByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "p")), nil)
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil)
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
@@ -302,8 +337,8 @@ func TestLogout_EmptyToken(t *testing.T) {
 func TestPasswordHash_RoundTrip(t *testing.T) {
 	t.Parallel()
 	hash := HashPasswordForTest(t, "mysecret")
-	assert.True(t, verifyPassword("mysecret", hash))
-	assert.False(t, verifyPassword("wrong", hash))
+	assert.True(t, security.VerifyPassword("mysecret", hash))
+	assert.False(t, security.VerifyPassword("wrong", hash))
 }
 
 func TestPasswordHash_SamePasswordDiffers(t *testing.T) {

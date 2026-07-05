@@ -12,3 +12,4 @@
 - organise and name code generator and validator properly and add it to pre commit hooks
 - move database to pgx/v5 and configure sqlc properly to get all the benefits of both. also take care of error handling and logging with this properly
 - let's create the class for features properly so that most of the features extend from a base feature class
+- worth of panic in backend and recovery mechanism

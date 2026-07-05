@@ -15,6 +15,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -51,11 +53,11 @@ func TestAPILogin_Success(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
 	store.EXPECT().
-		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		FindPasswordAccountByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "secret")), nil)
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
 		AnyTimes()
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
@@ -83,7 +85,7 @@ func TestAPILogin_WrongPassword(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
 	store.EXPECT().
-		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		FindPasswordAccountByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "correct")), nil)
 
 	_, err := api.login(ctx, &LoginIn{Body: LoginBody{Email: "user@example.com", Password: "wrong"}})
@@ -114,7 +116,7 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
 		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
 		AnyTimes()
 
@@ -143,7 +145,7 @@ func TestAPISession_ReturnsCurrentViewer(t *testing.T) {
 		ExpiresAt:        fixedTime.Add(7 * 24 * time.Hour),
 	})
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
 		AnyTimes()
 
@@ -180,7 +182,7 @@ func TestAPIBootstrap_WithSession(t *testing.T) {
 		Role:             RoleAdmin,
 	})
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
 		AnyTimes()
 
@@ -200,7 +202,7 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
 		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
-	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: fixedTime.UTC(), Valid: true}, UpdatedAt: fixedTime.UTC(), TokenHash: hashToken("rawtoken")}).Return(nil)
+	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: fixedTime.UTC(), Valid: true}, UpdatedAt: fixedTime.UTC(), TokenHash: security.HashToken("rawtoken")}).Return(nil)
 
 	out, err := api.logout(ctx, &LogoutIn{})
 	require.NoError(t, err)
@@ -241,7 +243,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "candidate@example.com").
 		Return(findUserRow(testUserID, "candidate@example.com", "User"), nil)
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
 		AnyTimes()
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)

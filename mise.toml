@@ -7,13 +7,13 @@ node = "24.15.0"
 "github:golangci/golangci-lint" = "2.12.2"
 
 [tasks]
-dev = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate && go run ./cmd/dinchy"
-build = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate && go build -o dinchy ./cmd/dinchy"
-test = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate && go test ./..."
+dev = "go run ./cmd/dinchy"
+build = "go build -o dinchy ./cmd/dinchy"
+test = "go test ./..."
 # The race detector requires cgo; the app itself stays cgo-free, so race is an
 # opt-in task for environments that have a C toolchain.
-"test:race" = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate && CGO_ENABLED=1 go test -race ./..."
-"test:cover" = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate && go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
+"test:race" = "CGO_ENABLED=1 go test -race ./..."
+"test:cover" = "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
 lint = "golangci-lint run"
 fmt = "golangci-lint fmt"
 generate = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate"

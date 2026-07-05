@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -45,6 +46,22 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 		}, nil
 	}
 	return svc, store
+}
+
+func verificationTokenRow(rowID, userID, email, purpose, tokenHash string, expiresAt, consumedAt time.Time, consumedAtValid bool) sqlcgen.FindVerificationTokenRow {
+	nullUserID := uuid.NullUUID{}
+	if userID != "" {
+		nullUserID = uuid.NullUUID{UUID: id.MustParse(userID), Valid: true}
+	}
+	return sqlcgen.FindVerificationTokenRow{
+		ID:         id.MustParse(rowID),
+		UserID:     nullUserID,
+		Email:      email,
+		Purpose:    purpose,
+		TokenHash:  tokenHash,
+		ExpiresAt:  expiresAt,
+		ConsumedAt: sql.NullTime{Time: consumedAt, Valid: consumedAtValid},
+	}
 }
 
 func TestForgotPassword_EmailNotConfigured(t *testing.T) {

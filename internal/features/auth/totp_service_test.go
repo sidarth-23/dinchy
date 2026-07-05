@@ -13,6 +13,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -30,13 +31,25 @@ func validTOTPCode(t *testing.T) string {
 	return code
 }
 
+func twoFactorRow(rowID, userID, secret string, verified bool, lastUsedStep int64, lastUsedStepValid bool, failedVerificationCount int64, lockedUntil sql.NullTime) sqlcgen.FindTwoFactorByUserIDRow {
+	return sqlcgen.FindTwoFactorByUserIDRow{
+		ID:                      id.MustParse(rowID),
+		UserID:                  id.MustParse(userID),
+		Secret:                  secret,
+		Verified:                verified,
+		LastUsedStep:            sql.NullInt64{Int64: lastUsedStep, Valid: lastUsedStepValid},
+		FailedVerificationCount: failedVerificationCount,
+		LockedUntil:             lockedUntil,
+	}
+}
+
 func TestStartTOTPEnrollment_SavesUnverifiedSecret(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
 	store.EXPECT().InsertOrReplaceTwoFactor(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, tf sqlcgen.InsertOrReplaceTwoFactorParams) error {
-			assert.Equal(t, mustParseUUID(testUserID), tf.UserID)
+			assert.Equal(t, id.MustParse(testUserID), tf.UserID)
 			assert.False(t, tf.Verified, "a freshly enrolled secret must not be verified yet")
 			assert.NotEmpty(t, tf.Secret)
 			return nil
@@ -52,7 +65,7 @@ func TestConfirmTOTP_NoEnrollment(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, sql.ErrNoRows)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, sql.ErrNoRows)
 
 	err := svc.ConfirmTOTP(testCtx, testUserID, "123456")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP)))
@@ -62,7 +75,7 @@ func TestConfirmTOTP_InvalidCode(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, false, 0, false, 0, sql.NullTime{}), nil)
 
 	err := svc.ConfirmTOTP(testCtx, testUserID, "000000")
@@ -73,7 +86,7 @@ func TestConfirmTOTP_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, sql.NullTime{}), nil)
 	store.EXPECT().ConfirmTwoFactor(gomock.Any(), gomock.Any()).Return(nil)
 
@@ -84,7 +97,7 @@ func TestDisableTOTP_DelegatesToStore(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().DisableTwoFactor(gomock.Any(), mustParseUUID(testUserID)).Return(nil)
+	store.EXPECT().DisableTwoFactor(gomock.Any(), id.MustParse(testUserID)).Return(nil)
 
 	require.NoError(t, svc.DisableTOTP(testCtx, testUserID))
 }
@@ -95,7 +108,7 @@ func expectPasswordLogin(t *testing.T, store *MockStore) {
 	t.Helper()
 	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").
 		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
-	store.EXPECT().FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+	store.EXPECT().FindPasswordAccountByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "secret")), nil)
 }
 
@@ -103,7 +116,7 @@ func TestLogin_TOTPRequiredWhenCodeMissing(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 	expectPasswordLogin(t, store)
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, sql.NullTime{}), nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "secret", "", "", "", "")
@@ -114,7 +127,7 @@ func TestLogin_TOTPReplayedStepRejected(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 	expectPasswordLogin(t, store)
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, totpStep(fixedTime), true, 0, sql.NullTime{}), nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "secret", "", validTOTPCode(t), "", "")
@@ -125,10 +138,10 @@ func TestLogin_TOTPSuccessMarksStepUsed(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 	expectPasswordLogin(t, store)
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, sql.NullTime{}), nil)
 	store.EXPECT().MarkTwoFactorUsed(gomock.Any(), gomock.Any()).Return(nil)
-	store.EXPECT().ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+	store.EXPECT().ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil)
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 

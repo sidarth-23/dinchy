@@ -5,10 +5,14 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
+
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
@@ -97,7 +101,7 @@ func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, passwo
 	if user == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 	}
-	userID := mustParseUUID(user.ID)
+	userID := id.MustParse(user.ID)
 	accountRow, err := s.store.FindPasswordAccountByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -106,16 +110,33 @@ func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, passwo
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
 	}
 	account := accountFromFindPasswordAccountRow(accountRow)
-	if account == nil || !verifyPassword(password, account.PasswordHash) {
+	if account == nil || !security.VerifyPassword(password, account.PasswordHash) {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 	}
 	return user, nil
 }
 
+func userFromFindUserRow(row sqlcgen.FindUserByEmailRow) *User {
+	if row.ID == uuid.Nil {
+		return nil
+	}
+	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName}
+}
+
+func accountFromFindPasswordAccountRow(row sqlcgen.FindPasswordAccountByUserIDRow) *Account {
+	return &Account{
+		ID:                row.ID.String(),
+		UserID:            row.UserID.String(),
+		Provider:          row.Provider,
+		ProviderAccountID: row.ProviderAccountID,
+		PasswordHash:      row.PasswordHash.String,
+	}
+}
+
 func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, slug string) (*Organisation, error) {
 	slug = transform.Trim(slug)
 	if slug != "" {
-		orgRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: mustParseUUID(userID), Slug: slug})
+		orgRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(userID), Slug: slug})
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
@@ -128,7 +149,7 @@ func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, slug str
 		}
 		return org, nil
 	}
-	orgRows, err := s.store.ListOrganisationsForUser(ctx, mustParseUUID(userID))
+	orgRows, err := s.store.ListOrganisationsForUser(ctx, id.MustParse(userID))
 	if err != nil {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageListOrganisations))
 	}

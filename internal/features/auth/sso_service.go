@@ -8,9 +8,12 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
+
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
@@ -45,7 +48,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	stateToken, err := newRandomToken(32)
+	stateToken, err := security.RandomToken(32)
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
@@ -57,7 +60,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	transactionID, err := newRandomToken(32)
+	transactionID, err := security.RandomToken(32)
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
@@ -150,4 +153,11 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
 	return cached.ReturnTo, token, s.clearSSOCookies(), nil
+}
+
+func userFromProviderAccountRow(row sqlcgen.FindUserByProviderAccountRow) *User {
+	if row.ID == uuid.Nil {
+		return nil
+	}
+	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName}
 }

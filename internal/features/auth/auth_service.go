@@ -53,7 +53,7 @@ func NewService(db *sql.DB, s Store, idg *id.Generator, clk clock.Clock, authCon
 }
 
 func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Organisation, error) {
-	rows, err := s.store.ListOrganisationsForUser(ctx, mustParseUUID(userID))
+	rows, err := s.store.ListOrganisationsForUser(ctx, id.MustParse(userID))
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +62,15 @@ func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Or
 		out = append(out, organisationFromListOrganisationRow(row))
 	}
 	return out, nil
+}
+
+func organisationFromFindOrganisationRow(row sqlcgen.FindOrganisationBySlugForUserRow) *Organisation {
+	organisation := organisationFromListOrganisationRow(sqlcgen.ListOrganisationsForUserRow{ID: row.ID, Name: row.Name, Slug: row.Slug, Role: row.Role})
+	return &organisation
+}
+
+func organisationFromListOrganisationRow(row sqlcgen.ListOrganisationsForUserRow) Organisation {
+	return Organisation{ID: row.ID.String(), Name: row.Name, Slug: row.Slug, Role: Role(row.Role)}
 }
 
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {

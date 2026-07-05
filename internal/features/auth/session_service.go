@@ -9,22 +9,25 @@ import (
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua string) (string, error) {
-	token, tokenHash, err := generateSessionToken()
+	token, err := security.RandomToken(32)
 	if err != nil {
 		return "", apperrors.Annotate(err,
 			apperrors.WithFlow(apperrors.FlowNewSession),
 			apperrors.WithStage(apperrors.StageGenerateToken),
 		)
 	}
+	tokenHash := security.HashToken(token)
 	now := s.clock.Now()
 	err = s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{
-		ID:                   mustParseUUID(s.idg.New()),
-		UserID:               mustParseUUID(userID),
-		ActiveOrganisationID: mustParseUUID(organisationID),
+		ID:                   id.MustParse(s.idg.New()),
+		UserID:               id.MustParse(userID),
+		ActiveOrganisationID: id.MustParse(organisationID),
 		TokenHash:            tokenHash,
 		IpAddress:            ip,
 		UserAgent:            ua,
@@ -51,7 +54,7 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 	if session == nil {
 		return "", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	organisationRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: mustParseUUID(session.UserID), Slug: organisationSlug})
+	organisationRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(session.UserID), Slug: organisationSlug})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
@@ -72,7 +75,7 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUse
 	if rawToken == "" {
 		return nil, nil
 	}
-	row, err := s.store.GetSessionByTokenHash(ctx, hashToken(rawToken))
+	row, err := s.store.GetSessionByTokenHash(ctx, security.HashToken(rawToken))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -87,12 +90,31 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUse
 	return session, nil
 }
 
+func sessionFromGetSessionRow(row sqlcgen.GetSessionByTokenHashRow) *SessionWithUser {
+	session := SessionWithUser{
+		SessionID:        row.ID.String(),
+		UserID:           row.UserID.String(),
+		Email:            row.Email,
+		DisplayName:      row.DisplayName,
+		OrganisationID:   row.ActiveOrganisationID.String(),
+		OrganisationName: row.OrganisationName,
+		OrganisationSlug: row.OrganisationSlug,
+		Role:             Role(row.Role),
+		IdleExpiresAt:    row.IdleExpiresAt.UTC(),
+		ExpiresAt:        row.ExpiresAt.UTC(),
+	}
+	if row.RevokedAt.Valid {
+		session.RevokedAt = row.RevokedAt
+	}
+	return &session
+}
+
 func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return nil
 	}
 	session, sessionErr := s.Session(ctx, rawToken)
-	err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: s.clock.Now().UTC(), Valid: true}, UpdatedAt: s.clock.Now().UTC(), TokenHash: hashToken(rawToken)})
+	err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: s.clock.Now().UTC(), Valid: true}, UpdatedAt: s.clock.Now().UTC(), TokenHash: security.HashToken(rawToken)})
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}

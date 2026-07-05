@@ -1,4 +1,4 @@
-package auth
+package security
 
 import (
 	"crypto/rand"
@@ -13,24 +13,23 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 )
 
-var currentPasswordHashParams = config.DefaultPasswordHashParams()
-
 type parsedPasswordHash struct {
 	params config.PasswordHashParams
 	salt   []byte
 	hash   []byte
 }
 
-func hashPassword(password string) (string, error) {
-	salt := make([]byte, currentPasswordHashParams.SaltLen)
+func HashPassword(password string) (string, error) {
+	params := config.DefaultPasswordHashParams()
+	salt := make([]byte, params.SaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	sum := argon2.IDKey([]byte(password), salt, currentPasswordHashParams.Time, currentPasswordHashParams.Memory, currentPasswordHashParams.Threads, currentPasswordHashParams.KeyLen)
-	return formatPasswordHash(salt, sum, currentPasswordHashParams), nil
+	sum := argon2.IDKey([]byte(password), salt, params.Time, params.Memory, params.Threads, params.KeyLen)
+	return formatPasswordHash(salt, sum, params), nil
 }
 
-func verifyPassword(password, encoded string) bool {
+func VerifyPassword(password, encoded string) bool {
 	spec, ok := parsePasswordHash(encoded)
 	if !ok {
 		return false
@@ -68,7 +67,7 @@ func parsePasswordHash(encoded string) (parsedPasswordHash, bool) {
 		return parsedPasswordHash{}, false
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[3])
-	if err != nil || len(salt) != currentPasswordHashParams.SaltLen {
+	if err != nil || len(salt) != params.SaltLen {
 		return parsedPasswordHash{}, false
 	}
 	hash, err := base64.RawStdEncoding.DecodeString(parts[4])
@@ -88,7 +87,7 @@ func parsePasswordHashParams(raw string) (config.PasswordHashParams, bool) {
 		return config.PasswordHashParams{}, false
 	}
 
-	params := config.PasswordHashParams{SaltLen: currentPasswordHashParams.SaltLen, KeyLen: currentPasswordHashParams.KeyLen}
+	params := config.PasswordHashParams{KeyLen: config.DefaultPasswordHashParams().KeyLen, SaltLen: config.DefaultPasswordHashParams().SaltLen}
 	for _, part := range parts {
 		kv := strings.SplitN(part, "=", 2)
 		if len(kv) != 2 {

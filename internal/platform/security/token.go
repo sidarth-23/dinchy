@@ -1,4 +1,4 @@
-package auth
+package security
 
 import (
 	"crypto/rand"
@@ -6,15 +6,7 @@ import (
 	"encoding/base64"
 )
 
-func generateSessionToken() (raw, tokenHash string, err error) {
-	raw, err = newRandomToken(32)
-	if err != nil {
-		return "", "", err
-	}
-	return raw, hashToken(raw), nil
-}
-
-func newRandomToken(size int) (string, error) {
+func RandomToken(size int) (string, error) {
 	buf := make([]byte, 32)
 	if size > 0 {
 		buf = make([]byte, size)
@@ -25,7 +17,7 @@ func newRandomToken(size int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-func hashToken(raw string) string {
+func HashToken(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }

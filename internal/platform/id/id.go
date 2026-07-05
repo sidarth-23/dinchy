@@ -29,6 +29,15 @@ func Parse(value string) (uuid.UUID, error) {
 	return uuid.Parse(value)
 }
 
+// MustParse converts a canonical UUID string into a UUID value and panics on error.
+func MustParse(value string) uuid.UUID {
+	parsed, err := Parse(value)
+	if err != nil {
+		panic(err)
+	}
+	return parsed
+}
+
 // UUIDField identifies one UUID input by key and raw value.
 type UUIDField struct {
 	Key   string
