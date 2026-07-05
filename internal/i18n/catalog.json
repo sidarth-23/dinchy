@@ -1,0 +1,220 @@
+{
+  "modules": [
+    {
+      "name": "auth",
+      "description": "Authentication and account access messages",
+      "messages": [
+        {
+          "name": "invalid_credentials",
+          "translations": {
+            "en": "Invalid email or password."
+          }
+        },
+        {
+          "name": "setup_completed",
+          "params": [
+            {
+              "name": "resource",
+              "type": "string"
+            },
+            {
+              "name": "count",
+              "type": "int"
+            }
+          ],
+          "translations": {
+            "en": "Setup has already been completed for {{.resource}} ({{.count}} users)."
+          }
+        },
+        {
+          "name": "unauthenticated",
+          "translations": {
+            "en": "Authentication required."
+          }
+        },
+        {
+          "name": "forbidden",
+          "translations": {
+            "en": "You do not have permission to perform this action."
+          }
+        },
+        {
+          "name": "organisation_required",
+          "translations": {
+            "en": "Choose an organisation to continue."
+          }
+        },
+        {
+          "name": "organisation_not_found",
+          "translations": {
+            "en": "The selected organisation is not available."
+          }
+        },
+        {
+          "name": "totp_required",
+          "translations": {
+            "en": "Two-factor authentication code required."
+          }
+        },
+        {
+          "name": "invalid_totp",
+          "translations": {
+            "en": "Invalid two-factor authentication code."
+          }
+        },
+        {
+          "name": "invalid_reset_token",
+          "translations": {
+            "en": "The password reset token is invalid or has expired."
+          }
+        }
+      ],
+      "modules": [
+        {
+          "name": "oidc",
+          "description": "OpenID Connect login messages",
+          "messages": [
+            {
+              "name": "provider_not_found",
+              "params": [
+                {
+                  "name": "provider",
+                  "type": "string"
+                }
+              ],
+              "translations": {
+                "en": "The selected OIDC provider is not available."
+              }
+            },
+            {
+              "name": "invalid_state",
+              "translations": {
+                "en": "The OIDC login flow is invalid or has expired."
+              }
+            },
+            {
+              "name": "login_failed",
+              "translations": {
+                "en": "Unable to sign in with that OIDC provider."
+              }
+            }
+          ]
+        },
+        {
+          "name": "sso",
+          "description": "Single sign-on login messages",
+          "messages": [
+            {
+              "name": "provider_not_found",
+              "params": [
+                {
+                  "name": "provider",
+                  "type": "string"
+                }
+              ],
+              "translations": {
+                "en": "The selected SSO provider is not available."
+              }
+            },
+            {
+              "name": "invalid_state",
+              "translations": {
+                "en": "The SSO login flow is invalid or has expired."
+              }
+            },
+            {
+              "name": "login_failed",
+              "translations": {
+                "en": "Unable to sign in with that SSO provider."
+              }
+            },
+            {
+              "name": "cache_required",
+              "translations": {
+                "en": "A cache store is required before SSO can be enabled."
+              }
+            },
+            {
+              "name": "field_managed_by_env",
+              "translations": {
+                "en": "This SSO setting is managed by environment configuration."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "config",
+      "description": "Configuration messages",
+      "messages": [
+        {
+          "name": "load_failed",
+          "translations": {
+            "en": "Failed to load configuration."
+          }
+        },
+        {
+          "name": "validation_failed",
+          "translations": {
+            "en": "Configuration is invalid."
+          }
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "description": "Email delivery messages",
+      "messages": [
+        {
+          "name": "not_configured",
+          "translations": {
+            "en": "Email delivery is not configured."
+          }
+        }
+      ]
+    },
+    {
+      "name": "request",
+      "description": "Request-level messages",
+      "messages": [
+        {
+          "name": "validation_failed",
+          "translations": {
+            "en": "Some fields need attention."
+          }
+        }
+      ]
+    },
+    {
+      "name": "security",
+      "description": "Transport security messages",
+      "messages": [
+        {
+          "name": "https_required",
+          "translations": {
+            "en": "This endpoint requires a secure (HTTPS) connection."
+          }
+        },
+        {
+          "name": "csrf_failed",
+          "translations": {
+            "en": "Missing or invalid CSRF token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "server",
+      "description": "Process-level fallback messages",
+      "messages": [
+        {
+          "name": "internal_error",
+          "translations": {
+            "en": "An unexpected error occurred."
+          }
+        }
+      ]
+    }
+  ]
+}

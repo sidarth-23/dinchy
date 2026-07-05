@@ -89,13 +89,13 @@ func TestGenerateI18nUsesSourceManifest(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	out := filepath.Join(tmpDir, "generated.go")
-	input := filepath.Join("..", "..", "internal", "i18n", "messages.json")
+	input := filepath.Join("..", "..", "internal", "i18n", "catalog.json")
 
 	raw, err := os.ReadFile(input)
 	require.NoError(t, err)
 
-	var mf i18nManifest
-	require.NoError(t, json.Unmarshal(raw, &mf))
+	mf, err := manifest.DecodeI18nCatalog(raw)
+	require.NoError(t, err)
 	require.NoError(t, generateI18n(input, out))
 
 	got, err := os.ReadFile(out)
@@ -106,9 +106,9 @@ func TestGenerateI18nUsesSourceManifest(t *testing.T) {
 	require.Contains(t, string(got), "var CatalogData = map[language.Tag]map[Code]string{")
 
 	normalizedGot := normalize(string(got))
-	for _, msg := range mf.Messages {
-		require.Contains(t, normalizedGot, normalize("Code"+msg.Name+" Code = "+quote(msg.Code)))
-		require.Contains(t, normalizedGot, normalize("Code"+msg.Name+": "+quote(msg.Translations["en"])))
+	for _, msg := range flattenTestI18nMessages(mf.Modules, nil) {
+		require.Contains(t, normalizedGot, normalize("Code"+msg.ConstantName+" Code = "+quote(msg.Code)))
+		require.Contains(t, normalizedGot, normalize("Code"+msg.ConstantName+": "+quote(msg.Translation)))
 	}
 }
 
@@ -191,12 +191,17 @@ func TestValidateErrorCatalogRejectsDuplicateNodeNames(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestValidateI18nManifestRejectsMissingEnglishTranslation(t *testing.T) {
+func TestValidateI18nCatalogRejectsMissingEnglishTranslation(t *testing.T) {
 	t.Parallel()
 
-	err := validateI18nManifest(i18nManifest{
-		Messages: []i18nMessage{
-			{Name: "A", Code: "a", Translations: map[string]string{"fr": "bonjour"}},
+	err := manifest.ValidateI18nCatalog(manifest.I18nCatalog{
+		Modules: []manifest.I18nModule{
+			{
+				Name: "auth",
+				Messages: []manifest.I18nMessage{
+					{Name: "invalid_credentials", Translations: map[string]string{"fr": "bonjour"}},
+				},
+			},
 		},
 	})
 	require.Error(t, err)
@@ -237,6 +242,24 @@ func flattenTestEvents(modules []eventModule, modulePath []string) []flattenedTe
 	return out
 }
 
+func flattenTestI18nMessages(modules []i18nModule, modulePath []string) []flattenedTestI18nMessage {
+	out := make([]flattenedTestI18nMessage, 0)
+	for _, module := range modules {
+		currentModulePath := append(append([]string{}, modulePath...), module.Name)
+		for _, message := range module.Messages {
+			out = append(out, flattenedTestI18nMessage{
+				ConstantName: manifest.I18nConstantName(currentModulePath, message.Name),
+				Code:         manifest.I18nCodeFor(currentModulePath, message.Name),
+				Translation:  message.Translations["en"],
+			})
+		}
+		if len(module.Modules) > 0 {
+			out = append(out, flattenTestI18nMessages(module.Modules, currentModulePath)...)
+		}
+	}
+	return out
+}
+
 type flattenedTestEvent struct {
 	ID           string
 	Type         string
@@ -245,4 +268,10 @@ type flattenedTestEvent struct {
 	Outcome      string
 	Description  string
 	ConstantName string
+}
+
+type flattenedTestI18nMessage struct {
+	ConstantName string
+	Code         string
+	Translation  string
 }

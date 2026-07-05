@@ -3,6 +3,7 @@ package manifest
 import "strings"
 
 var goAcronyms = map[string]string{
+	"csrf":  "CSRF",
 	"http":  "HTTP",
 	"https": "HTTPS",
 	"id":    "ID",

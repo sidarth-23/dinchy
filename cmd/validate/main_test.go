@@ -70,3 +70,69 @@ func TestRunValidateEventRejectsInvalidCatalog(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, raw, 0o644))
 	require.Error(t, runValidateEvent([]string{"-input", path}))
 }
+
+func TestRunValidateI18nAcceptsValidCatalog(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "catalog.json")
+	raw, err := json.Marshal(manifest.I18nCatalog{
+		Modules: []manifest.I18nModule{
+			{
+				Name: "auth",
+				Messages: []manifest.I18nMessage{
+					{
+						Name: "invalid_credentials",
+						Translations: map[string]string{
+							"en": "Invalid email or password.",
+						},
+					},
+				},
+				Modules: []manifest.I18nModule{
+					{
+						Name: "oidc",
+						Messages: []manifest.I18nMessage{
+							{
+								Name: "provider_not_found",
+								Params: []manifest.I18nParam{
+									{Name: "provider", Type: "string"},
+								},
+								Translations: map[string]string{
+									"en": "The selected OIDC provider is not available.",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, raw, 0o644))
+	require.NoError(t, runValidateI18n([]string{"-input", path}))
+}
+
+func TestRunValidateI18nRejectsMissingEnglishTranslation(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "catalog.json")
+	raw, err := json.Marshal(manifest.I18nCatalog{
+		Modules: []manifest.I18nModule{
+			{
+				Name: "auth",
+				Messages: []manifest.I18nMessage{
+					{
+						Name: "invalid_credentials",
+						Translations: map[string]string{
+							"fr": "Identifiants invalides.",
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, raw, 0o644))
+	require.Error(t, runValidateI18n([]string{"-input", path}))
+}
