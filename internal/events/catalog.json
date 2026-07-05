@@ -3,11 +3,11 @@
     {
       "id": "auth",
       "description": "Authentication and account access events",
-      "categories": [
+      "modules": [
         {
           "id": "security",
           "description": "Security-related events emitted by the auth module",
-          "subcategories": [
+          "modules": [
             {
               "id": "auth",
               "description": "Authentication lifecycle events",

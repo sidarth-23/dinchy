@@ -2,21 +2,22 @@
 
 package events
 
-import (
-	"sort"
-)
-
 type Type string
 
+type TypedKey struct {
+	Name string
+	Type string
+}
+
 type Definition struct {
-	ID          string
-	Type        Type
-	Module      string
-	Category    string
-	Subcategory string
-	Action      string
-	Outcome     string
-	Description string
+	ID           string
+	Type         Type
+	Path         []string
+	Action       string
+	Outcome      string
+	Description  string
+	MetadataKeys []TypedKey
+	ChangeKeys   []TypedKey
 }
 
 const (
@@ -31,61 +32,54 @@ const (
 
 var Definitions = map[Type]Definition{
 	AuthSecurityAuthLoginFailed: {
-		ID:          "login_failed",
-		Type:        AuthSecurityAuthLoginFailed,
-		Module:      "auth",
-		Category:    "security",
-		Subcategory: "auth",
-		Action:      "login",
-		Outcome:     "failed",
-		Description: "A login attempt was rejected",
+		ID:           "login_failed",
+		Type:         AuthSecurityAuthLoginFailed,
+		Path:         []string{"auth", "security", "auth"},
+		Action:       "login",
+		Outcome:      "failed",
+		Description:  "A login attempt was rejected",
+		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}, {Name: "reason", Type: "string"}},
 	},
 	AuthSecurityAuthLoginSucceeded: {
-		ID:          "login_succeeded",
-		Type:        AuthSecurityAuthLoginSucceeded,
-		Module:      "auth",
-		Category:    "security",
-		Subcategory: "auth",
-		Action:      "login",
-		Outcome:     "succeeded",
-		Description: "A login attempt was accepted",
+		ID:           "login_succeeded",
+		Type:         AuthSecurityAuthLoginSucceeded,
+		Path:         []string{"auth", "security", "auth"},
+		Action:       "login",
+		Outcome:      "succeeded",
+		Description:  "A login attempt was accepted",
+		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}, {Name: "organisation_slug", Type: "string"}},
 	},
 	AuthSecurityAuthLogoutSucceeded: {
-		ID:          "logout_succeeded",
-		Type:        AuthSecurityAuthLogoutSucceeded,
-		Module:      "auth",
-		Category:    "security",
-		Subcategory: "auth",
-		Action:      "logout",
-		Outcome:     "succeeded",
-		Description: "A session was revoked successfully",
+		ID:           "logout_succeeded",
+		Type:         AuthSecurityAuthLogoutSucceeded,
+		Path:         []string{"auth", "security", "auth"},
+		Action:       "logout",
+		Outcome:      "succeeded",
+		Description:  "A session was revoked successfully",
+		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}},
 	},
 	AuthSecurityAuthSetupCompleted: {
-		ID:          "setup_completed",
-		Type:        AuthSecurityAuthSetupCompleted,
-		Module:      "auth",
-		Category:    "security",
-		Subcategory: "auth",
-		Action:      "setup_first_user",
-		Outcome:     "succeeded",
-		Description: "The initial user setup flow completed",
+		ID:           "setup_completed",
+		Type:         AuthSecurityAuthSetupCompleted,
+		Path:         []string{"auth", "security", "auth"},
+		Action:       "setup_first_user",
+		Outcome:      "succeeded",
+		Description:  "The initial user setup flow completed",
+		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}, {Name: "display_name", Type: "string"}},
 	},
 	AuthSecuritySSOSettingsUpdated: {
 		ID:          "updated",
 		Type:        AuthSecuritySSOSettingsUpdated,
-		Module:      "auth",
-		Category:    "security",
-		Subcategory: "sso_settings",
+		Path:        []string{"auth", "security", "sso_settings"},
 		Action:      "update_sso_settings",
 		Outcome:     "succeeded",
 		Description: "SSO settings were updated",
+		ChangeKeys:  []TypedKey{{Name: "client_id", Type: "bool"}, {Name: "client_secret", Type: "bool"}, {Name: "callback_url", Type: "bool"}, {Name: "enabled", Type: "bool"}},
 	},
 	AuthSecurityTwoFactorDisabled: {
 		ID:          "disabled",
 		Type:        AuthSecurityTwoFactorDisabled,
-		Module:      "auth",
-		Category:    "security",
-		Subcategory: "two_factor",
+		Path:        []string{"auth", "security", "two_factor"},
 		Action:      "disable_totp",
 		Outcome:     "succeeded",
 		Description: "Two-factor authentication was disabled",
@@ -93,9 +87,7 @@ var Definitions = map[Type]Definition{
 	AuthSecurityTwoFactorEnabled: {
 		ID:          "enabled",
 		Type:        AuthSecurityTwoFactorEnabled,
-		Module:      "auth",
-		Category:    "security",
-		Subcategory: "two_factor",
+		Path:        []string{"auth", "security", "two_factor"},
 		Action:      "enable_totp",
 		Outcome:     "succeeded",
 		Description: "Two-factor authentication was enabled",
@@ -230,15 +222,4 @@ func (value AuthSecurityTwoFactorEnabledChanges) Map() map[string]any {
 func DefinitionFor(eventType Type) (Definition, bool) {
 	definition, ok := Definitions[eventType]
 	return definition, ok
-}
-
-func DefinitionsForModule(module string) []Definition {
-	out := make([]Definition, 0)
-	for _, definition := range Definitions {
-		if definition.Module == module {
-			out = append(out, definition)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Type < out[j].Type })
-	return out
 }

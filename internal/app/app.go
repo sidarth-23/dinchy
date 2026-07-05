@@ -201,7 +201,7 @@ func frontendFS(devMode bool) (fs.FS, error) {
 	dist, err := frontend.DistFS()
 	if err != nil {
 		return nil, apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageFrontendDistFS),
+			apperrors.WithStage(apperrors.StageFrontendDistFs),
 		)
 	}
 	return dist, nil

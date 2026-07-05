@@ -9,31 +9,154 @@ import (
 type MetaKey string
 
 const (
-	MetaKeyStage        MetaKey = "stage"
+	MetaKeyDeletedCount MetaKey = "deleted_count"
+	MetaKeyFieldKind    MetaKey = "field_kind"
+	MetaKeyFieldName    MetaKey = "field_name"
 	MetaKeyFlow         MetaKey = "flow"
 	MetaKeyHandler      MetaKey = "handler"
 	MetaKeyOperation    MetaKey = "operation"
-	MetaKeyTask         MetaKey = "task"
-	MetaKeyField        MetaKey = "field"
-	MetaKeyKind         MetaKey = "kind"
 	MetaKeyPath         MetaKey = "path"
 	MetaKeyPragma       MetaKey = "pragma"
-	MetaKeyDeletedCount MetaKey = "deleted_count"
+	MetaKeyStage        MetaKey = "stage"
+	MetaKeyTask         MetaKey = "task"
 	MetaKeyTokenHash    MetaKey = "token_hash"
 )
 
-// Stage names a lifecycle step recorded in metadata.
+// Deletion count metadata helpers.
+type DeletedCount int
+
+func (deletedCount DeletedCount) metaKey() MetaKey      { return MetaKeyDeletedCount }
+func (deletedCount DeletedCount) metaValue() any        { return int(deletedCount) }
+func WithDeletedCount(deletedCount DeletedCount) Option { return withMetaValue(deletedCount) }
+
+// FieldKind records a reflected type kind in metadata.
+type FieldKind string
+
+func FieldKindOf(kind reflect.Kind) FieldKind  { return FieldKind(kind.String()) }
+func (fieldKind FieldKind) metaKey() MetaKey   { return MetaKeyFieldKind }
+func (fieldKind FieldKind) metaValue() any     { return string(fieldKind) }
+func WithFieldKind(fieldKind FieldKind) Option { return withMetaValue(fieldKind) }
+
+// FieldName records a field name in metadata.
+type FieldName string
+
+func (fieldName FieldName) metaKey() MetaKey   { return MetaKeyFieldName }
+func (fieldName FieldName) metaValue() any     { return string(fieldName) }
+func WithFieldName(fieldName FieldName) Option { return withMetaValue(fieldName) }
+
+// Higher-level business flow metadata helpers.
+type Flow string
+
+func (flow Flow) metaKey() MetaKey { return MetaKeyFlow }
+func (flow Flow) metaValue() any   { return string(flow) }
+func WithFlow(flow Flow) Option    { return withMetaValue(flow) }
+
+const (
+	FlowSetupFirstUser Flow = "setup_first_user"
+	FlowLogin          Flow = "login"
+	FlowSession        Flow = "session"
+	FlowLogout         Flow = "logout"
+	FlowNewSession     Flow = "new_session"
+	FlowTOTP           Flow = "totp"
+	FlowPasswordReset  Flow = "password_reset"
+)
+
+// Transport handler metadata helpers.
+type Handler string
+
+func (handler Handler) metaKey() MetaKey { return MetaKeyHandler }
+func (handler Handler) metaValue() any   { return string(handler) }
+func WithHandler(handler Handler) Option { return withMetaValue(handler) }
+
+const (
+	HandlerAuthLogin         Handler = "auth_login"
+	HandlerAuthLogout        Handler = "auth_logout"
+	HandlerAuthSession       Handler = "auth_session"
+	HandlerAuthSetup         Handler = "auth_setup"
+	HandlerAuthOIDCProviders Handler = "auth_oidc_providers"
+	HandlerAuthOIDCStart     Handler = "auth_oidc_start"
+	HandlerAuthOIDCCallback  Handler = "auth_oidc_callback"
+	HandlerAuthSSOStart      Handler = "auth_sso_start"
+	HandlerAuthSSOCallback   Handler = "auth_sso_callback"
+	HandlerBootstrapGet      Handler = "bootstrap_get"
+)
+
+// Storage and runtime operation metadata helpers.
+type Operation string
+
+func (operation Operation) metaKey() MetaKey   { return MetaKeyOperation }
+func (operation Operation) metaValue() any     { return string(operation) }
+func WithOperation(operation Operation) Option { return withMetaValue(operation) }
+
+const (
+	OperationEnsureDefaultSettings         Operation = "ensure_default_settings"
+	OperationCountUsers                    Operation = "count_users"
+	OperationGetInstanceName               Operation = "get_instance_name"
+	OperationOpen                          Operation = "open"
+	OperationSQLOpen                       Operation = "sql_open"
+	OperationPingContext                   Operation = "ping_context"
+	OperationClose                         Operation = "close"
+	OperationWithTx                        Operation = "with_tx"
+	OperationBeginTx                       Operation = "begin_tx"
+	OperationCommit                        Operation = "commit"
+	OperationRollback                      Operation = "rollback"
+	OperationMkdirAll                      Operation = "mkdir_all"
+	OperationApplyPragmas                  Operation = "apply_pragmas"
+	OperationCreateSession                 Operation = "create_session"
+	OperationGetSessionByTokenHash         Operation = "get_session_by_token_hash"
+	OperationRevokeSessionByTokenHash      Operation = "revoke_session_by_token_hash"
+	OperationDeleteEndedSessionsOlderThan  Operation = "delete_ended_sessions_older_than"
+	OperationEnsureTask                    Operation = "ensure_task"
+	OperationClaimTask                     Operation = "claim_task"
+	OperationFinishTask                    Operation = "finish_task"
+	OperationInsertUser                    Operation = "insert_user"
+	OperationFindUserByEmail               Operation = "find_user_by_email"
+	OperationInsertAccount                 Operation = "insert_account"
+	OperationInsertOrganisation            Operation = "insert_organisation"
+	OperationInsertOrganisationMember      Operation = "insert_organisation_member"
+	OperationFindPasswordAccountByUserID   Operation = "find_password_account_by_user_id"
+	OperationFindUserByProviderAccount     Operation = "find_user_by_provider_account"
+	OperationListOrganisationsForUser      Operation = "list_organisations_for_user"
+	OperationFindOrganisationBySlugForUser Operation = "find_organisation_by_slug_for_user"
+	OperationFindOrganisationByIDForUser   Operation = "find_organisation_by_id_for_user"
+	OperationUpdateUserPasswordHash        Operation = "update_user_password_hash"
+	OperationRevokeSessionsForUser         Operation = "revoke_sessions_for_user"
+	OperationInsertVerificationToken       Operation = "insert_verification_token"
+	OperationFindVerificationToken         Operation = "find_verification_token"
+	OperationConsumeVerificationToken      Operation = "consume_verification_token"
+	OperationSaveTwoFactor                 Operation = "save_two_factor"
+	OperationFindTwoFactorByUserID         Operation = "find_two_factor_by_user_id"
+	OperationConfirmTwoFactor              Operation = "confirm_two_factor"
+	OperationMarkTwoFactorUsed             Operation = "mark_two_factor_used"
+	OperationDisableTwoFactor              Operation = "disable_two_factor"
+)
+
+// Filesystem path metadata helpers.
+type Path string
+
+func (path Path) metaKey() MetaKey { return MetaKeyPath }
+func (path Path) metaValue() any   { return string(path) }
+func WithPath(path Path) Option    { return withMetaValue(path) }
+
+// SQLite pragma metadata helpers.
+type Pragma string
+
+func (pragma Pragma) metaKey() MetaKey { return MetaKeyPragma }
+func (pragma Pragma) metaValue() any   { return string(pragma) }
+func WithPragma(pragma Pragma) Option  { return withMetaValue(pragma) }
+
+// Lifecycle stage metadata helpers.
 type Stage string
 
-func (s Stage) metaKey() MetaKey { return MetaKeyStage }
-func (s Stage) metaValue() any   { return string(s) }
-func WithStage(s Stage) Option   { return withMetaValue(s) }
+func (stage Stage) metaKey() MetaKey { return MetaKeyStage }
+func (stage Stage) metaValue() any   { return string(stage) }
+func WithStage(stage Stage) Option   { return withMetaValue(stage) }
 
 const (
 	StageOpenStore                Stage = "open_store"
 	StageLoadFrontendAssets       Stage = "load_frontend_assets"
 	StageStartTaskRuntime         Stage = "start_task_runtime"
-	StageFrontendDistFS           Stage = "frontend_dist_fs"
+	StageFrontendDistFs           Stage = "frontend_dist_fs"
 	StageCreateFirstUser          Stage = "create_first_user"
 	StageFindUser                 Stage = "find_user"
 	StageGetSession               Stage = "get_session"
@@ -76,143 +199,20 @@ const (
 	StageResolveXDGConfigHome     Stage = "resolve_xdg_config_home"
 )
 
-// Flow names a higher-level business flow recorded in metadata.
-type Flow string
-
-func (f Flow) metaKey() MetaKey { return MetaKeyFlow }
-func (f Flow) metaValue() any   { return string(f) }
-func WithFlow(f Flow) Option    { return withMetaValue(f) }
-
-const (
-	FlowSetupFirstUser Flow = "setup_first_user"
-	FlowLogin          Flow = "login"
-	FlowSession        Flow = "session"
-	FlowLogout         Flow = "logout"
-	FlowNewSession     Flow = "new_session"
-	FlowTOTP           Flow = "totp"
-	FlowPasswordReset  Flow = "password_reset"
-)
-
-// Handler names a transport handler recorded in metadata.
-type Handler string
-
-func (h Handler) metaKey() MetaKey { return MetaKeyHandler }
-func (h Handler) metaValue() any   { return string(h) }
-func WithHandler(h Handler) Option { return withMetaValue(h) }
-
-const (
-	HandlerAuthLogin         Handler = "auth.login"
-	HandlerAuthLogout        Handler = "auth.logout"
-	HandlerAuthSession       Handler = "auth.session"
-	HandlerAuthSetup         Handler = "auth.setup"
-	HandlerAuthOIDCProviders Handler = "auth.oidc.providers"
-	HandlerAuthOIDCStart     Handler = "auth.oidc.start"
-	HandlerAuthOIDCCallback  Handler = "auth.oidc.callback"
-	HandlerAuthSSOStart      Handler = "auth.sso.start"
-	HandlerAuthSSOCallback   Handler = "auth.sso.callback"
-	HandlerBootstrapGet      Handler = "bootstrap.get"
-)
-
-// Operation names a storage or runtime operation recorded in metadata.
-type Operation string
-
-func (o Operation) metaKey() MetaKey   { return MetaKeyOperation }
-func (o Operation) metaValue() any     { return string(o) }
-func WithOperation(o Operation) Option { return withMetaValue(o) }
-
-const (
-	OperationEnsureDefaultSettings         Operation = "EnsureDefaultSettings"
-	OperationCountUsers                    Operation = "CountUsers"
-	OperationGetInstanceName               Operation = "GetInstanceName"
-	OperationOpen                          Operation = "Open"
-	OperationSQLOpen                       Operation = "sql.Open"
-	OperationPingContext                   Operation = "PingContext"
-	OperationClose                         Operation = "Close"
-	OperationWithTx                        Operation = "WithTx"
-	OperationBeginTx                       Operation = "BeginTx"
-	OperationCommit                        Operation = "Commit"
-	OperationRollback                      Operation = "Rollback"
-	OperationMkdirAll                      Operation = "MkdirAll"
-	OperationApplyPragmas                  Operation = "applyPragmas"
-	OperationCreateSession                 Operation = "CreateSession"
-	OperationGetSessionByTokenHash         Operation = "GetSessionByTokenHash"
-	OperationRevokeSessionByTokenHash      Operation = "RevokeSessionByTokenHash"
-	OperationDeleteEndedSessionsOlderThan  Operation = "DeleteEndedSessionsOlderThan"
-	OperationEnsureTask                    Operation = "EnsureTask"
-	OperationClaimTask                     Operation = "ClaimTask"
-	OperationFinishTask                    Operation = "FinishTask"
-	OperationInsertUser                    Operation = "InsertUser"
-	OperationFindUserByEmail               Operation = "FindUserByEmail"
-	OperationInsertAccount                 Operation = "InsertAccount"
-	OperationInsertOrganisation            Operation = "InsertOrganisation"
-	OperationInsertOrganisationMember      Operation = "InsertOrganisationMember"
-	OperationFindPasswordAccountByUserID   Operation = "FindPasswordAccountByUserID"
-	OperationFindUserByProviderAccount     Operation = "FindUserByProviderAccount"
-	OperationListOrganisationsForUser      Operation = "ListOrganisationsForUser"
-	OperationFindOrganisationBySlugForUser Operation = "FindOrganisationBySlugForUser"
-	OperationFindOrganisationByIDForUser   Operation = "FindOrganisationByIDForUser"
-	OperationUpdateUserPasswordHash        Operation = "UpdateUserPasswordHash"
-	OperationRevokeSessionsForUser         Operation = "RevokeSessionsForUser"
-	OperationInsertVerificationToken       Operation = "InsertVerificationToken"
-	OperationFindVerificationToken         Operation = "FindVerificationToken"
-	OperationConsumeVerificationToken      Operation = "ConsumeVerificationToken"
-	OperationSaveTwoFactor                 Operation = "SaveTwoFactor"
-	OperationFindTwoFactorByUserID         Operation = "FindTwoFactorByUserID"
-	OperationConfirmTwoFactor              Operation = "ConfirmTwoFactor"
-	OperationMarkTwoFactorUsed             Operation = "MarkTwoFactorUsed"
-	OperationDisableTwoFactor              Operation = "DisableTwoFactor"
-)
-
-// Task names a durable background task recorded in metadata.
+// Durable background task metadata helpers.
 type Task string
 
-func (t Task) metaKey() MetaKey { return MetaKeyTask }
-func (t Task) metaValue() any   { return string(t) }
-func WithTask(t Task) Option    { return withMetaValue(t) }
+func (task Task) metaKey() MetaKey { return MetaKeyTask }
+func (task Task) metaValue() any   { return string(task) }
+func WithTask(task Task) Option    { return withMetaValue(task) }
 
 const (
 	TaskSessionCleanup Task = "session_cleanup"
 )
 
-// FieldName records a field name in metadata.
-type FieldName string
-
-func (f FieldName) metaKey() MetaKey { return MetaKeyField }
-func (f FieldName) metaValue() any   { return string(f) }
-func WithField(f FieldName) Option   { return withMetaValue(f) }
-
-// FieldKind records a reflected type kind in metadata.
-type FieldKind string
-
-func FieldKindOf(kind reflect.Kind) FieldKind { return FieldKind(kind.String()) }
-func (f FieldKind) metaKey() MetaKey          { return MetaKeyKind }
-func (f FieldKind) metaValue() any            { return string(f) }
-func WithKind(f FieldKind) Option             { return withMetaValue(f) }
-
-// Path records a filesystem path in metadata.
-type Path string
-
-func (p Path) metaKey() MetaKey { return MetaKeyPath }
-func (p Path) metaValue() any   { return string(p) }
-func WithPath(p Path) Option    { return withMetaValue(p) }
-
-// Pragma records a SQLite pragma name in metadata.
-type Pragma string
-
-func (p Pragma) metaKey() MetaKey { return MetaKeyPragma }
-func (p Pragma) metaValue() any   { return string(p) }
-func WithPragma(p Pragma) Option  { return withMetaValue(p) }
-
-// DeletedCount records the number of deleted rows in metadata.
-type DeletedCount int
-
-func (d DeletedCount) metaKey() MetaKey      { return MetaKeyDeletedCount }
-func (d DeletedCount) metaValue() any        { return int(d) }
-func WithDeletedCount(d DeletedCount) Option { return withMetaValue(d) }
-
-// TokenHash records a token hash in metadata.
+// Token metadata helpers.
 type TokenHash string
 
-func (t TokenHash) metaKey() MetaKey   { return MetaKeyTokenHash }
-func (t TokenHash) metaValue() any     { return string(t) }
-func WithTokenHash(t TokenHash) Option { return withMetaValue(t) }
+func (tokenHash TokenHash) metaKey() MetaKey   { return MetaKeyTokenHash }
+func (tokenHash TokenHash) metaValue() any     { return string(tokenHash) }
+func WithTokenHash(tokenHash TokenHash) Option { return withMetaValue(tokenHash) }

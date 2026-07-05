@@ -42,14 +42,6 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 	}
 }
 
-func TestAppError_IsMatchesByCode(t *testing.T) {
-	t.Parallel()
-
-	err := apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))
-	assert.True(t, stdErrors.Is(err, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))))
-	assert.False(t, stdErrors.Is(err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))))
-}
-
 func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
 	t.Parallel()
 

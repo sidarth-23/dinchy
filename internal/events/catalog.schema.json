@@ -8,7 +8,6 @@
   "properties": {
     "modules": {
       "type": "array",
-      "description": "Top-level functional modules that group related event categories.",
       "items": { "$ref": "#/$defs/module" }
     }
   },
@@ -16,62 +15,21 @@
     "module": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "categories"],
+      "required": ["id"],
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Module identifier. The generator uses it as the first path segment in the final event type."
+          "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
-          "type": "string",
-          "description": "Human-readable purpose of the module."
+          "type": "string"
         },
-        "categories": {
+        "modules": {
           "type": "array",
-          "description": "Ordered categories inside the module. Categories group subcategories and must be unique within the module.",
-          "items": { "$ref": "#/$defs/category" }
-        }
-      }
-    },
-    "category": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "subcategories"],
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Category identifier. The generator uses it as the second path segment in the final event type."
-        },
-        "description": {
-          "type": "string",
-          "description": "Human-readable purpose of the category."
-        },
-        "subcategories": {
-          "type": "array",
-          "description": "Ordered subcategories inside the category. Subcategories contain the actual event leaves.",
-          "items": { "$ref": "#/$defs/subcategory" }
-        }
-      }
-    },
-    "subcategory": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "events"],
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Subcategory identifier. The generator uses it as the third path segment in the final event type."
-        },
-        "description": {
-          "type": "string",
-          "description": "Human-readable purpose of the subcategory."
+          "items": { "$ref": "#/$defs/module" }
         },
         "events": {
           "type": "array",
-          "description": "Concrete event definitions stored under this subcategory.",
           "items": { "$ref": "#/$defs/event" }
         }
       }
@@ -83,31 +41,23 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Leaf event identifier. The generator appends it to module, category, and subcategory ids to build the final type."
+          "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
-          "type": "string",
-          "description": "Human-readable explanation of when the event is emitted."
+          "type": "string"
         },
         "action": {
-          "type": "string",
-          "description": "Canonical action verb recorded for the event."
+          "type": "string"
         },
         "outcome": {
-          "type": "string",
-          "description": "Terminal result of the action, such as succeeded or failed."
+          "type": "string"
         },
         "metadata_keys": {
           "type": "array",
-          "default": [],
-          "description": "Typed metadata fields carried with the event payload and persisted by subscribers.",
           "items": { "$ref": "#/$defs/typed_field" }
         },
         "change_keys": {
           "type": "array",
-          "default": [],
-          "description": "Typed changed fields carried with the event payload and persisted by subscribers.",
           "items": { "$ref": "#/$defs/typed_field" }
         }
       }
@@ -118,13 +68,11 @@
       "required": ["name", "type"],
       "properties": {
         "name": {
-          "type": "string",
-          "description": "Field name stored in event metadata or changes."
+          "type": "string"
         },
         "type": {
           "type": "string",
-          "enum": ["string", "bool", "int", "int64", "float64", "time.Time"],
-          "description": "Go type used by the generator when emitting typed helper structs."
+          "enum": ["string", "bool", "int", "int64", "float64", "time.Time"]
         }
       }
     }

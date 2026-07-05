@@ -5,6 +5,11 @@
                 "name": "Dinchy event catalog",
                 "fileMatch": ["internal/events/catalog.json"],
                 "url": "./internal/events/catalog.schema.json"
+            },
+            {
+                "name": "Dinchy error catalog",
+                "fileMatch": ["internal/errors/catalog.json"],
+                "url": "./internal/errors/catalog.schema.json"
             }
         ]
     }

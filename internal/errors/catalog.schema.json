@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sidarth-23/dinchy/internal/errors/catalog.schema.json",
+  "title": "Dinchy Error Metadata Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["modules"],
+  "properties": {
+    "modules": {
+      "type": "array",
+      "description": "Top-level namespaces that group related error metadata helpers.",
+      "items": { "$ref": "#/$defs/module" }
+    }
+  },
+  "$defs": {
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "modules"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Stable module name used to group child nodes."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable purpose of the module."
+        },
+        "modules": {
+          "type": "array",
+          "description": "Child nodes inside the module namespace.",
+          "items": { "$ref": "#/$defs/node" }
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Stable path segment used to derive the exported Go name and metadata key."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable purpose of the node."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "bool", "int", "int64", "float64"],
+          "description": "Go type used for the generated wrapper or typed value set. Defaults to string."
+        },
+        "from_reflect": {
+          "type": "boolean",
+          "description": "Generate a helper conversion from reflect.Kind to this metadata type."
+        },
+        "values": {
+          "type": "array",
+          "description": "Optional typed values for enum-like helpers.",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "boolean" },
+              { "type": "integer" },
+              { "type": "number" }
+            ]
+          }
+        },
+        "modules": {
+          "type": "array",
+          "description": "Optional nested nodes for further grouping.",
+          "items": { "$ref": "#/$defs/node" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "modules": { "minItems": 1 }
+            },
+            "required": ["modules"]
+          },
+          "then": {
+            "not": { "required": ["values"] }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -47,8 +47,8 @@ func loadFromEnv(cfg any) error {
 			if _, err := fmt.Sscanf(raw, "%d", &parsed); err != nil {
 				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 					apperrors.WithCause(fmt.Errorf("parse integer env %q for %q: %w", envKey, field.Name, err)),
-					apperrors.WithField(apperrors.FieldName(field.Name)),
-					apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
+					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
 				)
 			}
 			v.Field(i).SetInt(int64(parsed))
@@ -57,8 +57,8 @@ func loadFromEnv(cfg any) error {
 			if err != nil {
 				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 					apperrors.WithCause(fmt.Errorf("parse duration env %q for %q: %w", envKey, field.Name, err)),
-					apperrors.WithField(apperrors.FieldName(field.Name)),
-					apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
+					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
 				)
 			}
 			v.Field(i).SetInt(int64(duration))
@@ -67,16 +67,16 @@ func loadFromEnv(cfg any) error {
 			if err != nil {
 				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 					apperrors.WithCause(fmt.Errorf("parse unsigned integer env %q for %q: %w", envKey, field.Name, err)),
-					apperrors.WithField(apperrors.FieldName(field.Name)),
-					apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
+					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
 				)
 			}
 			v.Field(i).SetUint(parsed)
 		default:
 			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),
-				apperrors.WithField(apperrors.FieldName(field.Name)),
-				apperrors.WithKind(apperrors.FieldKindOf(field.Type.Kind())),
+				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
 			)
 		}
 	}
