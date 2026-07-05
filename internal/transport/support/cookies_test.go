@@ -27,3 +27,26 @@ func TestCSRFCookie_Secure(t *testing.T) {
 	assert.Equal(t, http.SameSiteLaxMode, c.SameSite)
 	assert.Equal(t, "/", c.Path)
 }
+
+func TestValueCookie(t *testing.T) {
+	t.Parallel()
+	c := support.ValueCookie("session", "rawtoken", true)
+	assert.Equal(t, "session", c.Name)
+	assert.Equal(t, "rawtoken", c.Value)
+	assert.True(t, c.HttpOnly)
+	assert.True(t, c.Secure)
+	assert.Equal(t, http.SameSiteLaxMode, c.SameSite)
+	assert.Equal(t, "/", c.Path)
+}
+
+func TestClearCookie(t *testing.T) {
+	t.Parallel()
+	c := support.ClearCookie("session", false)
+	assert.Equal(t, "session", c.Name)
+	assert.Equal(t, "", c.Value)
+	assert.True(t, c.HttpOnly)
+	assert.False(t, c.Secure)
+	assert.Equal(t, -1, c.MaxAge)
+	assert.Equal(t, http.SameSiteLaxMode, c.SameSite)
+	assert.Equal(t, "/", c.Path)
+}

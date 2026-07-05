@@ -2,7 +2,6 @@ package auth
 
 import (
 	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -56,59 +55,6 @@ func organisationFromFindOrganisationRow(row sqlcgen.FindOrganisationBySlugForUs
 
 func organisationFromListOrganisationRow(row sqlcgen.ListOrganisationsForUserRow) Organisation {
 	return Organisation{ID: row.ID.String(), Name: row.Name, Slug: row.Slug, Role: Role(row.Role)}
-}
-
-func verificationTokenFromRow(idValue uuid.UUID, userID uuid.NullUUID, email, purpose, tokenHash string, expiresAt time.Time, consumedAt sql.NullTime) VerificationToken {
-	token := VerificationToken{
-		ID:          idValue.String(),
-		UserID:      userID.UUID.String(),
-		UserIDValid: userID.Valid,
-		Email:       email,
-		Purpose:     purpose,
-		TokenHash:   tokenHash,
-		ExpiresAt:   expiresAt.UTC(),
-	}
-	if consumedAt.Valid {
-		token.ConsumedAt = consumedAt.Time.UTC()
-		token.ConsumedAtValid = true
-	}
-	return token
-}
-
-func twoFactorFromRow(idValue, userID uuid.UUID, secret string, verified bool, lastUsedStep sql.NullInt64, failedVerificationCount int64, lockedUntil sql.NullTime) TwoFactor {
-	twoFactor := TwoFactor{
-		ID:                      idValue.String(),
-		UserID:                  userID.String(),
-		Secret:                  secret,
-		Verified:                verified,
-		LastUsedStep:            lastUsedStep.Int64,
-		LastUsedStepValid:       lastUsedStep.Valid,
-		FailedVerificationCount: failedVerificationCount,
-	}
-	if lockedUntil.Valid {
-		twoFactor.LockedUntil = lockedUntil.Time.UTC()
-		twoFactor.LockedUntilValid = true
-	}
-	return twoFactor
-}
-
-func sessionFromRow(idValue, userID uuid.UUID, email, displayName, organisationID, organisationName, organisationSlug, role string, idleExpiresAt, expiresAt time.Time, revokedAt sql.NullTime) SessionWithUser {
-	session := SessionWithUser{
-		SessionID:        idValue.String(),
-		UserID:           userID.String(),
-		Email:            email,
-		DisplayName:      displayName,
-		OrganisationID:   organisationID,
-		OrganisationName: organisationName,
-		OrganisationSlug: organisationSlug,
-		Role:             Role(role),
-		IdleExpiresAt:    idleExpiresAt.UTC(),
-		ExpiresAt:        expiresAt.UTC(),
-	}
-	if revokedAt.Valid {
-		session.RevokedAt = revokedAt
-	}
-	return session
 }
 
 func sessionFromGetSessionRow(row sqlcgen.GetSessionByTokenHashRow) *SessionWithUser {

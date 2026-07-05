@@ -1,4 +1,4 @@
-// Package auth handles password hashing, session issuance, and session validation.
+// Package auth handles authentication, sessions, account setup, and related feature flows.
 package auth
 
 import (

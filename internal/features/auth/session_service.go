@@ -12,6 +12,37 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
+func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua string) (string, error) {
+	token, tokenHash, err := generateSessionToken()
+	if err != nil {
+		return "", apperrors.Annotate(err,
+			apperrors.WithFlow(apperrors.FlowNewSession),
+			apperrors.WithStage(apperrors.StageGenerateToken),
+		)
+	}
+	now := s.clock.Now()
+	err = s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{
+		ID:                   mustParseUUID(s.idg.New()),
+		UserID:               mustParseUUID(userID),
+		ActiveOrganisationID: mustParseUUID(organisationID),
+		TokenHash:            tokenHash,
+		IpAddress:            ip,
+		UserAgent:            ua,
+		LastSeenAt:           now.UTC(),
+		IdleExpiresAt:        now.Add(s.authConfig.SessionIdleTimeout).UTC(),
+		ExpiresAt:            now.Add(s.authConfig.SessionMaxLifetime).UTC(),
+		CreatedAt:            now.UTC(),
+		UpdatedAt:            now.UTC(),
+	})
+	if err != nil {
+		return "", apperrors.Annotate(err,
+			apperrors.WithFlow(apperrors.FlowNewSession),
+			apperrors.WithStage(apperrors.StageCreateSession),
+		)
+	}
+	return token, nil
+}
+
 func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisationSlug, ip, userAgent string) (string, error) {
 	session, err := s.Session(ctx, rawToken)
 	if err != nil {

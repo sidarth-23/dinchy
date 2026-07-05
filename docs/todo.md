@@ -10,4 +10,5 @@
   - it has too many files with small functions. organize it properly
 - clean the sql queries in sqlc so that the params are not random column_7 etc. It should be named properly and the params should be named properly
 - organise and name code generator and validator properly and add it to pre commit hooks
-- move database to pgx/v5 and configure sqlc properly to get all the benefits of both
+- move database to pgx/v5 and configure sqlc properly to get all the benefits of both. also take care of error handling and logging with this properly
+- let's create the class for features properly so that most of the features extend from a base feature class

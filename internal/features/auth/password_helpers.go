@@ -1,9 +1,7 @@
 package auth
 
 import (
-	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
@@ -13,41 +11,14 @@ import (
 	"golang.org/x/crypto/argon2"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 var currentPasswordHashParams = config.DefaultPasswordHashParams()
 
-func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua string) (string, error) {
-	token, tokenHash, err := generateSessionToken()
-	if err != nil {
-		return "", apperrors.Annotate(err,
-			apperrors.WithFlow(apperrors.FlowNewSession),
-			apperrors.WithStage(apperrors.StageGenerateToken),
-		)
-	}
-	now := s.clock.Now()
-	err = s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{
-		ID:                   mustParseUUID(s.idg.New()),
-		UserID:               mustParseUUID(userID),
-		ActiveOrganisationID: mustParseUUID(organisationID),
-		TokenHash:            tokenHash,
-		IpAddress:            ip,
-		UserAgent:            ua,
-		LastSeenAt:           now.UTC(),
-		IdleExpiresAt:        now.Add(s.authConfig.SessionIdleTimeout).UTC(),
-		ExpiresAt:            now.Add(s.authConfig.SessionMaxLifetime).UTC(),
-		CreatedAt:            now.UTC(),
-		UpdatedAt:            now.UTC(),
-	})
-	if err != nil {
-		return "", apperrors.Annotate(err,
-			apperrors.WithFlow(apperrors.FlowNewSession),
-			apperrors.WithStage(apperrors.StageCreateSession),
-		)
-	}
-	return token, nil
+type parsedPasswordHash struct {
+	params config.PasswordHashParams
+	salt   []byte
+	hash   []byte
 }
 
 func hashPassword(password string) (string, error) {
@@ -66,30 +37,6 @@ func verifyPassword(password, encoded string) bool {
 	}
 	sum := argon2.IDKey([]byte(password), spec.salt, spec.params.Time, spec.params.Memory, spec.params.Threads, spec.params.KeyLen)
 	return subtle.ConstantTimeCompare(sum, spec.hash) == 1
-}
-
-func generateSessionToken() (raw, tokenHash string, err error) {
-	raw, err = newRandomToken(32)
-	if err != nil {
-		return "", "", err
-	}
-	return raw, hashToken(raw), nil
-}
-
-func newRandomToken(size int) (string, error) {
-	buf := make([]byte, 32)
-	if size > 0 {
-		buf = make([]byte, size)
-	}
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
-}
-
-func hashToken(raw string) string {
-	sum := sha256.Sum256([]byte(raw))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 func formatPasswordHash(salt, hash []byte, params config.PasswordHashParams) string {
