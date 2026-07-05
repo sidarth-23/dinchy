@@ -10,10 +10,7 @@
 *.out
 /vendor/
 /dist/
-
-# Generated Go code
-/internal/errors/generated.go
-/internal/i18n/generated.go
+tmp
 
 # Frontend
 web/node_modules/

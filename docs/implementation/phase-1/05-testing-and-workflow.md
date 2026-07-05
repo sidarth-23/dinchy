@@ -76,7 +76,7 @@ Available tasks:
 - `mise run test` — run the full test stack (`go test ./...`)
 - `mise run lint` — run golangci-lint
 - `mise run fmt` — format Go code with golangci-lint
-- `mise run generate` — regenerate generated Go code and sqlc queries (`go generate ./internal/errors ./internal/i18n && sqlc generate`)
+- `mise run generate` — regenerate generated Go code and sqlc queries (`go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate`)
 - `mise run db:migrate` — run SQLite migrations (`goose up`)
 - `mise run db:status` — check migration status
 - `mise run web:dev` — run the frontend dev server (Bun runtime)

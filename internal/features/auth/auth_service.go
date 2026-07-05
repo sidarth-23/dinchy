@@ -3,121 +3,82 @@ package auth
 
 import (
 	"context"
-	"strings"
+	"database/sql"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/config"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
+	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
-// Service provides authentication operations backed by a persistent store.
 type Service struct {
-	store Store
-	idg   *id.Generator
-	clock clock.Clock
+	db         *sql.DB
+	beginTx    func(context.Context) (*setupTransaction, error)
+	store      Store
+	idg        *id.Generator
+	clock      clock.Clock
+	authConfig config.AuthConfig
+	sso        *ssoRegistry
+	cache      cachecore.Store
+	email      email.Sender
+	publisher  eventbus.Publisher
 }
 
-// NewService creates an auth service with the given store, ID generator, and clock.
-func NewService(s Store, idg *id.Generator, clk clock.Clock) *Service {
-	return &Service{store: s, idg: idg, clock: clk}
-}
-
-// SetupFirstUser creates the initial admin account and issues a session token.
-// Returns the structured setup-completed error if any user already exists.
-func (s *Service) SetupFirstUser(ctx context.Context, email, displayName, password, ip, ua string) (string, error) {
-	hash, err := hashPassword(password)
+func NewService(db *sql.DB, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, cacheStore cachecore.Store, cacheKeyer cachecore.Keyer, sender email.Sender, publisher eventbus.Publisher) (*Service, error) {
+	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
-		return "", apperrors.Annotate(err,
-			apperrors.WithFlow(apperrors.FlowSetupFirstUser),
-			apperrors.WithStage(apperrors.StageSetupFirstUser),
-		)
+		return nil, err
 	}
-	email = strings.ToLower(strings.TrimSpace(email))
-	now := s.clock.Now()
-	u, err := s.store.CreateFirstUser(ctx, CreateUserInput{
-		ID:           s.idg.New(),
-		Email:        email,
-		PasswordHash: hash,
-		DisplayName:  displayName,
-		Now:          now,
-	})
-	if err != nil {
-		return "", apperrors.Annotate(err,
-			apperrors.WithFlow(apperrors.FlowSetupFirstUser),
-			apperrors.WithStage(apperrors.StageCreateFirstUser),
-		)
+	if sender == nil {
+		sender = email.NoopSender{}
 	}
-	return s.newSession(ctx, u.ID, ip, ua)
-}
-
-// Login validates credentials and issues a session token.
-// Returns the structured invalid-credentials error if the email is not found or the password is wrong.
-func (s *Service) Login(ctx context.Context, email, password, ip, ua string) (string, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	u, err := s.store.FindUserByEmail(ctx, email)
-	if err != nil {
-		return "", apperrors.Annotate(err,
-			apperrors.WithFlow(apperrors.FlowLogin),
-			apperrors.WithStage(apperrors.StageFindUser),
-		)
-	}
-	if u == nil || !verifyPassword(password, u.PasswordHash) {
-		return "", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
-	}
-	if needsPasswordHashUpgrade(u.PasswordHash) {
-		newHash, err := hashPassword(password)
-		if err != nil {
-			return "", apperrors.Annotate(err,
-				apperrors.WithFlow(apperrors.FlowLogin),
-				apperrors.WithStage(apperrors.StageLogin),
-			)
-		}
-		if err := s.store.UpdateUserPasswordHash(ctx, UpdateUserPasswordHashInput{
-			UserID:       u.ID,
-			PasswordHash: newHash,
-			Now:          s.clock.Now(),
-		}); err != nil {
-			return "", apperrors.Annotate(err,
-				apperrors.WithFlow(apperrors.FlowLogin),
-				apperrors.WithStage(apperrors.StageLogin),
-			)
+	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, cache: cacheStore, email: sender, publisher: publisher}
+	if db != nil {
+		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
+			tx, err := db.BeginTx(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+			return &setupTransaction{
+				queries:  sqlcgen.New(tx),
+				commit:   tx.Commit,
+				rollback: tx.Rollback,
+			}, nil
 		}
 	}
-	return s.newSession(ctx, u.ID, ip, ua)
+	return service, nil
 }
 
-// Session validates a raw token and returns the associated session and user if valid.
-// Returns nil without error for expired, revoked, or missing tokens.
-func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUser, error) {
-	if rawToken == "" {
-		return nil, nil
+func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Organisation, error) {
+	rows, err := s.store.ListOrganisationsForUser(ctx, mustParseUUID(userID))
+	if err != nil {
+		return nil, err
 	}
-	sess, err := s.store.GetSessionByTokenHash(ctx, hashToken(rawToken))
-	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithFlow(apperrors.FlowSession),
-			apperrors.WithStage(apperrors.StageGetSession),
-		)
+	out := make([]Organisation, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, organisationFromListOrganisationRow(row))
 	}
-	now := s.clock.Now()
-	if sess.RevokedAt.Valid || now.After(sess.IdleExpiresAt) || now.After(sess.ExpiresAt) {
-		return nil, nil
-	}
-	return sess, nil
+	return out, nil
 }
 
-// Logout revokes the session associated with rawToken.
-func (s *Service) Logout(ctx context.Context, rawToken string) error {
-	if rawToken == "" {
+func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {
+	count, err := s.store.CountUsers(ctx)
+	if err != nil {
+		return BootstrapState{}, err
+	}
+	name, err := s.store.GetInstanceName(ctx)
+	if err != nil {
+		return BootstrapState{}, err
+	}
+	return BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
+}
+
+func (s *Service) publishEvent(ctx context.Context, event eventbus.Event) error {
+	if s.publisher == nil {
 		return nil
 	}
-	err := s.store.RevokeSessionByTokenHash(ctx, hashToken(rawToken))
-	if err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithFlow(apperrors.FlowLogout),
-			apperrors.WithStage(apperrors.StageRevokeSession),
-		)
-	}
-	return nil
+	return s.publisher.Publish(ctx, event)
 }

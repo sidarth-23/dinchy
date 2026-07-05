@@ -1,13 +1,13 @@
-- logging standard and function need to be checked
+- setup input validation properly with huma, also the handler and service communication
 - setup proper observability support with basic support in application
-- check all the rules are followed
-  - mockdata test file is not followed in clock
-- we want platform to named properly something like package now that nothing platform-specific is there
-  - move frontend function to web with the go file and reference routing from there
-- all files need to have test files
-  - see if the current tests are actually useful
-- file conventions needs to be set for most of the modules
 - potentially adding todo md in the root with checkboxes for features
-- see the working of mockdata properly and how to set function
 - cleanup mise toml
-- setup dev setup with debugger setup and not add godotenv
+- setup dev setup with debugger setup
+
+- setup workers properly with packages for each worker with store functions in it instead of the current way
+- cleanup auth module
+  - it has util functions which can be taken out
+  - it has too many files with small functions. organize it properly
+- clean the sql queries in sqlc so that the params are not random column_7 etc. It should be named properly and the params should be named properly
+- organise and name code generator and validator properly and add it to pre commit hooks
+- move database to pgx/v5 and configure sqlc properly to get all the benefits of both

@@ -3,21 +3,33 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 var (
-	fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-	testCtx   = context.Background()
+	fixedTime                = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	testCtx                  = context.Background()
+	testUserID               = "00000000-0000-0000-0000-000000000001"
+	testAccountID            = "00000000-0000-0000-0000-000000000002"
+	testOrganisationID       = "00000000-0000-0000-0000-000000000003"
+	testSessionID            = "00000000-0000-0000-0000-000000000004"
+	testOrganisationMemberID = "00000000-0000-0000-0000-000000000005"
+	testVerificationTokenID  = "00000000-0000-0000-0000-000000000006"
 )
 
 func newTestService(t *testing.T) (*Service, *MockStore) {
@@ -25,8 +37,46 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
 	clk := fakeClock{now: fixedTime}
-	svc := NewService(store, id.NewGenerator(), clk)
+	svc, err := NewService(nil, store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), email.NoopSender{}, nil)
+	require.NoError(t, err)
+	svc.beginTx = func(context.Context) (*setupTransaction, error) {
+		return &setupTransaction{
+			queries:  store,
+			commit:   func() error { return nil },
+			rollback: func() error { return nil },
+		}, nil
+	}
 	return svc, store
+}
+
+type testCache struct {
+	values map[string][]byte
+}
+
+func newTestCache() *testCache {
+	return &testCache{values: map[string][]byte{}}
+}
+
+func (c *testCache) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
+	c.values[key] = append([]byte(nil), value...)
+	return nil
+}
+
+func (c *testCache) Get(_ context.Context, key string) ([]byte, error) {
+	value, ok := c.values[key]
+	if !ok {
+		return nil, fmt.Errorf("cache key %q not found", key)
+	}
+	return append([]byte(nil), value...), nil
+}
+
+func (c *testCache) Delete(_ context.Context, key string) error {
+	delete(c.values, key)
+	return nil
+}
+
+func (c *testCache) Ping(context.Context) error {
+	return nil
 }
 
 type fakeClock struct {
@@ -49,16 +99,28 @@ func TestSetupFirstUser_Success(t *testing.T) {
 	svc, store := newTestService(t)
 
 	store.EXPECT().
-		CreateFirstUser(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in CreateUserInput) (User, error) {
+		CountUsers(gomock.Any()).
+		Return(int64(0), nil)
+	store.EXPECT().
+		InsertUser(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in sqlcgen.InsertUserParams) error {
 			assert.Equal(t, "admin@example.com", in.Email)
 			assert.Equal(t, "Admin", in.DisplayName)
-			assert.NotEmpty(t, in.PasswordHash)
-			return User{ID: "user-1", Email: in.Email, DisplayName: in.DisplayName, Role: RoleAdmin}, nil
+			assert.NotEqual(t, uuid.Nil, in.ID)
+			return nil
 		})
 	store.EXPECT().
-		CreateSession(gomock.Any(), gomock.Any()).
-		Return(Session{ID: "sess-1"}, nil)
+		InsertAccount(gomock.Any(), gomock.Any()).
+		Return(nil)
+	store.EXPECT().
+		InsertOrganisation(gomock.Any(), gomock.Any()).
+		Return(nil)
+	store.EXPECT().
+		InsertOrganisationMember(gomock.Any(), gomock.Any()).
+		Return(nil)
+	store.EXPECT().
+		InsertSession(gomock.Any(), gomock.Any()).
+		Return(nil)
 
 	token, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "password123", "127.0.0.1", "ua")
 	require.NoError(t, err)
@@ -70,12 +132,18 @@ func TestSetupFirstUser_EmailNormalized(t *testing.T) {
 	svc, store := newTestService(t)
 
 	store.EXPECT().
-		CreateFirstUser(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in CreateUserInput) (User, error) {
+		CountUsers(gomock.Any()).
+		Return(int64(0), nil)
+	store.EXPECT().
+		InsertUser(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in sqlcgen.InsertUserParams) error {
 			assert.Equal(t, "admin@example.com", in.Email, "email must be normalized to lowercase")
-			return User{ID: "user-1", Email: in.Email, Role: RoleAdmin}, nil
+			return nil
 		})
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "sess-1"}, nil)
+	store.EXPECT().InsertAccount(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertOrganisation(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertOrganisationMember(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
 	_, err := svc.SetupFirstUser(testCtx, "  ADMIN@EXAMPLE.COM  ", "Admin", "password123", "", "")
 	require.NoError(t, err)
@@ -85,7 +153,7 @@ func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().CreateFirstUser(gomock.Any(), gomock.Any()).Return(User{}, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1))))
+	store.EXPECT().CountUsers(gomock.Any()).Return(int64(1), nil)
 
 	_, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "pass", "", "")
 	require.ErrorIs(t, err, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1))))
@@ -98,10 +166,17 @@ func TestLogin_Success(t *testing.T) {
 	hashed := HashPasswordForTest(t, "secret")
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: hashed, Role: RoleAdmin}, nil)
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "s1"}, nil)
+		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
+	store.EXPECT().
+		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", hashed), nil)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
+	store.EXPECT().
+		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil)
+	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
-	token, err := svc.Login(testCtx, "user@example.com", "secret", "127.0.0.1", "ua")
+	token, err := svc.Login(testCtx, "user@example.com", "secret", "", "", "127.0.0.1", "ua")
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 }
@@ -112,9 +187,12 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", Email: "user@example.com", PasswordHash: HashPasswordForTest(t, "correct")}, nil)
+		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
+	store.EXPECT().
+		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "correct")), nil)
 
-	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "")
+	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "", "", "")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
 }
 
@@ -122,9 +200,9 @@ func TestLogin_UserNotFound(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().FindUserByEmail(gomock.Any(), "nobody@example.com").Return(nil, nil)
+	store.EXPECT().FindUserByEmail(gomock.Any(), "nobody@example.com").Return(sqlcgen.FindUserByEmailRow{}, nil)
 
-	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "")
+	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "", "", "")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
 }
 
@@ -134,10 +212,17 @@ func TestLogin_EmailNormalized(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(&User{ID: "u1", PasswordHash: HashPasswordForTest(t, "p")}, nil)
-	store.EXPECT().CreateSession(gomock.Any(), gomock.Any()).Return(Session{ID: "s1"}, nil)
+		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
+	store.EXPECT().
+		FindPasswordAccountByUserID(gomock.Any(), mustParseUUID(testUserID)).
+		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "p")), nil)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), mustParseUUID(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
+	store.EXPECT().
+		ListOrganisationsForUser(gomock.Any(), mustParseUUID(testUserID)).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil)
+	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
-	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "")
+	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "", "", "")
 	require.NoError(t, err)
 }
 
@@ -145,17 +230,12 @@ func TestSession_ValidToken(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &SessionWithUser{
-		SessionID:     "s1",
-		UserID:        "u1",
-		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
-		ExpiresAt:     fixedTime.Add(7 * 24 * time.Hour),
-	}
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sess, nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
-	assert.Equal(t, sess, got)
+	require.NotNil(t, got)
+	assert.Equal(t, testSessionID, got.SessionID)
 }
 
 func TestSession_EmptyToken(t *testing.T) {
@@ -171,11 +251,7 @@ func TestSession_ExpiredIdle(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &SessionWithUser{
-		IdleExpiresAt: fixedTime.Add(-1 * time.Second), // expired
-		ExpiresAt:     fixedTime.Add(7 * 24 * time.Hour),
-	}
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sess, nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(-1*time.Second), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
@@ -186,11 +262,7 @@ func TestSession_ExpiredAbsolute(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &SessionWithUser{
-		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
-		ExpiresAt:     fixedTime.Add(-1 * time.Second), // expired
-	}
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sess, nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(-1*time.Second), sql.NullTime{}), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
@@ -201,12 +273,7 @@ func TestSession_Revoked(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	sess := &SessionWithUser{
-		IdleExpiresAt: fixedTime.Add(30 * time.Minute),
-		ExpiresAt:     fixedTime.Add(7 * 24 * time.Hour),
-		RevokedAt:     sql.NullTime{Time: fixedTime.Add(-time.Hour), Valid: true},
-	}
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sess, nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{Time: fixedTime.Add(-time.Hour), Valid: true}), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
@@ -217,6 +284,9 @@ func TestLogout_RevokesSession(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
+	store.EXPECT().
+		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
+		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
 	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), gomock.Any()).Return(nil)
 
 	require.NoError(t, svc.Logout(testCtx, "rawtoken"))

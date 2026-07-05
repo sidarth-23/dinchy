@@ -5,37 +5,21 @@ import (
 	"net/http"
 )
 
-// Cookie names used by auth.
-const SessionCookieName = "dinchy_session"
-
-// SessionCookie builds the session cookie with all required security attributes.
-func SessionCookie(token string, secure bool) *http.Cookie {
-	return &http.Cookie{
-		Name:     SessionCookieName,
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	}
+func (s *Service) SessionCookieName() string {
+	return s.authConfig.SessionCookieName
 }
 
-// ClearSessionCookie returns a cookie that immediately expires the session cookie.
-func ClearSessionCookie(secure bool) *http.Cookie {
-	return &http.Cookie{
-		Name:     SessionCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	}
+func (s *Service) SSOStateCookieName() string {
+	return s.authConfig.SSOStateCookieName
 }
 
-type ctxKey int
+func (s *Service) SessionCookie(token string, secure bool) *http.Cookie {
+	return valueCookie(s.authConfig.SessionCookieName, token, secure)
+}
 
-const ctxKeySession ctxKey = iota
+func (s *Service) ClearSessionCookie(secure bool) *http.Cookie {
+	return clearCookie(s.authConfig.SessionCookieName, secure)
+}
 
 // WithSession attaches a validated session to the request context.
 func WithSession(ctx context.Context, s *SessionWithUser) context.Context {

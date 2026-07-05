@@ -17,6 +17,7 @@ func RequestInfo() func(http.Handler) http.Handler {
 				ip = host
 			}
 			ctx := support.WithRequestInfo(r.Context(), ip, r.UserAgent())
+			ctx = support.WithRequestCookies(ctx, r.Cookies())
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

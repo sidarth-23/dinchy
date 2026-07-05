@@ -2,7 +2,10 @@ package support
 
 import (
 	"context"
+	"net/http"
 
+	chimw "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/text/language"
 )
 
@@ -13,6 +16,7 @@ const (
 	ctxKeyRemoteIP
 	ctxKeyUserAgent
 	ctxKeyLang
+	ctxKeyCookies
 )
 
 // WithSecure marks whether the current request arrived over a secure (HTTPS) connection.
@@ -43,6 +47,41 @@ func RemoteIPFrom(ctx context.Context) string {
 func UserAgentFrom(ctx context.Context) string {
 	s, _ := ctx.Value(ctxKeyUserAgent).(string)
 	return s
+}
+
+func RequestIDFrom(ctx context.Context) string {
+	return chimw.GetReqID(ctx)
+}
+
+func TraceIDFrom(ctx context.Context) string {
+	spanContext := trace.SpanContextFromContext(ctx)
+	if !spanContext.IsValid() {
+		return ""
+	}
+	return spanContext.TraceID().String()
+}
+
+func SpanIDFrom(ctx context.Context) string {
+	spanContext := trace.SpanContextFromContext(ctx)
+	if !spanContext.IsValid() {
+		return ""
+	}
+	return spanContext.SpanID().String()
+}
+
+// WithRequestCookies attaches request cookie values to the context.
+func WithRequestCookies(ctx context.Context, cookies []*http.Cookie) context.Context {
+	values := make(map[string]string, len(cookies))
+	for _, cookie := range cookies {
+		values[cookie.Name] = cookie.Value
+	}
+	return context.WithValue(ctx, ctxKeyCookies, values)
+}
+
+// CookieValueFrom returns the cookie value for name from the request context.
+func CookieValueFrom(ctx context.Context, name string) string {
+	values, _ := ctx.Value(ctxKeyCookies).(map[string]string)
+	return values[name]
 }
 
 // WithLang attaches the resolved language tag to the request context.

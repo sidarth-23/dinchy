@@ -1,9 +1,10 @@
 package i18n
 
-//go:generate go run ../../cmd/gen i18n -input messages.json -output generated.go
+//go:generate go run ../../cmd/codegen i18n -input catalog.json -output generated.go
 
 import (
 	"bytes"
+	"maps"
 	"sort"
 	"text/template"
 
@@ -102,9 +103,7 @@ func cloneLocales(locales map[language.Tag]map[Code]string) map[language.Tag]map
 	out := make(map[language.Tag]map[Code]string, len(locales))
 	for tag, messages := range locales {
 		cloned := make(map[Code]string, len(messages))
-		for code, text := range messages {
-			cloned[code] = text
-		}
+		maps.Copy(cloned, messages)
 		out[tag] = cloned
 	}
 	return out
@@ -115,9 +114,7 @@ func cloneMeta(meta map[string]any) map[string]any {
 		return nil
 	}
 	out := make(map[string]any, len(meta))
-	for k, v := range meta {
-		out[k] = v
-	}
+	maps.Copy(out, meta)
 	return out
 }
 

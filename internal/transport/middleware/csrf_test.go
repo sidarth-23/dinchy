@@ -1,0 +1,100 @@
+package middleware_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
+)
+
+func csrfHandler(t *testing.T) (http.Handler, *bool) {
+	t.Helper()
+	called := new(bool)
+	h := middleware.CSRF()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		*called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	return h, called
+}
+
+func decodeErrorCode(t *testing.T, body []byte) string {
+	t.Helper()
+	var payload struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(body, &payload))
+	return payload.Error.Code
+}
+
+func csrfCookieValue(resp *http.Response) string {
+	for _, c := range resp.Cookies() {
+		if c.Name == support.CSRFCookieName {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+func TestCSRF_SafeRequestIssuesCookie(t *testing.T) {
+	t.Parallel()
+	handler, called := csrfHandler(t)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+
+	assert.True(t, *called, "safe request should pass through")
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.NotEmpty(t, csrfCookieValue(rr.Result()), "a CSRF cookie should be issued when none is present")
+}
+
+func TestCSRF_MutatingRequestWithMatchingTokenSucceeds(t *testing.T) {
+	t.Parallel()
+	handler, called := csrfHandler(t)
+
+	req := httptest.NewRequest(http.MethodPost, "http://example.test/", nil)
+	req.AddCookie(&http.Cookie{Name: support.CSRFCookieName, Value: "matching-token"})
+	req.Header.Set("X-CSRF-Token", "matching-token")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.True(t, *called)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestCSRF_MutatingRequestWithMismatchedTokenRejected(t *testing.T) {
+	t.Parallel()
+	handler, called := csrfHandler(t)
+
+	req := httptest.NewRequest(http.MethodPost, "http://example.test/", nil)
+	req.AddCookie(&http.Cookie{Name: support.CSRFCookieName, Value: "cookie-token"})
+	req.Header.Set("X-CSRF-Token", "different-token")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.False(t, *called, "next handler must not run when the CSRF check fails")
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, string(i18n.CodeSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
+}
+
+func TestCSRF_MutatingRequestWithoutTokenRejected(t *testing.T) {
+	t.Parallel()
+	handler, called := csrfHandler(t)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "http://example.test/", nil))
+
+	assert.False(t, *called)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, string(i18n.CodeSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
+}
