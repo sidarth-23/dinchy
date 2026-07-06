@@ -8,7 +8,6 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/sqlutil"
@@ -61,20 +60,18 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err := tx.commit(); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationCommit))
 	}
-	if err := s.publishEvent(ctx, eventbus.Event{
-		Category:            "security",
-		Subcategory:         "auth",
-		EventType:           string(events.AuthSecurityAuthSetupCompleted),
-		Action:              "setup_first_user",
-		Outcome:             "succeeded",
-		ActorUserID:         user.ID,
-		ActorOrganisationID: organisationID,
-		TargetType:          "user",
-		TargetID:            user.ID,
-		TargetDisplay:       user.Email,
-		IPAddress:           ip,
-		UserAgent:           userAgent,
-		Metadata:            events.AuthSecurityAuthSetupCompletedMetadata{Email: user.Email, DisplayName: user.DisplayName}.Map(),
+	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{
+		EventType: events.AuthSecurityAuthSetupCompleted,
+		Envelope: events.Envelope{
+			ActorUserID:         user.ID,
+			ActorOrganisationID: organisationID,
+			TargetType:          "user",
+			TargetID:            user.ID,
+			TargetDisplay:       user.Email,
+			IPAddress:           ip,
+			UserAgent:           userAgent,
+		},
+		Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName),
 	}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}

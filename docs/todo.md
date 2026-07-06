@@ -13,3 +13,4 @@
 - move database to pgx/v5 and configure sqlc properly to get all the benefits of both. also take care of error handling and logging with this properly
 - let's create the class for features properly so that most of the features extend from a base feature class
 - worth of panic in backend and recovery mechanism
+- never log and return errors at the same time. See the core of the idea and create a proper base framework

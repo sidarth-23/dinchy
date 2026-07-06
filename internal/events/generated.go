@@ -2,22 +2,77 @@
 
 package events
 
+import (
+	"time"
+)
+
 type Type string
 
-type TypedKey struct {
-	Name string
-	Type string
+type Field[K comparable, V any] struct {
+	Key   K
+	Value V
+}
+
+type Envelope struct {
+	ID                  string
+	ActorUserID         string
+	ActorOrganisationID string
+	TargetType          string
+	TargetID            string
+	TargetDisplay       string
+	RequestID           string
+	TraceID             string
+	SpanID              string
+	IPAddress           string
+	UserAgent           string
+	CreatedAt           time.Time
+}
+
+type mappable interface {
+	Map() map[string]any
+}
+
+type TypedEvent[M, C mappable] struct {
+	EventType Type
+	Envelope  Envelope
+	Metadata  M
+	Changes   C
+}
+
+func (value TypedEvent[M, C]) Type() Type {
+	return value.EventType
+}
+
+func (value TypedEvent[M, C]) EnvelopeData() Envelope {
+	return value.Envelope
+}
+
+func (value TypedEvent[M, C]) MetadataMap() map[string]any {
+	return value.Metadata.Map()
+}
+
+func (value TypedEvent[M, C]) ChangesMap() map[string]any {
+	return value.Changes.Map()
+}
+
+type Event interface {
+	Type() Type
+	EnvelopeData() Envelope
+	MetadataMap() map[string]any
+	ChangesMap() map[string]any
 }
 
 type Definition struct {
 	ID           string
 	Type         Type
 	Path         []string
+	Category     string
+	Subcategory  string
 	Action       string
 	Outcome      string
 	Description  string
-	MetadataKeys []TypedKey
-	ChangeKeys   []TypedKey
+	MetadataKeys []string
+	ChangeKeys   []string
 }
 
 const (
@@ -35,51 +90,63 @@ var Definitions = map[Type]Definition{
 		ID:           "login_failed",
 		Type:         AuthSecurityAuthLoginFailed,
 		Path:         []string{"auth", "security", "auth"},
+		Category:     "security",
+		Subcategory:  "auth",
 		Action:       "login",
 		Outcome:      "failed",
 		Description:  "A login attempt was rejected",
-		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}, {Name: "reason", Type: "string"}},
+		MetadataKeys: []string{"email", "reason"},
 	},
 	AuthSecurityAuthLoginSucceeded: {
 		ID:           "login_succeeded",
 		Type:         AuthSecurityAuthLoginSucceeded,
 		Path:         []string{"auth", "security", "auth"},
+		Category:     "security",
+		Subcategory:  "auth",
 		Action:       "login",
 		Outcome:      "succeeded",
 		Description:  "A login attempt was accepted",
-		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}, {Name: "organisation_slug", Type: "string"}},
+		MetadataKeys: []string{"email", "organisation_slug"},
 	},
 	AuthSecurityAuthLogoutSucceeded: {
 		ID:           "logout_succeeded",
 		Type:         AuthSecurityAuthLogoutSucceeded,
 		Path:         []string{"auth", "security", "auth"},
+		Category:     "security",
+		Subcategory:  "auth",
 		Action:       "logout",
 		Outcome:      "succeeded",
 		Description:  "A session was revoked successfully",
-		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}},
+		MetadataKeys: []string{"email"},
 	},
 	AuthSecurityAuthSetupCompleted: {
 		ID:           "setup_completed",
 		Type:         AuthSecurityAuthSetupCompleted,
 		Path:         []string{"auth", "security", "auth"},
+		Category:     "security",
+		Subcategory:  "auth",
 		Action:       "setup_first_user",
 		Outcome:      "succeeded",
 		Description:  "The initial user setup flow completed",
-		MetadataKeys: []TypedKey{{Name: "email", Type: "string"}, {Name: "display_name", Type: "string"}},
+		MetadataKeys: []string{"email", "display_name"},
 	},
 	AuthSecuritySSOSettingsUpdated: {
 		ID:          "updated",
 		Type:        AuthSecuritySSOSettingsUpdated,
 		Path:        []string{"auth", "security", "sso_settings"},
+		Category:    "security",
+		Subcategory: "sso_settings",
 		Action:      "update_sso_settings",
 		Outcome:     "succeeded",
 		Description: "SSO settings were updated",
-		ChangeKeys:  []TypedKey{{Name: "client_id", Type: "bool"}, {Name: "client_secret", Type: "bool"}, {Name: "callback_url", Type: "bool"}, {Name: "enabled", Type: "bool"}},
+		ChangeKeys:  []string{"client_id", "client_secret", "callback_url", "enabled"},
 	},
 	AuthSecurityTwoFactorDisabled: {
 		ID:          "disabled",
 		Type:        AuthSecurityTwoFactorDisabled,
 		Path:        []string{"auth", "security", "two_factor"},
+		Category:    "security",
+		Subcategory: "two_factor",
 		Action:      "disable_totp",
 		Outcome:     "succeeded",
 		Description: "Two-factor authentication was disabled",
@@ -88,23 +155,41 @@ var Definitions = map[Type]Definition{
 		ID:          "enabled",
 		Type:        AuthSecurityTwoFactorEnabled,
 		Path:        []string{"auth", "security", "two_factor"},
+		Category:    "security",
+		Subcategory: "two_factor",
 		Action:      "enable_totp",
 		Outcome:     "succeeded",
 		Description: "Two-factor authentication was enabled",
 	},
 }
 
+type AuthSecurityAuthLoginFailedMetadataKey string
+
+const (
+	AuthSecurityAuthLoginFailedMetadataKeyEmail  AuthSecurityAuthLoginFailedMetadataKey = "email"
+	AuthSecurityAuthLoginFailedMetadataKeyReason AuthSecurityAuthLoginFailedMetadataKey = "reason"
+)
+
 type AuthSecurityAuthLoginFailedMetadata struct {
-	Email  string
-	Reason string
+	Email  Field[AuthSecurityAuthLoginFailedMetadataKey, string]
+	Reason Field[AuthSecurityAuthLoginFailedMetadataKey, string]
 }
 
 func (value AuthSecurityAuthLoginFailedMetadata) Map() map[string]any {
 	return map[string]any{
-		"email":  value.Email,
-		"reason": value.Reason,
+		"email":  value.Email.Value,
+		"reason": value.Reason.Value,
 	}
 }
+
+func NewAuthSecurityAuthLoginFailedMetadata(email string, reason string) AuthSecurityAuthLoginFailedMetadata {
+	return AuthSecurityAuthLoginFailedMetadata{
+		Email:  Field[AuthSecurityAuthLoginFailedMetadataKey, string]{Key: AuthSecurityAuthLoginFailedMetadataKeyEmail, Value: email},
+		Reason: Field[AuthSecurityAuthLoginFailedMetadataKey, string]{Key: AuthSecurityAuthLoginFailedMetadataKeyReason, Value: reason},
+	}
+}
+
+type AuthSecurityAuthLoginFailedChangesKey string
 
 type AuthSecurityAuthLoginFailedChanges struct {
 }
@@ -113,17 +198,39 @@ func (value AuthSecurityAuthLoginFailedChanges) Map() map[string]any {
 	return map[string]any{}
 }
 
+func NewAuthSecurityAuthLoginFailedChanges() AuthSecurityAuthLoginFailedChanges {
+	return AuthSecurityAuthLoginFailedChanges{}
+}
+
+type AuthSecurityAuthLoginFailedEvent = TypedEvent[AuthSecurityAuthLoginFailedMetadata, AuthSecurityAuthLoginFailedChanges]
+
+type AuthSecurityAuthLoginSucceededMetadataKey string
+
+const (
+	AuthSecurityAuthLoginSucceededMetadataKeyEmail            AuthSecurityAuthLoginSucceededMetadataKey = "email"
+	AuthSecurityAuthLoginSucceededMetadataKeyOrganisationSlug AuthSecurityAuthLoginSucceededMetadataKey = "organisation_slug"
+)
+
 type AuthSecurityAuthLoginSucceededMetadata struct {
-	Email            string
-	OrganisationSlug string
+	Email            Field[AuthSecurityAuthLoginSucceededMetadataKey, string]
+	OrganisationSlug Field[AuthSecurityAuthLoginSucceededMetadataKey, string]
 }
 
 func (value AuthSecurityAuthLoginSucceededMetadata) Map() map[string]any {
 	return map[string]any{
-		"email":             value.Email,
-		"organisation_slug": value.OrganisationSlug,
+		"email":             value.Email.Value,
+		"organisation_slug": value.OrganisationSlug.Value,
 	}
 }
+
+func NewAuthSecurityAuthLoginSucceededMetadata(email string, organisationSlug string) AuthSecurityAuthLoginSucceededMetadata {
+	return AuthSecurityAuthLoginSucceededMetadata{
+		Email:            Field[AuthSecurityAuthLoginSucceededMetadataKey, string]{Key: AuthSecurityAuthLoginSucceededMetadataKeyEmail, Value: email},
+		OrganisationSlug: Field[AuthSecurityAuthLoginSucceededMetadataKey, string]{Key: AuthSecurityAuthLoginSucceededMetadataKeyOrganisationSlug, Value: organisationSlug},
+	}
+}
+
+type AuthSecurityAuthLoginSucceededChangesKey string
 
 type AuthSecurityAuthLoginSucceededChanges struct {
 }
@@ -132,15 +239,35 @@ func (value AuthSecurityAuthLoginSucceededChanges) Map() map[string]any {
 	return map[string]any{}
 }
 
+func NewAuthSecurityAuthLoginSucceededChanges() AuthSecurityAuthLoginSucceededChanges {
+	return AuthSecurityAuthLoginSucceededChanges{}
+}
+
+type AuthSecurityAuthLoginSucceededEvent = TypedEvent[AuthSecurityAuthLoginSucceededMetadata, AuthSecurityAuthLoginSucceededChanges]
+
+type AuthSecurityAuthLogoutSucceededMetadataKey string
+
+const (
+	AuthSecurityAuthLogoutSucceededMetadataKeyEmail AuthSecurityAuthLogoutSucceededMetadataKey = "email"
+)
+
 type AuthSecurityAuthLogoutSucceededMetadata struct {
-	Email string
+	Email Field[AuthSecurityAuthLogoutSucceededMetadataKey, string]
 }
 
 func (value AuthSecurityAuthLogoutSucceededMetadata) Map() map[string]any {
 	return map[string]any{
-		"email": value.Email,
+		"email": value.Email.Value,
 	}
 }
+
+func NewAuthSecurityAuthLogoutSucceededMetadata(email string) AuthSecurityAuthLogoutSucceededMetadata {
+	return AuthSecurityAuthLogoutSucceededMetadata{
+		Email: Field[AuthSecurityAuthLogoutSucceededMetadataKey, string]{Key: AuthSecurityAuthLogoutSucceededMetadataKeyEmail, Value: email},
+	}
+}
+
+type AuthSecurityAuthLogoutSucceededChangesKey string
 
 type AuthSecurityAuthLogoutSucceededChanges struct {
 }
@@ -149,17 +276,39 @@ func (value AuthSecurityAuthLogoutSucceededChanges) Map() map[string]any {
 	return map[string]any{}
 }
 
+func NewAuthSecurityAuthLogoutSucceededChanges() AuthSecurityAuthLogoutSucceededChanges {
+	return AuthSecurityAuthLogoutSucceededChanges{}
+}
+
+type AuthSecurityAuthLogoutSucceededEvent = TypedEvent[AuthSecurityAuthLogoutSucceededMetadata, AuthSecurityAuthLogoutSucceededChanges]
+
+type AuthSecurityAuthSetupCompletedMetadataKey string
+
+const (
+	AuthSecurityAuthSetupCompletedMetadataKeyEmail       AuthSecurityAuthSetupCompletedMetadataKey = "email"
+	AuthSecurityAuthSetupCompletedMetadataKeyDisplayName AuthSecurityAuthSetupCompletedMetadataKey = "display_name"
+)
+
 type AuthSecurityAuthSetupCompletedMetadata struct {
-	Email       string
-	DisplayName string
+	Email       Field[AuthSecurityAuthSetupCompletedMetadataKey, string]
+	DisplayName Field[AuthSecurityAuthSetupCompletedMetadataKey, string]
 }
 
 func (value AuthSecurityAuthSetupCompletedMetadata) Map() map[string]any {
 	return map[string]any{
-		"email":        value.Email,
-		"display_name": value.DisplayName,
+		"email":        value.Email.Value,
+		"display_name": value.DisplayName.Value,
 	}
 }
+
+func NewAuthSecurityAuthSetupCompletedMetadata(email string, displayName string) AuthSecurityAuthSetupCompletedMetadata {
+	return AuthSecurityAuthSetupCompletedMetadata{
+		Email:       Field[AuthSecurityAuthSetupCompletedMetadataKey, string]{Key: AuthSecurityAuthSetupCompletedMetadataKeyEmail, Value: email},
+		DisplayName: Field[AuthSecurityAuthSetupCompletedMetadataKey, string]{Key: AuthSecurityAuthSetupCompletedMetadataKeyDisplayName, Value: displayName},
+	}
+}
+
+type AuthSecurityAuthSetupCompletedChangesKey string
 
 type AuthSecurityAuthSetupCompletedChanges struct {
 }
@@ -168,6 +317,14 @@ func (value AuthSecurityAuthSetupCompletedChanges) Map() map[string]any {
 	return map[string]any{}
 }
 
+func NewAuthSecurityAuthSetupCompletedChanges() AuthSecurityAuthSetupCompletedChanges {
+	return AuthSecurityAuthSetupCompletedChanges{}
+}
+
+type AuthSecurityAuthSetupCompletedEvent = TypedEvent[AuthSecurityAuthSetupCompletedMetadata, AuthSecurityAuthSetupCompletedChanges]
+
+type AuthSecuritySSOSettingsUpdatedMetadataKey string
+
 type AuthSecuritySSOSettingsUpdatedMetadata struct {
 }
 
@@ -175,21 +332,47 @@ func (value AuthSecuritySSOSettingsUpdatedMetadata) Map() map[string]any {
 	return map[string]any{}
 }
 
+func NewAuthSecuritySSOSettingsUpdatedMetadata() AuthSecuritySSOSettingsUpdatedMetadata {
+	return AuthSecuritySSOSettingsUpdatedMetadata{}
+}
+
+type AuthSecuritySSOSettingsUpdatedChangesKey string
+
+const (
+	AuthSecuritySSOSettingsUpdatedChangesKeyClientID     AuthSecuritySSOSettingsUpdatedChangesKey = "client_id"
+	AuthSecuritySSOSettingsUpdatedChangesKeyClientSecret AuthSecuritySSOSettingsUpdatedChangesKey = "client_secret"
+	AuthSecuritySSOSettingsUpdatedChangesKeyCallbackURL  AuthSecuritySSOSettingsUpdatedChangesKey = "callback_url"
+	AuthSecuritySSOSettingsUpdatedChangesKeyEnabled      AuthSecuritySSOSettingsUpdatedChangesKey = "enabled"
+)
+
 type AuthSecuritySSOSettingsUpdatedChanges struct {
-	ClientID     bool
-	ClientSecret bool
-	CallbackURL  bool
-	Enabled      bool
+	ClientID     Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
+	ClientSecret Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
+	CallbackURL  Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
+	Enabled      Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
 }
 
 func (value AuthSecuritySSOSettingsUpdatedChanges) Map() map[string]any {
 	return map[string]any{
-		"client_id":     value.ClientID,
-		"client_secret": value.ClientSecret,
-		"callback_url":  value.CallbackURL,
-		"enabled":       value.Enabled,
+		"client_id":     value.ClientID.Value,
+		"client_secret": value.ClientSecret.Value,
+		"callback_url":  value.CallbackURL.Value,
+		"enabled":       value.Enabled.Value,
 	}
 }
+
+func NewAuthSecuritySSOSettingsUpdatedChanges(clientID bool, clientSecret bool, callbackURL bool, enabled bool) AuthSecuritySSOSettingsUpdatedChanges {
+	return AuthSecuritySSOSettingsUpdatedChanges{
+		ClientID:     Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyClientID, Value: clientID},
+		ClientSecret: Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyClientSecret, Value: clientSecret},
+		CallbackURL:  Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyCallbackURL, Value: callbackURL},
+		Enabled:      Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyEnabled, Value: enabled},
+	}
+}
+
+type AuthSecuritySSOSettingsUpdatedEvent = TypedEvent[AuthSecuritySSOSettingsUpdatedMetadata, AuthSecuritySSOSettingsUpdatedChanges]
+
+type AuthSecurityTwoFactorDisabledMetadataKey string
 
 type AuthSecurityTwoFactorDisabledMetadata struct {
 }
@@ -198,12 +381,26 @@ func (value AuthSecurityTwoFactorDisabledMetadata) Map() map[string]any {
 	return map[string]any{}
 }
 
+func NewAuthSecurityTwoFactorDisabledMetadata() AuthSecurityTwoFactorDisabledMetadata {
+	return AuthSecurityTwoFactorDisabledMetadata{}
+}
+
+type AuthSecurityTwoFactorDisabledChangesKey string
+
 type AuthSecurityTwoFactorDisabledChanges struct {
 }
 
 func (value AuthSecurityTwoFactorDisabledChanges) Map() map[string]any {
 	return map[string]any{}
 }
+
+func NewAuthSecurityTwoFactorDisabledChanges() AuthSecurityTwoFactorDisabledChanges {
+	return AuthSecurityTwoFactorDisabledChanges{}
+}
+
+type AuthSecurityTwoFactorDisabledEvent = TypedEvent[AuthSecurityTwoFactorDisabledMetadata, AuthSecurityTwoFactorDisabledChanges]
+
+type AuthSecurityTwoFactorEnabledMetadataKey string
 
 type AuthSecurityTwoFactorEnabledMetadata struct {
 }
@@ -212,12 +409,24 @@ func (value AuthSecurityTwoFactorEnabledMetadata) Map() map[string]any {
 	return map[string]any{}
 }
 
+func NewAuthSecurityTwoFactorEnabledMetadata() AuthSecurityTwoFactorEnabledMetadata {
+	return AuthSecurityTwoFactorEnabledMetadata{}
+}
+
+type AuthSecurityTwoFactorEnabledChangesKey string
+
 type AuthSecurityTwoFactorEnabledChanges struct {
 }
 
 func (value AuthSecurityTwoFactorEnabledChanges) Map() map[string]any {
 	return map[string]any{}
 }
+
+func NewAuthSecurityTwoFactorEnabledChanges() AuthSecurityTwoFactorEnabledChanges {
+	return AuthSecurityTwoFactorEnabledChanges{}
+}
+
+type AuthSecurityTwoFactorEnabledEvent = TypedEvent[AuthSecurityTwoFactorEnabledMetadata, AuthSecurityTwoFactorEnabledChanges]
 
 func DefinitionFor(eventType Type) (Definition, bool) {
 	definition, ok := Definitions[eventType]

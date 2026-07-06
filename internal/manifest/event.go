@@ -24,11 +24,11 @@ type EventDefinition struct {
 	Description  string     `json:"description,omitempty"`
 	Action       string     `json:"action"`
 	Outcome      string     `json:"outcome"`
-	MetadataKeys []TypedKey `json:"metadata_keys,omitempty"`
-	ChangeKeys   []TypedKey `json:"change_keys,omitempty"`
+	MetadataKeys []Field `json:"metadata_keys,omitempty"`
+	ChangeKeys   []Field `json:"change_keys,omitempty"`
 }
 
-type TypedKey struct {
+type Field struct {
 	Name string `json:"name"`
 	Type string `json:"type,omitempty"`
 }
@@ -85,10 +85,10 @@ func validateEventModules(modules []EventModule, modulePath []string, seenTypes,
 			if _, ok := seenNames[constName]; ok {
 				return fmt.Errorf("duplicate generated constant name %q", constName)
 			}
-			if err := validateTypedKeys(fullType, "metadata_keys", event.MetadataKeys); err != nil {
+			if err := validateTypedFields(fullType, "metadata_keys", event.MetadataKeys); err != nil {
 				return err
 			}
-			if err := validateTypedKeys(fullType, "change_keys", event.ChangeKeys); err != nil {
+			if err := validateTypedFields(fullType, "change_keys", event.ChangeKeys); err != nil {
 				return err
 			}
 			seenEventIDs[event.ID] = struct{}{}
@@ -103,22 +103,22 @@ func validateEventModules(modules []EventModule, modulePath []string, seenTypes,
 	return nil
 }
 
-func validateTypedKeys(eventType, field string, keys []TypedKey) error {
+func validateTypedFields(eventType, field string, fields []Field) error {
 	seenKeys := map[string]struct{}{}
-	for _, key := range keys {
-		if key.Name == "" {
+	for _, fieldValue := range fields {
+		if fieldValue.Name == "" {
 			return fmt.Errorf("event %q has empty %s key", eventType, field)
 		}
-		if key.Type == "" {
-			return fmt.Errorf("event %q has empty %s type for %q", eventType, field, key.Name)
+		if fieldValue.Type == "" {
+			return fmt.Errorf("event %q has empty %s type for %q", eventType, field, fieldValue.Name)
 		}
-		if _, ok := seenKeys[key.Name]; ok {
-			return fmt.Errorf("event %q has duplicate %s key %q", eventType, field, key.Name)
+		if _, ok := seenKeys[fieldValue.Name]; ok {
+			return fmt.Errorf("event %q has duplicate %s key %q", eventType, field, fieldValue.Name)
 		}
-		if !supportedEventTypedKeyType(key.Type) {
-			return fmt.Errorf("event %q has unsupported %s type %q for %q", eventType, field, key.Type, key.Name)
+		if !supportedEventTypedFieldType(fieldValue.Type) {
+			return fmt.Errorf("event %q has unsupported %s type %q for %q", eventType, field, fieldValue.Type, fieldValue.Name)
 		}
-		seenKeys[key.Name] = struct{}{}
+		seenKeys[fieldValue.Name] = struct{}{}
 	}
 	return nil
 }
@@ -137,7 +137,7 @@ func EventConstantName(modulePath []string, eventID string) string {
 	return name.String()
 }
 
-func supportedEventTypedKeyType(value string) bool {
+func supportedEventTypedFieldType(value string) bool {
 	switch value {
 	case "string", "bool", "int", "int64", "float64", "time.Time":
 		return true

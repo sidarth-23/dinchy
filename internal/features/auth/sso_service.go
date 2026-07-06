@@ -15,7 +15,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
@@ -107,21 +106,19 @@ func (s *Service) updateSSOProviderSetting(ctx context.Context, providerID strin
 	if err != nil {
 		return SSOProviderSettingOut{}, err
 	}
-	if err := s.publishEvent(ctx, eventbus.Event{
-		Category:      "security",
-		Subcategory:   "sso_settings",
-		EventType:     string(events.AuthSecuritySSOSettingsUpdated),
-		Action:        "update_sso_settings",
-		Outcome:       "succeeded",
-		TargetType:    "sso_provider",
-		TargetID:      providerID,
-		TargetDisplay: providerID,
-		Changes: events.AuthSecuritySSOSettingsUpdatedChanges{
-			ClientID:     body.ClientID != nil,
-			ClientSecret: body.ClientSecret != nil,
-			CallbackURL:  body.CallbackURL != nil,
-			Enabled:      body.Enabled != nil,
-		}.Map(),
+	if err := s.publishEvent(ctx, events.AuthSecuritySSOSettingsUpdatedEvent{
+		EventType: events.AuthSecuritySSOSettingsUpdated,
+		Envelope: events.Envelope{
+			TargetType:    "sso_provider",
+			TargetID:      providerID,
+			TargetDisplay: providerID,
+		},
+		Changes: events.NewAuthSecuritySSOSettingsUpdatedChanges(
+			body.ClientID != nil,
+			body.ClientSecret != nil,
+			body.CallbackURL != nil,
+			body.Enabled != nil,
+		),
 	}); err != nil {
 		return SSOProviderSettingOut{}, err
 	}

@@ -14,7 +14,7 @@ func TestDecodeEventCatalogRejectsUnknownFields(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestValidateEventCatalogRejectsInvalidTypedKeyType(t *testing.T) {
+func TestValidateEventCatalogRejectsInvalidTypedFieldType(t *testing.T) {
 	t.Parallel()
 
 	catalog := EventCatalog{
@@ -32,7 +32,7 @@ func TestValidateEventCatalogRejectsInvalidTypedKeyType(t *testing.T) {
 										ID:      "login",
 										Action:  "login",
 										Outcome: "succeeded",
-										MetadataKeys: []TypedKey{
+										MetadataKeys: []Field{
 											{Name: "email", Type: "uuid"},
 										},
 									},

@@ -93,7 +93,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {
 	return BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
 }
 
-func (s *Service) publishEvent(ctx context.Context, event eventbus.Event) error {
+func (s *Service) publishEvent(ctx context.Context, event events.Event) error {
 	if s.publisher == nil {
 		return nil
 	}
@@ -103,15 +103,13 @@ func (s *Service) publishEvent(ctx context.Context, event eventbus.Event) error 
 func (s *Service) Login(ctx context.Context, emailAddress, password, organisationSlug, totpCode, ip, userAgent string) (string, error) {
 	user, err := s.findUserWithPassword(ctx, emailAddress, password)
 	if err != nil {
-		auditErr := s.publishEvent(ctx, eventbus.Event{
-			Category:    "security",
-			Subcategory: "auth",
-			EventType:   string(events.AuthSecurityAuthLoginFailed),
-			Action:      "login",
-			Outcome:     "failed",
-			IPAddress:   ip,
-			UserAgent:   userAgent,
-			Metadata:    events.AuthSecurityAuthLoginFailedMetadata{Email: emailAddress}.Map(),
+		auditErr := s.publishEvent(ctx, events.AuthSecurityAuthLoginFailedEvent{
+			EventType: events.AuthSecurityAuthLoginFailed,
+			Envelope: events.Envelope{
+				IPAddress: ip,
+				UserAgent: userAgent,
+			},
+			Metadata: events.NewAuthSecurityAuthLoginFailedMetadata(emailAddress, ""),
 		})
 		if auditErr != nil {
 			return "", errors.Join(err, auditErr)
@@ -119,22 +117,17 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 		return "", err
 	}
 	if err := s.verifyTOTPForLogin(ctx, user.ID, totpCode); err != nil {
-		auditErr := s.publishEvent(ctx, eventbus.Event{
-			Category:      "security",
-			Subcategory:   "auth",
-			EventType:     string(events.AuthSecurityAuthLoginFailed),
-			Action:        "login",
-			Outcome:       "failed",
-			ActorUserID:   user.ID,
-			TargetType:    "user",
-			TargetID:      user.ID,
-			TargetDisplay: user.Email,
-			IPAddress:     ip,
-			UserAgent:     userAgent,
-			Metadata: events.AuthSecurityAuthLoginFailedMetadata{
-				Email:  user.Email,
-				Reason: "totp",
-			}.Map(),
+		auditErr := s.publishEvent(ctx, events.AuthSecurityAuthLoginFailedEvent{
+			EventType: events.AuthSecurityAuthLoginFailed,
+			Envelope: events.Envelope{
+				ActorUserID:   user.ID,
+				TargetType:    "user",
+				TargetID:      user.ID,
+				TargetDisplay: user.Email,
+				IPAddress:     ip,
+				UserAgent:     userAgent,
+			},
+			Metadata: events.NewAuthSecurityAuthLoginFailedMetadata(user.Email, "totp"),
 		})
 		if auditErr != nil {
 			return "", errors.Join(err, auditErr)
@@ -149,23 +142,18 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 	if err != nil {
 		return "", err
 	}
-	if err := s.publishEvent(ctx, eventbus.Event{
-		Category:            "security",
-		Subcategory:         "auth",
-		EventType:           string(events.AuthSecurityAuthLoginSucceeded),
-		Action:              "login",
-		Outcome:             "succeeded",
-		ActorUserID:         user.ID,
-		ActorOrganisationID: organisation.ID,
-		TargetType:          "user",
-		TargetID:            user.ID,
-		TargetDisplay:       user.Email,
-		IPAddress:           ip,
-		UserAgent:           userAgent,
-		Metadata: events.AuthSecurityAuthLoginSucceededMetadata{
-			Email:            user.Email,
-			OrganisationSlug: organisation.Slug,
-		}.Map(),
+	if err := s.publishEvent(ctx, events.AuthSecurityAuthLoginSucceededEvent{
+		EventType: events.AuthSecurityAuthLoginSucceeded,
+		Envelope: events.Envelope{
+			ActorUserID:         user.ID,
+			ActorOrganisationID: organisation.ID,
+			TargetType:          "user",
+			TargetID:            user.ID,
+			TargetDisplay:       user.Email,
+			IPAddress:           ip,
+			UserAgent:           userAgent,
+		},
+		Metadata: events.NewAuthSecurityAuthLoginSucceededMetadata(user.Email, organisation.Slug),
 	}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageLogin))
 	}
@@ -351,17 +339,15 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}
 	if sessionErr == nil && session != nil {
-		if err := s.publishEvent(ctx, eventbus.Event{
-			Category:            "security",
-			Subcategory:         "auth",
-			EventType:           string(events.AuthSecurityAuthLogoutSucceeded),
-			Action:              "logout",
-			Outcome:             "succeeded",
-			ActorUserID:         session.UserID,
-			ActorOrganisationID: session.OrganisationID,
-			TargetType:          "session",
-			TargetID:            session.SessionID,
-			Metadata:            events.AuthSecurityAuthLogoutSucceededMetadata{Email: session.Email}.Map(),
+		if err := s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{
+			EventType: events.AuthSecurityAuthLogoutSucceeded,
+			Envelope: events.Envelope{
+				ActorUserID:         session.UserID,
+				ActorOrganisationID: session.OrganisationID,
+				TargetType:          "session",
+				TargetID:            session.SessionID,
+			},
+			Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(session.Email),
 		}); err != nil {
 			return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageLogout))
 		}

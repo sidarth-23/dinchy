@@ -12,7 +12,6 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
@@ -50,16 +49,14 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sql.NullInt64{Int64: totpStep(s.clock.Now()), Valid: true}, UpdatedAt: s.clock.Now().UTC()}); err != nil {
 		return err
 	}
-	return s.publishEvent(ctx, eventbus.Event{
-		Category:    "security",
-		Subcategory: "two_factor",
-		EventType:   string(events.AuthSecurityTwoFactorEnabled),
-		Action:      "enable_totp",
-		Outcome:     "succeeded",
-		ActorUserID: userID,
-		TargetType:  "user",
-		TargetID:    userID,
-		Metadata:    events.AuthSecurityTwoFactorEnabledMetadata{}.Map(),
+	return s.publishEvent(ctx, events.AuthSecurityTwoFactorEnabledEvent{
+		EventType: events.AuthSecurityTwoFactorEnabled,
+		Envelope: events.Envelope{
+			ActorUserID: userID,
+			TargetType:  "user",
+			TargetID:    userID,
+		},
+		Metadata: events.NewAuthSecurityTwoFactorEnabledMetadata(),
 	})
 }
 
@@ -84,16 +81,14 @@ func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
 	if err := s.store.DisableTwoFactor(ctx, id.MustParse(userID)); err != nil {
 		return err
 	}
-	return s.publishEvent(ctx, eventbus.Event{
-		Category:    "security",
-		Subcategory: "two_factor",
-		EventType:   string(events.AuthSecurityTwoFactorDisabled),
-		Action:      "disable_totp",
-		Outcome:     "succeeded",
-		ActorUserID: userID,
-		TargetType:  "user",
-		TargetID:    userID,
-		Metadata:    events.AuthSecurityTwoFactorDisabledMetadata{}.Map(),
+	return s.publishEvent(ctx, events.AuthSecurityTwoFactorDisabledEvent{
+		EventType: events.AuthSecurityTwoFactorDisabled,
+		Envelope: events.Envelope{
+			ActorUserID: userID,
+			TargetType:  "user",
+			TargetID:    userID,
+		},
+		Metadata: events.NewAuthSecurityTwoFactorDisabledMetadata(),
 	})
 }
 

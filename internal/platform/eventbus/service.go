@@ -9,6 +9,7 @@ import (
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -26,7 +27,7 @@ type Config struct {
 }
 
 type Publisher interface {
-	Publish(ctx context.Context, event Event) error
+	Publish(ctx context.Context, event events.Event) error
 }
 
 type Subscriber interface {
@@ -116,21 +117,27 @@ func (s *Service) EnsureConsumerGroups(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) Publish(ctx context.Context, event Event) error {
+func (s *Service) Publish(ctx context.Context, event events.Event) error {
 	if s == nil {
 		return nil
 	}
-	if event.ID == "" {
-		event.ID = s.idg.New()
+	if event == nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event is required")))
 	}
-	if event.CreatedAt.IsZero() {
-		event.CreatedAt = time.Now().UTC()
+	definition, ok := events.DefinitionFor(event.Type())
+	if !ok {
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event type %q is not defined in the catalog", event.Type())))
 	}
-	event.Metadata = sanitizeMap(event.Metadata)
-	event.Changes = sanitizeMap(event.Changes)
-	payload, err := json.Marshal(event)
+	wireEvent := newWireEvent(event, definition)
+	if wireEvent.ID == "" {
+		wireEvent.ID = s.idg.New()
+	}
+	if wireEvent.CreatedAt.IsZero() {
+		wireEvent.CreatedAt = time.Now().UTC()
+	}
+	payload, err := json.Marshal(wireEvent)
 	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("marshal event %q: %w", event.EventType, err)))
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("marshal event %q: %w", event.Type(), err)))
 	}
 	if _, err := s.stream.AddStream(ctx, s.cfg.StreamName, map[string]any{"payload": string(payload)}, s.cfg.RetentionWindow); err != nil {
 		return apperrors.Annotate(err)
@@ -193,6 +200,31 @@ func isSensitive(key string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func newWireEvent(event events.Event, definition events.Definition) Event {
+	envelope := event.EnvelopeData()
+	return Event{
+		ID:                  envelope.ID,
+		EventType:           string(event.Type()),
+		Category:            definition.Category,
+		Subcategory:         definition.Subcategory,
+		Action:              definition.Action,
+		Outcome:             definition.Outcome,
+		ActorUserID:         envelope.ActorUserID,
+		ActorOrganisationID: envelope.ActorOrganisationID,
+		TargetType:          envelope.TargetType,
+		TargetID:            envelope.TargetID,
+		TargetDisplay:       envelope.TargetDisplay,
+		RequestID:           envelope.RequestID,
+		TraceID:             envelope.TraceID,
+		SpanID:              envelope.SpanID,
+		IPAddress:           envelope.IPAddress,
+		UserAgent:           envelope.UserAgent,
+		Metadata:            sanitizeMap(event.MetadataMap()),
+		Changes:             sanitizeMap(event.ChangesMap()),
+		CreatedAt:           envelope.CreatedAt,
 	}
 }
 

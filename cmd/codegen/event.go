@@ -16,7 +16,7 @@ import (
 type eventManifest = manifest.EventCatalog
 type eventModule = manifest.EventModule
 type eventDefinition = manifest.EventDefinition
-type eventKey = manifest.TypedKey
+type eventField = manifest.Field
 
 func runEvent(args []string) error {
 	fs := flag.NewFlagSet("event", flag.ContinueOnError)
@@ -68,19 +68,62 @@ func renderEventManifest(mf eventManifest) ([]byte, error) {
 	}
 
 	b.WriteString("type Type string\n\n")
-	b.WriteString("type TypedKey struct {\n")
-	b.WriteString("\tName string\n")
-	b.WriteString("\tType string\n")
+	b.WriteString("type Field[K comparable, V any] struct {\n")
+	b.WriteString("\tKey K\n")
+	b.WriteString("\tValue V\n")
+	b.WriteString("}\n\n")
+	b.WriteString("type Envelope struct {\n")
+	b.WriteString("\tID string\n")
+	b.WriteString("\tActorUserID string\n")
+	b.WriteString("\tActorOrganisationID string\n")
+	b.WriteString("\tTargetType string\n")
+	b.WriteString("\tTargetID string\n")
+	b.WriteString("\tTargetDisplay string\n")
+	b.WriteString("\tRequestID string\n")
+	b.WriteString("\tTraceID string\n")
+	b.WriteString("\tSpanID string\n")
+	b.WriteString("\tIPAddress string\n")
+	b.WriteString("\tUserAgent string\n")
+	b.WriteString("\tCreatedAt time.Time\n")
+	b.WriteString("}\n\n")
+	b.WriteString("type mappable interface {\n")
+	b.WriteString("\tMap() map[string]any\n")
+	b.WriteString("}\n\n")
+	b.WriteString("type TypedEvent[M, C mappable] struct {\n")
+	b.WriteString("\tEventType Type\n")
+	b.WriteString("\tEnvelope Envelope\n")
+	b.WriteString("\tMetadata M\n")
+	b.WriteString("\tChanges C\n")
+	b.WriteString("}\n\n")
+	b.WriteString("func (value TypedEvent[M, C]) Type() Type {\n")
+	b.WriteString("\treturn value.EventType\n")
+	b.WriteString("}\n\n")
+	b.WriteString("func (value TypedEvent[M, C]) EnvelopeData() Envelope {\n")
+	b.WriteString("\treturn value.Envelope\n")
+	b.WriteString("}\n\n")
+	b.WriteString("func (value TypedEvent[M, C]) MetadataMap() map[string]any {\n")
+	b.WriteString("\treturn value.Metadata.Map()\n")
+	b.WriteString("}\n\n")
+	b.WriteString("func (value TypedEvent[M, C]) ChangesMap() map[string]any {\n")
+	b.WriteString("\treturn value.Changes.Map()\n")
+	b.WriteString("}\n\n")
+	b.WriteString("type Event interface {\n")
+	b.WriteString("\tType() Type\n")
+	b.WriteString("\tEnvelopeData() Envelope\n")
+	b.WriteString("\tMetadataMap() map[string]any\n")
+	b.WriteString("\tChangesMap() map[string]any\n")
 	b.WriteString("}\n\n")
 	b.WriteString("type Definition struct {\n")
 	b.WriteString("\tID string\n")
 	b.WriteString("\tType Type\n")
 	b.WriteString("\tPath []string\n")
+	b.WriteString("\tCategory string\n")
+	b.WriteString("\tSubcategory string\n")
 	b.WriteString("\tAction string\n")
 	b.WriteString("\tOutcome string\n")
 	b.WriteString("\tDescription string\n")
-	b.WriteString("\tMetadataKeys []TypedKey\n")
-	b.WriteString("\tChangeKeys []TypedKey\n")
+	b.WriteString("\tMetadataKeys []string\n")
+	b.WriteString("\tChangeKeys []string\n")
 	b.WriteString("}\n\n")
 	b.WriteString("const (\n")
 	for _, event := range events {
@@ -93,24 +136,31 @@ func renderEventManifest(mf eventManifest) ([]byte, error) {
 		fmt.Fprintf(&b, "\t\tID: %q,\n", event.ID)
 		fmt.Fprintf(&b, "\t\tType: %s,\n", event.ConstantName)
 		fmt.Fprintf(&b, "\t\tPath: []string{%s},\n", renderStringSlice(event.Path))
+		fmt.Fprintf(&b, "\t\tCategory: %q,\n", eventCategory(event.Path))
+		fmt.Fprintf(&b, "\t\tSubcategory: %q,\n", eventSubcategory(event.Path))
 		fmt.Fprintf(&b, "\t\tAction: %q,\n", event.Action)
 		fmt.Fprintf(&b, "\t\tOutcome: %q,\n", event.Outcome)
 		if event.Description != "" {
 			fmt.Fprintf(&b, "\t\tDescription: %q,\n", event.Description)
 		}
 		if len(event.MetadataKeys) > 0 {
-			fmt.Fprintf(&b, "\t\tMetadataKeys: []TypedKey{%s},\n", renderTypedKeys(event.MetadataKeys))
+			fmt.Fprintf(&b, "\t\tMetadataKeys: []string{%s},\n", renderStringNames(event.MetadataKeys))
 		}
 		if len(event.ChangeKeys) > 0 {
-			fmt.Fprintf(&b, "\t\tChangeKeys: []TypedKey{%s},\n", renderTypedKeys(event.ChangeKeys))
+			fmt.Fprintf(&b, "\t\tChangeKeys: []string{%s},\n", renderStringNames(event.ChangeKeys))
 		}
 		b.WriteString("\t},\n")
 	}
 	b.WriteString("}\n\n")
 
 	for _, event := range events {
-		renderTypedRecord(&b, event.ConstantName+"Metadata", event.MetadataKeys)
-		renderTypedRecord(&b, event.ConstantName+"Changes", event.ChangeKeys)
+		renderKeyType(&b, event.ConstantName+"MetadataKey", event.MetadataKeys)
+		renderTypedRecord(&b, event.ConstantName+"Metadata", event.ConstantName+"MetadataKey", event.MetadataKeys)
+		renderPayloadConstructor(&b, "New"+event.ConstantName+"Metadata", event.ConstantName+"Metadata", event.ConstantName+"MetadataKey", event.MetadataKeys)
+		renderKeyType(&b, event.ConstantName+"ChangesKey", event.ChangeKeys)
+		renderTypedRecord(&b, event.ConstantName+"Changes", event.ConstantName+"ChangesKey", event.ChangeKeys)
+		renderPayloadConstructor(&b, "New"+event.ConstantName+"Changes", event.ConstantName+"Changes", event.ConstantName+"ChangesKey", event.ChangeKeys)
+		fmt.Fprintf(&b, "type %sEvent = TypedEvent[%sMetadata, %sChanges]\n\n", event.ConstantName, event.ConstantName, event.ConstantName)
 	}
 
 	b.WriteString("func DefinitionFor(eventType Type) (Definition, bool) {\n")
@@ -129,11 +179,13 @@ type flattenedEvent struct {
 	ID           string
 	Type         string
 	Path         []string
+	Category     string
+	Subcategory  string
 	Action       string
 	Outcome      string
 	Description  string
-	MetadataKeys []eventKey
-	ChangeKeys   []eventKey
+	MetadataKeys []eventField
+	ChangeKeys   []eventField
 	ConstantName string
 }
 
@@ -146,11 +198,13 @@ func flattenEventDefinitions(modules []eventModule, modulePath []string) []flatt
 				ID:           event.ID,
 				Type:         manifest.EventTypeFor(currentPath, event.ID),
 				Path:         append([]string{}, currentPath...),
+				Category:     eventCategory(currentPath),
+				Subcategory:  eventSubcategory(currentPath),
 				Action:       event.Action,
 				Outcome:      event.Outcome,
 				Description:  event.Description,
-				MetadataKeys: normalizeTypedKeys(event.MetadataKeys),
-				ChangeKeys:   normalizeTypedKeys(event.ChangeKeys),
+				MetadataKeys: normalizeTypedFields(event.MetadataKeys),
+				ChangeKeys:   normalizeTypedFields(event.ChangeKeys),
 				ConstantName: manifest.EventConstantName(currentPath, event.ID),
 			})
 		}
@@ -159,21 +213,35 @@ func flattenEventDefinitions(modules []eventModule, modulePath []string) []flatt
 	return out
 }
 
-func normalizeTypedKeys(keys []eventKey) []eventKey {
-	if len(keys) == 0 {
+func normalizeTypedFields(fields []eventField) []eventField {
+	if len(fields) == 0 {
 		return nil
 	}
-	out := make([]eventKey, len(keys))
-	copy(out, keys)
+	out := make([]eventField, len(fields))
+	copy(out, fields)
 	return out
 }
 
-func renderTypedKeys(keys []eventKey) string {
+func renderStringNames(keys []eventField) string {
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
-		parts = append(parts, fmt.Sprintf("{Name: %q, Type: %q}", key.Name, key.Type))
+		parts = append(parts, strconv.Quote(key.Name))
 	}
 	return strings.Join(parts, ", ")
+}
+
+func eventCategory(path []string) string {
+	if len(path) > 1 {
+		return path[1]
+	}
+	return ""
+}
+
+func eventSubcategory(path []string) string {
+	if len(path) > 2 {
+		return path[2]
+	}
+	return ""
 }
 
 func renderStringSlice(values []string) string {
@@ -186,8 +254,9 @@ func renderStringSlice(values []string) string {
 
 func eventImports(events []flattenedEvent) []string {
 	imports := map[string]struct{}{}
+	imports["time"] = struct{}{}
 	for _, event := range events {
-		for _, key := range append(append([]eventKey{}, event.MetadataKeys...), event.ChangeKeys...) {
+		for _, key := range append(append([]eventField{}, event.MetadataKeys...), event.ChangeKeys...) {
 			if key.Type == "time.Time" {
 				imports["time"] = struct{}{}
 			}
@@ -204,20 +273,58 @@ func eventImports(events []flattenedEvent) []string {
 	return out
 }
 
-func renderTypedRecord(b *strings.Builder, typeName string, keys []eventKey) {
+func renderKeyType(b *strings.Builder, typeName string, keys []eventField) {
+	fmt.Fprintf(b, "type %s string\n\n", typeName)
+	if len(keys) == 0 {
+		return
+	}
+	b.WriteString("const (\n")
+	for _, key := range keys {
+		fmt.Fprintf(b, "\t%s%s %s = %q\n", typeName, manifest.GoName(key.Name), typeName, key.Name)
+	}
+	b.WriteString(")\n\n")
+}
+
+func renderTypedRecord(b *strings.Builder, typeName, keyTypeName string, keys []eventField) {
 	fmt.Fprintf(b, "type %s struct {\n", typeName)
 	for _, key := range keys {
-		fmt.Fprintf(b, "\t%s %s\n", manifest.GoName(key.Name), eventKeyGoType(key.Type))
+		fmt.Fprintf(b, "\t%s Field[%s, %s]\n", manifest.GoName(key.Name), keyTypeName, eventKeyGoType(key.Type))
 	}
 	b.WriteString("}\n\n")
 
 	fmt.Fprintf(b, "func (value %s) Map() map[string]any {\n", typeName)
 	b.WriteString("\treturn map[string]any{\n")
 	for _, key := range keys {
-		fmt.Fprintf(b, "\t\t%q: value.%s,\n", key.Name, manifest.GoName(key.Name))
+		fmt.Fprintf(b, "\t\t%q: value.%s.Value,\n", key.Name, manifest.GoName(key.Name))
 	}
 	b.WriteString("\t}\n")
 	b.WriteString("}\n\n")
+}
+
+func renderPayloadConstructor(b *strings.Builder, functionName, typeName, keyTypeName string, keys []eventField) {
+	fmt.Fprintf(b, "func %s(", functionName)
+	for index, key := range keys {
+		if index > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(b, "%s %s", parameterName(key.Name), eventKeyGoType(key.Type))
+	}
+	fmt.Fprintf(b, ") %s {\n", typeName)
+	fmt.Fprintf(b, "\treturn %s{\n", typeName)
+	for _, key := range keys {
+		fieldName := manifest.GoName(key.Name)
+		fmt.Fprintf(b, "\t\t%s: Field[%s, %s]{Key: %s%s, Value: %s},\n", fieldName, keyTypeName, eventKeyGoType(key.Type), keyTypeName, fieldName, parameterName(key.Name))
+	}
+	b.WriteString("\t}\n")
+	b.WriteString("}\n\n")
+}
+
+func parameterName(value string) string {
+	name := manifest.GoName(value)
+	if name == "" {
+		return "value"
+	}
+	return strings.ToLower(name[:1]) + name[1:]
 }
 
 func eventKeyGoType(value string) string {
