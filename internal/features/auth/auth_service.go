@@ -191,7 +191,7 @@ func userFromFindUserRow(row sqlcgen.FindUserByEmailRow) *User {
 	if row.ID == uuid.Nil {
 		return nil
 	}
-	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName}
+	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName, EmailVerified: row.EmailVerifiedAt.Valid}
 }
 
 func accountFromFindPasswordAccountRow(row sqlcgen.FindPasswordAccountByUserIDRow) *Account {

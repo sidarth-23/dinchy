@@ -104,6 +104,18 @@ func (mr *MockStoreMockRecorder) FindUserByEmail(ctx, email any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUserByEmail", reflect.TypeOf((*MockStore)(nil).FindUserByEmail), ctx, email)
 }
 
+func (m *MockStore) UpdateUserEmailVerifiedAt(ctx context.Context, arg sqlcgen.UpdateUserEmailVerifiedAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserEmailVerifiedAt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (mr *MockStoreMockRecorder) UpdateUserEmailVerifiedAt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserEmailVerifiedAt", reflect.TypeOf((*MockStore)(nil).UpdateUserEmailVerifiedAt), ctx, arg)
+}
+
 func (m *MockStore) FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindPasswordAccountByUserIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindPasswordAccountByUserID", ctx, userID)
@@ -218,6 +230,56 @@ func (mr *MockStoreMockRecorder) ConsumeVerificationToken(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeVerificationToken", reflect.TypeOf((*MockStore)(nil).ConsumeVerificationToken), ctx, arg)
 }
 
+func (m *MockStore) InsertOrganisationInvitation(ctx context.Context, arg sqlcgen.InsertOrganisationInvitationParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrganisationInvitation", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (mr *MockStoreMockRecorder) InsertOrganisationInvitation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganisationInvitation", reflect.TypeOf((*MockStore)(nil).InsertOrganisationInvitation), ctx, arg)
+}
+
+func (m *MockStore) FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganisationInvitationByTokenRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOrganisationInvitationByToken", ctx, tokenHash)
+	ret0, _ := ret[0].(sqlcgen.FindOrganisationInvitationByTokenRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (mr *MockStoreMockRecorder) FindOrganisationInvitationByToken(ctx, tokenHash any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganisationInvitationByToken", reflect.TypeOf((*MockStore)(nil).FindOrganisationInvitationByToken), ctx, tokenHash)
+}
+
+func (m *MockStore) FindPendingOrganisationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganisationInvitationByEmailParams) (sqlcgen.FindPendingOrganisationInvitationByEmailRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindPendingOrganisationInvitationByEmail", ctx, arg)
+	ret0, _ := ret[0].(sqlcgen.FindPendingOrganisationInvitationByEmailRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (mr *MockStoreMockRecorder) FindPendingOrganisationInvitationByEmail(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPendingOrganisationInvitationByEmail", reflect.TypeOf((*MockStore)(nil).FindPendingOrganisationInvitationByEmail), ctx, arg)
+}
+
+func (m *MockStore) ConsumeOrganisationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganisationInvitationParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConsumeOrganisationInvitation", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (mr *MockStoreMockRecorder) ConsumeOrganisationInvitation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeOrganisationInvitation", reflect.TypeOf((*MockStore)(nil).ConsumeOrganisationInvitation), ctx, arg)
+}
+
 func (m *MockStore) InsertOrReplaceTwoFactor(ctx context.Context, arg sqlcgen.InsertOrReplaceTwoFactorParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertOrReplaceTwoFactor", ctx, arg)
@@ -265,6 +327,18 @@ func (m *MockStore) MarkTwoFactorUsed(ctx context.Context, arg sqlcgen.MarkTwoFa
 func (mr *MockStoreMockRecorder) MarkTwoFactorUsed(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkTwoFactorUsed", reflect.TypeOf((*MockStore)(nil).MarkTwoFactorUsed), ctx, arg)
+}
+
+func (m *MockStore) RegisterTwoFactorFailure(ctx context.Context, arg sqlcgen.RegisterTwoFactorFailureParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterTwoFactorFailure", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (mr *MockStoreMockRecorder) RegisterTwoFactorFailure(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterTwoFactorFailure", reflect.TypeOf((*MockStore)(nil).RegisterTwoFactorFailure), ctx, arg)
 }
 
 func (m *MockStore) DisableTwoFactor(ctx context.Context, userID uuid.UUID) error {

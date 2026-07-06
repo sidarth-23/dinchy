@@ -28,10 +28,11 @@ const (
 )
 
 type User struct {
-	ID          string
-	Email       string
-	DisplayName string
-	Disabled    bool
+	ID            string
+	Email         string
+	DisplayName   string
+	EmailVerified bool
+	Disabled      bool
 }
 
 type Account struct {
@@ -47,6 +48,27 @@ type Organisation struct {
 	Name string
 	Slug string
 	Role Role
+}
+
+type InvitationStatus string
+
+const (
+	InvitationStatusPending  InvitationStatus = "pending"
+	InvitationStatusAccepted InvitationStatus = "accepted"
+	InvitationStatusRejected InvitationStatus = "rejected"
+	InvitationStatusCanceled InvitationStatus = "canceled"
+)
+
+type Invitation struct {
+	ID              string
+	OrganisationID  string
+	Email           string
+	Role            Role
+	Status          InvitationStatus
+	ExpiresAt       time.Time
+	InvitedByUserID string
+	AcceptedAt      time.Time
+	AcceptedAtValid bool
 }
 
 type TwoFactor struct {
@@ -108,6 +130,11 @@ type UpdateUserPasswordHashInput struct {
 	UserID       string
 	PasswordHash string
 	Now          time.Time
+}
+
+type UpdateUserEmailVerifiedAtInput struct {
+	UserID string
+	Now    time.Time
 }
 
 type UserRow struct {
@@ -310,6 +337,7 @@ type Store interface {
 	InsertOrganisation(ctx context.Context, arg sqlcgen.InsertOrganisationParams) error
 	InsertOrganisationMember(ctx context.Context, arg sqlcgen.InsertOrganisationMemberParams) error
 	FindUserByEmail(ctx context.Context, email string) (sqlcgen.FindUserByEmailRow, error)
+	UpdateUserEmailVerifiedAt(ctx context.Context, arg sqlcgen.UpdateUserEmailVerifiedAtParams) error
 	FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindPasswordAccountByUserIDRow, error)
 	FindUserByProviderAccount(ctx context.Context, arg sqlcgen.FindUserByProviderAccountParams) (sqlcgen.FindUserByProviderAccountRow, error)
 	ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganisationsForUserRow, error)
@@ -319,10 +347,15 @@ type Store interface {
 	InsertVerificationToken(ctx context.Context, arg sqlcgen.InsertVerificationTokenParams) error
 	FindVerificationToken(ctx context.Context, arg sqlcgen.FindVerificationTokenParams) (sqlcgen.FindVerificationTokenRow, error)
 	ConsumeVerificationToken(ctx context.Context, arg sqlcgen.ConsumeVerificationTokenParams) error
+	InsertOrganisationInvitation(ctx context.Context, arg sqlcgen.InsertOrganisationInvitationParams) error
+	FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganisationInvitationByTokenRow, error)
+	FindPendingOrganisationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganisationInvitationByEmailParams) (sqlcgen.FindPendingOrganisationInvitationByEmailRow, error)
+	ConsumeOrganisationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganisationInvitationParams) error
 	InsertOrReplaceTwoFactor(ctx context.Context, arg sqlcgen.InsertOrReplaceTwoFactorParams) error
 	FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error)
 	ConfirmTwoFactor(ctx context.Context, arg sqlcgen.ConfirmTwoFactorParams) error
 	MarkTwoFactorUsed(ctx context.Context, arg sqlcgen.MarkTwoFactorUsedParams) error
+	RegisterTwoFactorFailure(ctx context.Context, arg sqlcgen.RegisterTwoFactorFailureParams) error
 	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
 	ListSSOProviderSettings(ctx context.Context) ([]sqlcgen.SsoProviderSetting, error)
 	UpsertSSOProviderSetting(ctx context.Context, arg sqlcgen.UpsertSSOProviderSettingParams) error
@@ -443,6 +476,36 @@ type ForgotPasswordOut struct {
 	Body struct {
 		Accepted bool `json:"accepted"`
 	}
+}
+
+type CreateInvitationBody struct {
+	Email string `json:"email" format:"email" minLength:"3" maxLength:"254"`
+	Role  string `json:"role" minLength:"1" maxLength:"32"`
+}
+
+type CreateInvitationIn struct {
+	Body CreateInvitationBody
+}
+
+type CreateInvitationOut struct {
+	Body struct {
+		Created bool `json:"created"`
+	}
+}
+
+type AcceptInvitationBody struct {
+	DisplayName string `json:"display_name" minLength:"1" maxLength:"100"`
+	Password    string `json:"password" minLength:"8" maxLength:"128"`
+}
+
+type AcceptInvitationIn struct {
+	Token string `path:"token" minLength:"1"`
+	Body  AcceptInvitationBody
+}
+
+type AcceptInvitationOut struct {
+	SetCookie []http.Cookie `header:"Set-Cookie"`
+	Body      BootstrapBody
 }
 
 type ResetPasswordBody struct {

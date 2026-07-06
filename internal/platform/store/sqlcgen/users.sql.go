@@ -47,6 +47,135 @@ func (q *Queries) ConsumeVerificationToken(ctx context.Context, arg ConsumeVerif
 	return err
 }
 
+const consumeOrganisationInvitation = `-- name: ConsumeOrganisationInvitation :exec
+UPDATE organisation_invitations
+SET status = 'accepted', accepted_at = $1, updated_at = $2
+WHERE id = $3 AND status = 'pending' AND accepted_at IS NULL
+`
+
+type ConsumeOrganisationInvitationParams struct {
+	AcceptedAt time.Time
+	UpdatedAt  time.Time
+	ID         uuid.UUID
+}
+
+func (q *Queries) ConsumeOrganisationInvitation(ctx context.Context, arg ConsumeOrganisationInvitationParams) error {
+	_, err := q.db.ExecContext(ctx, consumeOrganisationInvitation, arg.AcceptedAt, arg.UpdatedAt, arg.ID)
+	return err
+}
+
+const insertOrganisationInvitation = `-- name: InsertOrganisationInvitation :exec
+INSERT INTO organisation_invitations (
+  id,
+  organisation_id,
+  email,
+  role,
+  status,
+  token_hash,
+  expires_at,
+  invited_by_user_id,
+  created_at,
+  updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`
+
+type InsertOrganisationInvitationParams struct {
+	ID              uuid.UUID
+	OrganisationID  uuid.UUID
+	Email           string
+	Role            string
+	Status          string
+	TokenHash       string
+	ExpiresAt       time.Time
+	InvitedByUserID uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+func (q *Queries) InsertOrganisationInvitation(ctx context.Context, arg InsertOrganisationInvitationParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrganisationInvitation,
+		arg.ID,
+		arg.OrganisationID,
+		arg.Email,
+		arg.Role,
+		arg.Status,
+		arg.TokenHash,
+		arg.ExpiresAt,
+		arg.InvitedByUserID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const findOrganisationInvitationByToken = `-- name: FindOrganisationInvitationByToken :one
+SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organisation_invitations
+WHERE token_hash = $1
+`
+
+type FindOrganisationInvitationByTokenRow struct {
+	ID              uuid.UUID
+	OrganisationID  uuid.UUID
+	Email           string
+	Role            string
+	Status          string
+	TokenHash       string
+	ExpiresAt       time.Time
+	InvitedByUserID uuid.UUID
+	AcceptedAt      sql.NullTime
+}
+
+func (q *Queries) FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (FindOrganisationInvitationByTokenRow, error) {
+	row := q.db.QueryRowContext(ctx, findOrganisationInvitationByToken, tokenHash)
+	var i FindOrganisationInvitationByTokenRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.InvitedByUserID,
+		&i.AcceptedAt,
+	)
+	return i, err
+}
+
+const findPendingOrganisationInvitationByEmail = `-- name: FindPendingOrganisationInvitationByEmail :one
+SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organisation_invitations
+WHERE organisation_id = $1 AND email = $2 AND status = 'pending' AND accepted_at IS NULL
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type FindPendingOrganisationInvitationByEmailParams struct {
+	OrganisationID uuid.UUID
+	Email          string
+}
+
+type FindPendingOrganisationInvitationByEmailRow = FindOrganisationInvitationByTokenRow
+
+func (q *Queries) FindPendingOrganisationInvitationByEmail(ctx context.Context, arg FindPendingOrganisationInvitationByEmailParams) (FindPendingOrganisationInvitationByEmailRow, error) {
+	row := q.db.QueryRowContext(ctx, findPendingOrganisationInvitationByEmail, arg.OrganisationID, arg.Email)
+	var i FindPendingOrganisationInvitationByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.InvitedByUserID,
+		&i.AcceptedAt,
+	)
+	return i, err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT COUNT(*) FROM users
 `
@@ -189,16 +318,17 @@ func (q *Queries) FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (
 }
 
 const findUserByEmail = `-- name: FindUserByEmail :one
-SELECT id, email, display_name, disabled_at
+SELECT id, email, display_name, email_verified_at, disabled_at
 FROM users
 WHERE email = $1 AND disabled_at IS NULL
 `
 
 type FindUserByEmailRow struct {
-	ID          uuid.UUID
-	Email       string
-	DisplayName string
-	DisabledAt  sql.NullTime
+	ID              uuid.UUID
+	Email           string
+	DisplayName     string
+	EmailVerifiedAt sql.NullTime
+	DisabledAt      sql.NullTime
 }
 
 func (q *Queries) FindUserByEmail(ctx context.Context, email string) (FindUserByEmailRow, error) {
@@ -208,13 +338,14 @@ func (q *Queries) FindUserByEmail(ctx context.Context, email string) (FindUserBy
 		&i.ID,
 		&i.Email,
 		&i.DisplayName,
+		&i.EmailVerifiedAt,
 		&i.DisabledAt,
 	)
 	return i, err
 }
 
 const findUserByProviderAccount = `-- name: FindUserByProviderAccount :one
-SELECT u.id, u.email, u.display_name, u.disabled_at
+SELECT u.id, u.email, u.display_name, u.email_verified_at, u.disabled_at
 FROM accounts a
 JOIN users u ON u.id = a.user_id
 WHERE a.provider = $1 AND a.provider_account_id = $2 AND u.disabled_at IS NULL
@@ -226,10 +357,11 @@ type FindUserByProviderAccountParams struct {
 }
 
 type FindUserByProviderAccountRow struct {
-	ID          uuid.UUID
-	Email       string
-	DisplayName string
-	DisabledAt  sql.NullTime
+	ID              uuid.UUID
+	Email           string
+	DisplayName     string
+	EmailVerifiedAt sql.NullTime
+	DisabledAt      sql.NullTime
 }
 
 func (q *Queries) FindUserByProviderAccount(ctx context.Context, arg FindUserByProviderAccountParams) (FindUserByProviderAccountRow, error) {
@@ -239,9 +371,27 @@ func (q *Queries) FindUserByProviderAccount(ctx context.Context, arg FindUserByP
 		&i.ID,
 		&i.Email,
 		&i.DisplayName,
+		&i.EmailVerifiedAt,
 		&i.DisabledAt,
 	)
 	return i, err
+}
+
+const updateUserEmailVerifiedAt = `-- name: UpdateUserEmailVerifiedAt :exec
+UPDATE users
+SET email_verified_at = $1, updated_at = $2
+WHERE id = $3
+`
+
+type UpdateUserEmailVerifiedAtParams struct {
+	EmailVerifiedAt sql.NullTime
+	UpdatedAt       time.Time
+	ID              uuid.UUID
+}
+
+func (q *Queries) UpdateUserEmailVerifiedAt(ctx context.Context, arg UpdateUserEmailVerifiedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserEmailVerifiedAt, arg.EmailVerifiedAt, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const findVerificationToken = `-- name: FindVerificationToken :one
@@ -505,6 +655,30 @@ type MarkTwoFactorUsedParams struct {
 
 func (q *Queries) MarkTwoFactorUsed(ctx context.Context, arg MarkTwoFactorUsedParams) error {
 	_, err := q.db.ExecContext(ctx, markTwoFactorUsed, arg.LastUsedStep, arg.UpdatedAt, arg.UserID)
+	return err
+}
+
+const registerTwoFactorFailure = `-- name: RegisterTwoFactorFailure :exec
+UPDATE two_factors
+SET
+  failed_verification_count = failed_verification_count + 1,
+  locked_until = CASE
+    WHEN failed_verification_count + 1 >= $1 THEN $2
+    ELSE locked_until
+  END,
+  updated_at = $3
+WHERE user_id = $4
+`
+
+type RegisterTwoFactorFailureParams struct {
+	FailureLimit int64
+	LockedUntil  sql.NullTime
+	UpdatedAt    time.Time
+	UserID       uuid.UUID
+}
+
+func (q *Queries) RegisterTwoFactorFailure(ctx context.Context, arg RegisterTwoFactorFailureParams) error {
+	_, err := q.db.ExecContext(ctx, registerTwoFactorFailure, arg.FailureLimit, arg.LockedUntil, arg.UpdatedAt, arg.UserID)
 	return err
 }
 

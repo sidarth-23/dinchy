@@ -88,11 +88,12 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 	}
 	now := in.Now.UTC()
 	if err := q.InsertUser(ctx, sqlcgen.InsertUserParams{
-		ID:          id.MustParse(in.ID),
-		Email:       in.Email,
-		DisplayName: in.DisplayName,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:              id.MustParse(in.ID),
+		Email:           in.Email,
+		DisplayName:     in.DisplayName,
+		EmailVerifiedAt: sql.NullTime{Time: now.UTC(), Valid: true},
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertUser))
 	}
@@ -127,5 +128,5 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisationMember))
 	}
-	return User{ID: in.ID, Email: in.Email, DisplayName: in.DisplayName}, nil
+	return User{ID: in.ID, Email: in.Email, DisplayName: in.DisplayName, EmailVerified: true}, nil
 }

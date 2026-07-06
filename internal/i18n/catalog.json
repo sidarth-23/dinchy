@@ -67,6 +67,30 @@
           "translations": {
             "en": "The password reset token is invalid or has expired."
           }
+        },
+        {
+          "name": "invitation_invalid",
+          "translations": {
+            "en": "The invitation is invalid or has expired."
+          }
+        },
+        {
+          "name": "invitation_exists",
+          "translations": {
+            "en": "An active invitation already exists for that email address."
+          }
+        },
+        {
+          "name": "invitation_role_invalid",
+          "translations": {
+            "en": "The invitation role is invalid."
+          }
+        },
+        {
+          "name": "totp_locked",
+          "translations": {
+            "en": "Two-factor authentication is temporarily locked. Try again later."
+          }
         }
       ],
       "modules": [

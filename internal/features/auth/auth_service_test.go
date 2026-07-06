@@ -96,7 +96,7 @@ func HashPasswordForTest(t *testing.T, password string) string {
 }
 
 func findUserRow(rowID, email, displayName string) sqlcgen.FindUserByEmailRow {
-	return sqlcgen.FindUserByEmailRow{ID: id.MustParse(rowID), Email: email, DisplayName: displayName}
+	return sqlcgen.FindUserByEmailRow{ID: id.MustParse(rowID), Email: email, DisplayName: displayName, EmailVerifiedAt: sql.NullTime{Time: fixedTime, Valid: true}}
 }
 
 func passwordAccountRow(rowID, userID, provider, providerAccountID, passwordHash string) sqlcgen.FindPasswordAccountByUserIDRow {
@@ -142,6 +142,7 @@ func TestSetupFirstUser_Success(t *testing.T) {
 			assert.Equal(t, "admin@example.com", in.Email)
 			assert.Equal(t, "Admin", in.DisplayName)
 			assert.NotEqual(t, uuid.Nil, in.ID)
+			assert.True(t, in.EmailVerifiedAt.Valid)
 			return nil
 		})
 	store.EXPECT().

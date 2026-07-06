@@ -14,3 +14,4 @@
 - let's create the class for features properly so that most of the features extend from a base feature class
 - worth of panic in backend and recovery mechanism
 - never log and return errors at the same time. See the core of the idea and create a proper base framework
+- have a clean email service with clean templates and example generator. The module should take care of delivery and error handling

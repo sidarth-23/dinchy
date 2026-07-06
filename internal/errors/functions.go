@@ -60,6 +60,11 @@ func Conflict(msg i18n.Message, opts ...Option) *AppError {
 	return New(http.StatusConflict, msg, opts...)
 }
 
+// TooManyRequests creates a 429 AppError.
+func TooManyRequests(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusTooManyRequests, msg, opts...)
+}
+
 // UnprocessableEntity creates a 422 AppError.
 func UnprocessableEntity(msg i18n.Message, opts ...Option) *AppError {
 	return New(http.StatusUnprocessableEntity, msg, opts...)

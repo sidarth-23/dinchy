@@ -16,6 +16,11 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
+const (
+	totpFailureLimit = int64(5)
+	totpLockDuration = 15 * time.Minute
+)
+
 func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress string) (secret string, url string, err error) {
 	key, err := totp.Generate(totp.GenerateOpts{Issuer: s.authConfig.TOTPIssuer, AccountName: emailAddress})
 	if err != nil {
@@ -43,11 +48,15 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
 	}
 	twoFactor := twoFactorFromFindTwoFactorRow(twoFactorRow)
-	if !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
-		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
+	now := s.clock.Now().UTC()
+	if twoFactor.locked(now) {
+		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))
 	}
-	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sql.NullInt64{Int64: totpStep(s.clock.Now()), Valid: true}, UpdatedAt: s.clock.Now().UTC()}); err != nil {
-		return err
+	if !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
+		return s.recordTOTPFailure(ctx, userID, twoFactor.FailedVerificationCount, now, i18n.Msg(i18n.CodeAuthInvalidTOTP))
+	}
+	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sql.NullInt64{Int64: totpStep(now), Valid: true}, UpdatedAt: now}); err != nil {
+		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
 	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorEnabledEvent{
 		EventType: events.AuthSecurityTwoFactorEnabled,
@@ -77,6 +86,10 @@ func twoFactorFromFindTwoFactorRow(row sqlcgen.FindTwoFactorByUserIDRow) *TwoFac
 	return &twoFactor
 }
 
+func (t *TwoFactor) locked(now time.Time) bool {
+	return t.LockedUntilValid && now.Before(t.LockedUntil)
+}
+
 func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
 	if err := s.store.DisableTwoFactor(ctx, id.MustParse(userID)); err != nil {
 		return err
@@ -101,16 +114,44 @@ func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) e
 	if !twoFactor.Verified {
 		return nil
 	}
-	step := totpStep(s.clock.Now())
+	now := s.clock.Now().UTC()
+	if twoFactor.locked(now) {
+		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))
+	}
+	step := totpStep(now)
 	if code == "" || !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
-		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthTOTPRequired))
+		msg := i18n.Msg(i18n.CodeAuthInvalidTOTP)
+		if code == "" {
+			msg = i18n.Msg(i18n.CodeAuthTOTPRequired)
+		}
+		return s.recordTOTPFailure(ctx, userID, twoFactor.FailedVerificationCount, now, msg)
 	}
 	if twoFactor.LastUsedStepValid && twoFactor.LastUsedStep == step {
 		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
-	return s.store.MarkTwoFactorUsed(ctx, sqlcgen.MarkTwoFactorUsedParams{UserID: id.MustParse(userID), LastUsedStep: sql.NullInt64{Int64: step, Valid: true}, UpdatedAt: s.clock.Now().UTC()})
+	return s.store.MarkTwoFactorUsed(ctx, sqlcgen.MarkTwoFactorUsedParams{UserID: id.MustParse(userID), LastUsedStep: sql.NullInt64{Int64: step, Valid: true}, UpdatedAt: now})
 }
 
 func totpStep(t time.Time) int64 {
 	return t.Unix() / 30
+}
+
+func (s *Service) recordTOTPFailure(ctx context.Context, userID string, currentCount int64, now time.Time, message i18n.Message) error {
+	nextCount := currentCount + 1
+	lockedUntil := sql.NullTime{}
+	if nextCount >= totpFailureLimit {
+		lockedUntil = sql.NullTime{Time: now.Add(totpLockDuration), Valid: true}
+	}
+	if err := s.store.RegisterTwoFactorFailure(ctx, sqlcgen.RegisterTwoFactorFailureParams{
+		FailureLimit: nextCount,
+		LockedUntil:  lockedUntil,
+		UpdatedAt:    now,
+		UserID:       id.MustParse(userID),
+	}); err != nil {
+		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
+	}
+	if lockedUntil.Valid {
+		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))
+	}
+	return apperrors.Unauthorized(message)
 }

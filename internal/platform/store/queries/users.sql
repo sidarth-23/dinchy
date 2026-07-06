@@ -18,7 +18,7 @@ INSERT INTO organisation_members (id, organisation_id, user_id, role, created_at
 VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: FindUserByEmail :one
-SELECT id, email, display_name, disabled_at
+SELECT id, email, display_name, email_verified_at, disabled_at
 FROM users
 WHERE email = $1 AND disabled_at IS NULL;
 
@@ -28,10 +28,15 @@ FROM accounts
 WHERE user_id = $1 AND provider = 'password';
 
 -- name: FindUserByProviderAccount :one
-SELECT u.id, u.email, u.display_name, u.disabled_at
+SELECT u.id, u.email, u.display_name, u.email_verified_at, u.disabled_at
 FROM accounts a
 JOIN users u ON u.id = a.user_id
 WHERE a.provider = $1 AND a.provider_account_id = $2 AND u.disabled_at IS NULL;
+
+-- name: UpdateUserEmailVerifiedAt :exec
+UPDATE users
+SET email_verified_at = $1, updated_at = $2
+WHERE id = $3;
 
 -- name: ListOrganisationsForUser :many
 SELECT o.id, o.name, o.slug, m.role
@@ -66,6 +71,38 @@ UPDATE verification_tokens
 SET consumed_at = $1, updated_at = $2
 WHERE id = $3 AND consumed_at IS NULL;
 
+-- name: InsertOrganisationInvitation :exec
+INSERT INTO organisation_invitations (
+  id,
+  organisation_id,
+  email,
+  role,
+  status,
+  token_hash,
+  expires_at,
+  invited_by_user_id,
+  created_at,
+  updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+
+-- name: FindOrganisationInvitationByToken :one
+SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organisation_invitations
+WHERE token_hash = $1;
+
+-- name: FindPendingOrganisationInvitationByEmail :one
+SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organisation_invitations
+WHERE organisation_id = $1 AND email = $2 AND status = 'pending' AND accepted_at IS NULL
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: ConsumeOrganisationInvitation :exec
+UPDATE organisation_invitations
+SET status = 'accepted', accepted_at = $1, updated_at = $2
+WHERE id = $3 AND status = 'pending' AND accepted_at IS NULL;
+
 -- name: UpdateUserPasswordHash :exec
 UPDATE accounts
 SET password_hash = $1, updated_at = $2
@@ -99,6 +136,17 @@ WHERE user_id = $1;
 UPDATE two_factors
 SET last_used_step = $1, failed_verification_count = 0, locked_until = NULL, updated_at = $2
 WHERE user_id = $3;
+
+-- name: RegisterTwoFactorFailure :exec
+UPDATE two_factors
+SET
+  failed_verification_count = failed_verification_count + 1,
+  locked_until = CASE
+    WHEN failed_verification_count + 1 >= $1 THEN $2
+    ELSE locked_until
+  END,
+  updated_at = $3
+WHERE user_id = $4;
 
 -- name: RevokeSessionsForUser :exec
 UPDATE sessions

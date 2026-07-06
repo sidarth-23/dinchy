@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -191,6 +192,14 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 		FindUserByEmail(gomock.Any(), "candidate@example.com").
 		Return(findUserRow(testUserID, "candidate@example.com", "User"), nil)
 	store.EXPECT().
+		InsertAccount(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in sqlcgen.InsertAccountParams) error {
+			assert.Equal(t, testUserID, in.UserID.String())
+			assert.Equal(t, "github", in.Provider)
+			assert.Equal(t, "provider-user", in.ProviderAccountID)
+			return nil
+		})
+	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
 		AnyTimes()
@@ -210,6 +219,43 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 	assert.NotEmpty(t, token)
 	require.Len(t, clearedCookies, 1)
 	assert.Equal(t, -1, clearedCookies[0].MaxAge)
+}
+
+func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
+	svc, store := newSSOTestService(t)
+
+	_, cookies, err := svc.startSSO(testCtx, "github", "/dashboard", "")
+	require.NoError(t, err)
+
+	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
+	var cached ssoCacheState
+	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	var session fakeSSOSession
+	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+
+	parsedAuthURL, err := url.Parse(session.AuthURL)
+	require.NoError(t, err)
+	state := parsedAuthURL.Query().Get("state")
+
+	unverified := findUserRow(testUserID, "candidate@example.com", "User")
+	unverified.EmailVerifiedAt = sql.NullTime{}
+	store.EXPECT().
+		FindUserByProviderAccount(gomock.Any(), sqlcgen.FindUserByProviderAccountParams{Provider: "github", ProviderAccountID: "provider-user"}).
+		Return(sqlcgen.FindUserByProviderAccountRow{}, sql.ErrNoRows)
+	store.EXPECT().
+		FindUserByEmail(gomock.Any(), "candidate@example.com").
+		Return(unverified, nil)
+
+	_, _, _, err = svc.completeSSO(
+		testCtx,
+		"github",
+		state,
+		"code-123",
+		cookieValue(t, cookies, "dinchy_sso_state"),
+		"127.0.0.1",
+		"ua",
+	)
+	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed)))
 }
 
 func TestCompleteSSO_RejectsInvalidState(t *testing.T) {

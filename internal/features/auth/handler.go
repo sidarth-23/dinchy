@@ -115,6 +115,22 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 	}, a.selectOrganisation)
 
 	huma.Register(h, huma.Operation{
+		OperationID: "auth-create-invitation",
+		Method:      http.MethodPost,
+		Path:        "/auth/invitations",
+		Summary:     "Create an organisation invitation",
+		Tags:        []string{"Auth"},
+	}, a.createInvitation)
+
+	huma.Register(h, huma.Operation{
+		OperationID: "auth-accept-invitation",
+		Method:      http.MethodPost,
+		Path:        "/auth/invitations/{token}/accept",
+		Summary:     "Accept an organisation invitation",
+		Tags:        []string{"Auth"},
+	}, a.acceptInvitation)
+
+	huma.Register(h, huma.Operation{
 		OperationID: "auth-forgot-password",
 		Method:      http.MethodPost,
 		Path:        "/auth/forgot-password",
@@ -375,6 +391,73 @@ func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) 
 		return nil, err
 	}
 	out := &SelectOrganisationOut{SetCookie: []http.Cookie{*a.auth.SessionCookie(token, support.IsSecure(ctx))}}
+	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*CreateInvitationOut, error) {
+	if a.requireHTTPS && !support.IsSecure(ctx) {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+	}
+	sess := SessionFrom(ctx)
+	if sess == nil {
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+	}
+	if sess.Role != RoleOwner && sess.Role != RoleAdmin {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
+	}
+	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationCreate),
+			apperrors.WithStage(apperrors.StageCreateInvitation),
+		)
+	}
+	out := &CreateInvitationOut{}
+	out.Body.Created = invitation.ID != ""
+	return out, nil
+}
+
+func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*AcceptInvitationOut, error) {
+	if a.requireHTTPS && !support.IsSecure(ctx) {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+	}
+	token, err := a.auth.AcceptInvitation(
+		ctx,
+		in.Token,
+		in.Body.DisplayName,
+		in.Body.Password,
+		support.RemoteIPFrom(ctx),
+		support.UserAgentFrom(ctx),
+	)
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
+			apperrors.WithStage(apperrors.StageAcceptInvitation),
+		)
+	}
+	bs, err := a.settings.Bootstrap(ctx)
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
+			apperrors.WithStage(apperrors.StageBootstrap),
+		)
+	}
+	sess, err := a.auth.Session(ctx, token)
+	if err != nil || sess == nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
+			apperrors.WithStage(apperrors.StageSessionLookup),
+		)
+	}
+	secure := support.IsSecure(ctx)
+	out := &AcceptInvitationOut{}
+	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.Body.SetupRequired = false
+	out.Body.Authenticated = true
+	out.Body.App.InstanceName = bs.InstanceName
 	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
 		return nil, err
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +17,8 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
+
+const passwordResetMinimumDuration = 250 * time.Millisecond
 
 type VerificationPurpose string
 
@@ -41,6 +42,8 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	if !s.email.Configured() {
 		return apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
+	start := s.clock.Now()
+	defer waitUntil(start.Add(passwordResetMinimumDuration))
 	emailAddress = transform.Email(emailAddress)
 	userRow, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
@@ -74,7 +77,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	return s.email.Send(ctx, email.Message{
 		To:      emailAddress,
 		Subject: "Reset your Dinchy password",
-		Text:    fmt.Sprintf("Use this password reset token before it expires:\n\n%s\n", rawToken),
+		Text:    passwordResetEmailText(rawToken),
 	})
 }
 
@@ -116,4 +119,10 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageConsumeVerificationToken))
 	}
 	return s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: id.MustParse(token.UserID), RevokedAt: sql.NullTime{Time: now.UTC(), Valid: true}, UpdatedAt: now})
+}
+
+func waitUntil(target time.Time) {
+	if delay := time.Until(target); delay > 0 {
+		time.Sleep(delay)
+	}
 }

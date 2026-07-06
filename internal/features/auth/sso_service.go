@@ -15,6 +15,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
@@ -270,6 +271,19 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 			return "", "", nil, apperrors.Annotate(emailErr, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
 		}
 		user = userFromFindUserRow(emailRow)
+		if user == nil || !user.EmailVerified {
+			return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
+		}
+		if err := s.store.InsertAccount(ctx, sqlcgen.InsertAccountParams{
+			ID:                id.MustParse(s.idg.New()),
+			UserID:            id.MustParse(user.ID),
+			Provider:          providerID,
+			ProviderAccountID: gothUser.UserID,
+			CreatedAt:         s.clock.Now().UTC(),
+			UpdatedAt:         s.clock.Now().UTC(),
+		}); err != nil {
+			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
+		}
 	}
 	if user == nil {
 		return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
@@ -292,7 +306,7 @@ func userFromProviderAccountRow(row sqlcgen.FindUserByProviderAccountRow) *User 
 	if row.ID == uuid.Nil {
 		return nil
 	}
-	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName}
+	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName, EmailVerified: row.EmailVerifiedAt.Valid}
 }
 
 const (
