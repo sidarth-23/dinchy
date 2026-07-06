@@ -15,3 +15,4 @@
 - worth of panic in backend and recovery mechanism
 - never log and return errors at the same time. See the core of the idea and create a proper base framework
 - have a clean email service with clean templates and example generator. The module should take care of delivery and error handling
+- there are a lot of micro utility function which makes no sense. Update that to be in main function and update the agent rule

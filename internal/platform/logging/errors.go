@@ -34,8 +34,7 @@ func logError(ctx context.Context, logger *slog.Logger, message string, err erro
 		logger = slog.Default()
 	}
 
-	var appErr *apperrors.AppError
-	if stdErrors.As(err, &appErr) {
+	if appErr, ok := stdErrors.AsType[*apperrors.AppError](err); ok {
 		if appErr.Status() < http.StatusInternalServerError {
 			return
 		}
