@@ -7,10 +7,10 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteEndedSessionsOlderThan = `-- name: DeleteEndedSessionsOlderThan :execresult
@@ -19,12 +19,12 @@ WHERE (revoked_at IS NOT NULL OR expires_at < $1) AND updated_at < $2
 `
 
 type DeleteEndedSessionsOlderThanParams struct {
-	ExpiresAt time.Time
-	UpdatedAt time.Time
+	ExpiresAt pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-func (q *Queries) DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEndedSessionsOlderThanParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, deleteEndedSessionsOlderThan, arg.ExpiresAt, arg.UpdatedAt)
+func (q *Queries) DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEndedSessionsOlderThanParams) (pgconn.CommandTag, error) {
+	return q.db.Exec(ctx, deleteEndedSessionsOlderThan, arg.ExpiresAt, arg.UpdatedAt)
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
@@ -37,21 +37,21 @@ WHERE s.token_hash = $1
 `
 
 type GetSessionByTokenHashRow struct {
-	ID                   uuid.UUID
-	UserID               uuid.UUID
-	Email                string
-	DisplayName          string
-	ActiveOrganisationID uuid.UUID
-	OrganisationName     string
-	OrganisationSlug     string
-	Role                 string
-	IdleExpiresAt        time.Time
-	ExpiresAt            time.Time
-	RevokedAt            sql.NullTime
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	UserID               uuid.UUID          `db:"user_id" json:"user_id"`
+	Email                string             `db:"email" json:"email"`
+	DisplayName          string             `db:"display_name" json:"display_name"`
+	ActiveOrganisationID uuid.UUID          `db:"active_organisation_id" json:"active_organisation_id"`
+	OrganisationName     string             `db:"organisation_name" json:"organisation_name"`
+	OrganisationSlug     string             `db:"organisation_slug" json:"organisation_slug"`
+	Role                 string             `db:"role" json:"role"`
+	IdleExpiresAt        pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
+	ExpiresAt            pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	RevokedAt            pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
 }
 
 func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (GetSessionByTokenHashRow, error) {
-	row := q.db.QueryRowContext(ctx, getSessionByTokenHash, tokenHash)
+	row := q.db.QueryRow(ctx, getSessionByTokenHash, tokenHash)
 	var i GetSessionByTokenHashRow
 	err := row.Scan(
 		&i.ID,
@@ -75,21 +75,21 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertSessionParams struct {
-	ID                   uuid.UUID
-	UserID               uuid.UUID
-	ActiveOrganisationID uuid.UUID
-	TokenHash            string
-	IpAddress            string
-	UserAgent            string
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	ExpiresAt            time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	UserID               uuid.UUID          `db:"user_id" json:"user_id"`
+	ActiveOrganisationID uuid.UUID          `db:"active_organisation_id" json:"active_organisation_id"`
+	TokenHash            string             `db:"token_hash" json:"token_hash"`
+	IpAddress            string             `db:"ip_address" json:"ip_address"`
+	UserAgent            string             `db:"user_agent" json:"user_agent"`
+	LastSeenAt           pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	IdleExpiresAt        pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
+	ExpiresAt            pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt            pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
-	_, err := q.db.ExecContext(ctx, insertSession,
+	_, err := q.db.Exec(ctx, insertSession,
 		arg.ID,
 		arg.UserID,
 		arg.ActiveOrganisationID,
@@ -112,12 +112,12 @@ WHERE token_hash = $3 AND revoked_at IS NULL
 `
 
 type RevokeSessionByTokenHashParams struct {
-	RevokedAt sql.NullTime
-	UpdatedAt time.Time
-	TokenHash string
+	RevokedAt pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	TokenHash string             `db:"token_hash" json:"token_hash"`
 }
 
 func (q *Queries) RevokeSessionByTokenHash(ctx context.Context, arg RevokeSessionByTokenHashParams) error {
-	_, err := q.db.ExecContext(ctx, revokeSessionByTokenHash, arg.RevokedAt, arg.UpdatedAt, arg.TokenHash)
+	_, err := q.db.Exec(ctx, revokeSessionByTokenHash, arg.RevokedAt, arg.UpdatedAt, arg.TokenHash)
 	return err
 }

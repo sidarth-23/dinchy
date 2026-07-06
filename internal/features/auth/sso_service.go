@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -18,6 +18,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
@@ -94,12 +95,12 @@ func (s *Service) updateSSOProviderSetting(ctx context.Context, providerID strin
 	}
 	if err := s.store.UpsertSSOProviderSetting(ctx, sqlcgen.UpsertSSOProviderSettingParams{
 		ProviderID:   providerID,
-		ClientID:     sql.NullString{String: clientID, Valid: clientIDValid},
-		ClientSecret: sql.NullString{String: secret, Valid: secretValid},
-		CallbackUrl:  sql.NullString{String: callbackURL, Valid: callbackURLValid},
+		ClientID:     sqltype.OptionalText(clientID, clientIDValid),
+		ClientSecret: sqltype.OptionalText(secret, secretValid),
+		CallbackUrl:  sqltype.OptionalText(callbackURL, callbackURLValid),
 		Enabled:      enabled,
-		CreatedAt:    s.clock.Now().UTC(),
-		UpdatedAt:    s.clock.Now().UTC(),
+		CreatedAt:    sqltype.Timestamptz(s.clock.Now()),
+		UpdatedAt:    sqltype.Timestamptz(s.clock.Now()),
 	}); err != nil {
 		return SSOProviderSettingOut{}, err
 	}
@@ -257,7 +258,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	}
 	userRow, err := s.store.FindUserByProviderAccount(ctx, sqlcgen.FindUserByProviderAccountParams{Provider: providerID, ProviderAccountID: gothUser.UserID})
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		if !errors.Is(err, pgx.ErrNoRows) {
 			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
 		}
 	}
@@ -265,7 +266,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if user == nil && gothUser.Email != "" {
 		emailRow, emailErr := s.store.FindUserByEmail(ctx, transform.Email(gothUser.Email))
 		if emailErr != nil {
-			if errors.Is(emailErr, sql.ErrNoRows) {
+			if errors.Is(emailErr, pgx.ErrNoRows) {
 				return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
 			}
 			return "", "", nil, apperrors.Annotate(emailErr, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
@@ -279,8 +280,8 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 			UserID:            id.MustParse(user.ID),
 			Provider:          providerID,
 			ProviderAccountID: gothUser.UserID,
-			CreatedAt:         s.clock.Now().UTC(),
-			UpdatedAt:         s.clock.Now().UTC(),
+			CreatedAt:         sqltype.Timestamptz(s.clock.Now()),
+			UpdatedAt:         sqltype.Timestamptz(s.clock.Now()),
 		}); err != nil {
 			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
 		}
@@ -363,11 +364,11 @@ func (s *Service) dbSSOProviderSettings(ctx context.Context) (map[string]SSOProv
 	for _, setting := range settings {
 		out[setting.ProviderID] = SSOProviderSetting{
 			ProviderID:    setting.ProviderID,
-			ClientID:      setting.ClientID.String,
+			ClientID:      sqltype.TextValue(setting.ClientID),
 			ClientIDValid: setting.ClientID.Valid,
-			Secret:        setting.ClientSecret.String,
+			Secret:        sqltype.TextValue(setting.ClientSecret),
 			SecretValid:   setting.ClientSecret.Valid,
-			CallbackURL:   setting.CallbackUrl.String,
+			CallbackURL:   sqltype.TextValue(setting.CallbackUrl),
 			CallbackValid: setting.CallbackUrl.Valid,
 			Enabled:       setting.Enabled,
 		}

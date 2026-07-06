@@ -2,11 +2,11 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -18,6 +18,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 type fakeSender struct {
@@ -59,8 +60,8 @@ func verificationTokenRow(rowID, userID, email, purpose, tokenHash string, expir
 		Email:      email,
 		Purpose:    purpose,
 		TokenHash:  tokenHash,
-		ExpiresAt:  expiresAt,
-		ConsumedAt: sql.NullTime{Time: consumedAt, Valid: consumedAtValid},
+		ExpiresAt:  sqltype.Timestamptz(expiresAt),
+		ConsumedAt: sqltype.OptionalTimestamptz(consumedAt, consumedAtValid),
 	}
 }
 
@@ -77,7 +78,7 @@ func TestForgotPassword_UnknownUserIsSilent(t *testing.T) {
 	sender := &fakeSender{configured: true}
 	svc, store := newServiceWithSender(t, sender)
 
-	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").Return(sqlcgen.FindUserByEmailRow{}, sql.ErrNoRows)
+	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").Return(sqlcgen.FindUserByEmailRow{}, pgx.ErrNoRows)
 	// No token created and no mail sent for an unknown address (no user enumeration).
 
 	require.NoError(t, svc.ForgotPassword(testCtx, "user@example.com"))
@@ -97,7 +98,7 @@ func TestForgotPassword_CreatesTokenAndSends(t *testing.T) {
 			assert.True(t, token.UserID.Valid)
 			assert.Equal(t, string(VerificationPurposePasswordReset), token.Purpose)
 			assert.NotEmpty(t, token.TokenHash)
-			assert.True(t, token.ExpiresAt.After(fixedTime), "token must expire in the future")
+			assert.True(t, sqltype.TimeValue(token.ExpiresAt).After(fixedTime), "token must expire in the future")
 			return nil
 		})
 

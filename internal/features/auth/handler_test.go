@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -10,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -18,6 +19,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -63,7 +65,7 @@ func TestAPILogin_Success(t *testing.T) {
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
+		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 
 	out, err := api.login(ctx, &LoginIn{Body: LoginBody{Email: "  USER@EXAMPLE.COM  ", Password: "secret"}})
 	require.NoError(t, err)
@@ -114,7 +116,7 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
+		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
@@ -201,8 +203,8 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
-	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: fixedTime.UTC(), Valid: true}, UpdatedAt: fixedTime.UTC(), TokenHash: security.HashToken("rawtoken")}).Return(nil)
+		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
+	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(fixedTime), UpdatedAt: sqltype.Timestamptz(fixedTime), TokenHash: security.HashToken("rawtoken")}).Return(nil)
 
 	out, err := api.logout(ctx, &LogoutIn{})
 	require.NoError(t, err)
@@ -238,7 +240,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByProviderAccount(gomock.Any(), sqlcgen.FindUserByProviderAccountParams{Provider: "github", ProviderAccountID: "provider-user"}).
-		Return(sqlcgen.FindUserByProviderAccountRow{}, sql.ErrNoRows)
+		Return(sqlcgen.FindUserByProviderAccountRow{}, pgx.ErrNoRows)
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "candidate@example.com").
 		Return(findUserRow(testUserID, "candidate@example.com", "User"), nil)

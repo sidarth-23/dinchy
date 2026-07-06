@@ -2,12 +2,11 @@ package workers
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
 	stderrors "errors"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -15,6 +14,7 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -79,8 +79,8 @@ func TestRuntime_RegisterWorker_EnsuresTask(t *testing.T) {
 		ID:                      taskIDForName(worker.name),
 		TaskName:                worker.name,
 		ScheduleIntervalSeconds: worker.interval,
-		NextRunAt:               sql.NullTime{Time: fixedTime, Valid: true},
-		UpdatedAt:               fixedTime,
+		NextRunAt:               sqltype.Timestamptz(fixedTime),
+		UpdatedAt:               sqltype.Timestamptz(fixedTime),
 	}).Return(nil)
 
 	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
@@ -113,15 +113,15 @@ func TestRuntime_RunWorker_SkipsExecuteWhenNotClaimed(t *testing.T) {
 
 	store.EXPECT().
 		ClaimTask(gomock.Any(), sqlcgen.ClaimTaskParams{
-			LeaseOwner:       sql.NullString{String: "local", Valid: true},
-			LeaseExpiresAt:   sql.NullTime{Time: fixedTime.Add(worker.lease), Valid: true},
-			LastRunAt:        sql.NullTime{Time: fixedTime, Valid: true},
-			UpdatedAt:        fixedTime,
-			TaskName:         worker.name,
-			LeaseExpiresAt_2: sql.NullTime{Time: fixedTime.Add(worker.lease), Valid: true},
-			NextRunAt:        sql.NullTime{Time: fixedTime, Valid: true},
+			LeaseOwner:           sqltype.Text("local"),
+			LeaseExpiresAt:       sqltype.Timestamptz(fixedTime.Add(worker.lease)),
+			LastRunAt:            sqltype.Timestamptz(fixedTime),
+			UpdatedAt:            sqltype.Timestamptz(fixedTime),
+			TaskName:             worker.name,
+			LeaseExpiresAtCutoff: sqltype.Timestamptz(fixedTime.Add(worker.lease)),
+			NextRunAtCutoff:      sqltype.Timestamptz(fixedTime),
 		}).
-		Return(driver.RowsAffected(0), nil)
+		Return(pgconn.NewCommandTag("UPDATE 0"), nil)
 	// No Execute, no FinishTask expected.
 
 	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
@@ -139,7 +139,7 @@ func TestRuntime_RunWorker_SuccessFinishesTask(t *testing.T) {
 	gomock.InOrder(
 		store.EXPECT().
 			ClaimTask(gomock.Any(), gomock.Any()).
-			Return(driver.RowsAffected(1), nil),
+			Return(pgconn.NewCommandTag("UPDATE 1"), nil),
 		store.EXPECT().
 			FinishTask(gomock.Any(), gomock.Any()).
 			Return(nil),
@@ -161,7 +161,7 @@ func TestRuntime_RunWorker_FailureRecordsAndAnnotates(t *testing.T) {
 	gomock.InOrder(
 		store.EXPECT().
 			ClaimTask(gomock.Any(), gomock.Any()).
-			Return(driver.RowsAffected(1), nil),
+			Return(pgconn.NewCommandTag("UPDATE 1"), nil),
 		store.EXPECT().
 			FinishTask(gomock.Any(), gomock.Any()).
 			Return(nil),
@@ -187,7 +187,7 @@ func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T)
 	gomock.InOrder(
 		store.EXPECT().
 			ClaimTask(gomock.Any(), gomock.Any()).
-			Return(driver.RowsAffected(1), nil),
+			Return(pgconn.NewCommandTag("UPDATE 1"), nil),
 		store.EXPECT().
 			FinishTask(gomock.Any(), gomock.Any()).
 			Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError))),
@@ -211,7 +211,7 @@ func TestRuntime_RunAllWorkers_ReportsErrorToChannel(t *testing.T) {
 
 	store.EXPECT().
 		ClaimTask(gomock.Any(), gomock.Any()).
-		Return(driver.RowsAffected(0), apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
+		Return(pgconn.NewCommandTag("UPDATE 0"), apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
 
 	errCh := make(chan error, 1)
 	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, errCh, worker)

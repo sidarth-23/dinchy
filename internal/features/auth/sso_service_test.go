@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/markbates/goth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -187,7 +188,7 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 
 	store.EXPECT().
 		FindUserByProviderAccount(gomock.Any(), sqlcgen.FindUserByProviderAccountParams{Provider: "github", ProviderAccountID: "provider-user"}).
-		Return(sqlcgen.FindUserByProviderAccountRow{}, sql.ErrNoRows)
+		Return(sqlcgen.FindUserByProviderAccountRow{}, pgx.ErrNoRows)
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "candidate@example.com").
 		Return(findUserRow(testUserID, "candidate@example.com", "User"), nil)
@@ -238,10 +239,10 @@ func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
 	state := parsedAuthURL.Query().Get("state")
 
 	unverified := findUserRow(testUserID, "candidate@example.com", "User")
-	unverified.EmailVerifiedAt = sql.NullTime{}
+	unverified.EmailVerifiedAt = pgtype.Timestamptz{}
 	store.EXPECT().
 		FindUserByProviderAccount(gomock.Any(), sqlcgen.FindUserByProviderAccountParams{Provider: "github", ProviderAccountID: "provider-user"}).
-		Return(sqlcgen.FindUserByProviderAccountRow{}, sql.ErrNoRows)
+		Return(sqlcgen.FindUserByProviderAccountRow{}, pgx.ErrNoRows)
 	store.EXPECT().
 		FindUserByEmail(gomock.Any(), "candidate@example.com").
 		Return(unverified, nil)

@@ -2,19 +2,19 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
-	"github.com/sidarth-23/dinchy/internal/platform/sqlutil"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
@@ -34,11 +34,11 @@ func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *In
 		Email:           row.Email,
 		Role:            Role(row.Role),
 		Status:          InvitationStatus(row.Status),
-		ExpiresAt:       row.ExpiresAt.UTC(),
+		ExpiresAt:       sqltype.TimeValue(row.ExpiresAt),
 		InvitedByUserID: row.InvitedByUserID.String(),
 	}
 	if row.AcceptedAt.Valid {
-		invitation.AcceptedAt = row.AcceptedAt.Time.UTC()
+		invitation.AcceptedAt = sqltype.TimeValue(row.AcceptedAt)
 		invitation.AcceptedAtValid = true
 	}
 	return invitation
@@ -83,11 +83,11 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 				ID:     organisationID,
 			}); membershipErr == nil {
 				return nil, apperrors.Conflict(i18n.Msg(i18n.CodeAuthInvitationExists))
-			} else if !errors.Is(membershipErr, sql.ErrNoRows) {
+			} else if !errors.Is(membershipErr, pgx.ErrNoRows) {
 				return nil, apperrors.Annotate(membershipErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindOrganisation))
 			}
 		}
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindUser))
 	}
 
@@ -98,7 +98,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 		if invitationFromPendingRow(pendingInvitation) != nil {
 			return nil, apperrors.Conflict(i18n.Msg(i18n.CodeAuthInvitationExists))
 		}
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindInvitation))
 	}
 
@@ -115,10 +115,10 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 		Role:            string(invitationRole),
 		Status:          invitationStatusPending,
 		TokenHash:       security.HashToken(rawToken),
-		ExpiresAt:       expiresAt,
+		ExpiresAt:       sqltype.Timestamptz(expiresAt),
 		InvitedByUserID: id.MustParse(inviter.UserID),
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		CreatedAt:       sqltype.Timestamptz(now),
+		UpdatedAt:       sqltype.Timestamptz(now),
 	}); err != nil {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageCreateInvitation))
 	}
@@ -157,7 +157,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
 			)
 		}
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationInvalid))
 		}
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindInvitation))
@@ -191,7 +191,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 
 	userRow, err := tx.queries.FindUserByEmail(ctx, emailAddress)
 	var user *User
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
 				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindUser)),
@@ -214,8 +214,8 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		if !user.EmailVerified {
 			if err := tx.queries.UpdateUserEmailVerifiedAt(ctx, sqlcgen.UpdateUserEmailVerifiedAtParams{
 				ID:              id.MustParse(user.ID),
-				EmailVerifiedAt: sql.NullTime{Time: now, Valid: true},
-				UpdatedAt:       now,
+				EmailVerifiedAt: sqltype.Timestamptz(now),
+				UpdatedAt:       sqltype.Timestamptz(now),
 			}); err != nil {
 				if rbErr := tx.rollback(); rbErr != nil {
 					return "", errors.Join(
@@ -232,9 +232,9 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 			ID:              id.MustParse(userID),
 			Email:           emailAddress,
 			DisplayName:     userDisplayName,
-			EmailVerifiedAt: sql.NullTime{Time: now, Valid: true},
-			CreatedAt:       now,
-			UpdatedAt:       now,
+			EmailVerifiedAt: sqltype.Timestamptz(now),
+			CreatedAt:       sqltype.Timestamptz(now),
+			UpdatedAt:       sqltype.Timestamptz(now),
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
@@ -250,8 +250,8 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	if _, err := tx.queries.FindPasswordAccountByUserID(ctx, id.MustParse(user.ID)); err == nil {
 		if err := tx.queries.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{
 			UserID:       id.MustParse(user.ID),
-			PasswordHash: sqlutil.NullString(passwordHash),
-			UpdatedAt:    now,
+			PasswordHash: sqltype.Text(passwordHash),
+			UpdatedAt:    sqltype.Timestamptz(now),
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
@@ -261,15 +261,15 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 			}
 			return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StagePasswordHash))
 		}
-	} else if errors.Is(err, sql.ErrNoRows) {
+	} else if errors.Is(err, pgx.ErrNoRows) {
 		if err := tx.queries.InsertAccount(ctx, sqlcgen.InsertAccountParams{
 			ID:                id.MustParse(s.idg.New()),
 			UserID:            id.MustParse(user.ID),
 			Provider:          string(AccountProviderPassword),
 			ProviderAccountID: emailAddress,
-			PasswordHash:      sqlutil.NullString(passwordHash),
-			CreatedAt:         now,
-			UpdatedAt:         now,
+			PasswordHash:      sqltype.Text(passwordHash),
+			CreatedAt:         sqltype.Timestamptz(now),
+			UpdatedAt:         sqltype.Timestamptz(now),
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
@@ -294,14 +294,14 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		ID:     id.MustParse(invitation.OrganisationID),
 	}); err == nil {
 		_ = memberRow
-	} else if errors.Is(err, sql.ErrNoRows) {
+	} else if errors.Is(err, pgx.ErrNoRows) {
 		if err := tx.queries.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{
 			ID:             id.MustParse(s.idg.New()),
 			OrganisationID: id.MustParse(invitation.OrganisationID),
 			UserID:         id.MustParse(user.ID),
 			Role:           string(invitation.Role),
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			CreatedAt:      sqltype.Timestamptz(now),
+			UpdatedAt:      sqltype.Timestamptz(now),
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
@@ -323,8 +323,8 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 
 	if err := tx.queries.ConsumeOrganisationInvitation(ctx, sqlcgen.ConsumeOrganisationInvitationParams{
 		ID:         id.MustParse(invitation.ID),
-		AcceptedAt: now,
-		UpdatedAt:  now,
+		AcceptedAt: sqltype.Timestamptz(now),
+		UpdatedAt:  sqltype.Timestamptz(now),
 	}); err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(

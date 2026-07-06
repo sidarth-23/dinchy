@@ -2,19 +2,19 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
-	"github.com/sidarth-23/dinchy/internal/platform/sqlutil"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
@@ -47,7 +47,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	emailAddress = transform.Email(emailAddress)
 	userRow, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageFindUser))
@@ -68,9 +68,9 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		Email:     emailAddress,
 		Purpose:   string(VerificationPurposePasswordReset),
 		TokenHash: tokenHash,
-		ExpiresAt: now.Add(s.authConfig.PasswordResetLifetime),
-		CreatedAt: now,
-		UpdatedAt: now,
+		ExpiresAt: sqltype.Timestamptz(now.Add(s.authConfig.PasswordResetLifetime)),
+		CreatedAt: sqltype.Timestamptz(now),
+		UpdatedAt: sqltype.Timestamptz(now),
 	}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageCreateVerificationToken))
 	}
@@ -89,8 +89,8 @@ func verificationTokenFromFindVerificationRow(row sqlcgen.FindVerificationTokenR
 		Email:           row.Email,
 		Purpose:         row.Purpose,
 		TokenHash:       row.TokenHash,
-		ExpiresAt:       row.ExpiresAt.UTC(),
-		ConsumedAt:      row.ConsumedAt.Time.UTC(),
+		ExpiresAt:       sqltype.TimeValue(row.ExpiresAt),
+		ConsumedAt:      sqltype.TimeValue(row.ConsumedAt),
 		ConsumedAtValid: row.ConsumedAt.Valid,
 	}
 }
@@ -98,7 +98,7 @@ func verificationTokenFromFindVerificationRow(row sqlcgen.FindVerificationTokenR
 func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) error {
 	tokenRow, err := s.store.FindVerificationToken(ctx, sqlcgen.FindVerificationTokenParams{TokenHash: security.HashToken(rawToken), Purpose: string(VerificationPurposePasswordReset)})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))
 		}
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageFindVerificationToken))
@@ -112,13 +112,13 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StagePasswordHash))
 	}
-	if err := s.store.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{UserID: id.MustParse(token.UserID), PasswordHash: sqlutil.NullString(hash), UpdatedAt: now}); err != nil {
+	if err := s.store.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{UserID: id.MustParse(token.UserID), PasswordHash: sqltype.Text(hash), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StagePasswordHash))
 	}
-	if err := s.store.ConsumeVerificationToken(ctx, sqlcgen.ConsumeVerificationTokenParams{ID: id.MustParse(token.ID), ConsumedAt: sql.NullTime{Time: now.UTC(), Valid: true}, UpdatedAt: now}); err != nil {
+	if err := s.store.ConsumeVerificationToken(ctx, sqlcgen.ConsumeVerificationTokenParams{ID: id.MustParse(token.ID), ConsumedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageConsumeVerificationToken))
 	}
-	return s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: id.MustParse(token.UserID), RevokedAt: sql.NullTime{Time: now.UTC(), Valid: true}, UpdatedAt: now})
+	return s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: id.MustParse(token.UserID), RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)})
 }
 
 func waitUntil(target time.Time) {

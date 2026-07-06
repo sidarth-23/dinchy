@@ -2,11 +2,11 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
@@ -111,7 +111,7 @@ type SessionWithUser struct {
 	Role             Role
 	IdleExpiresAt    time.Time
 	ExpiresAt        time.Time
-	RevokedAt        sql.NullTime
+	RevokedAt        pgtype.Timestamptz
 }
 
 type CreateSessionInput struct {

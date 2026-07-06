@@ -2,7 +2,6 @@ package audit
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 type Service struct {
@@ -56,22 +56,22 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]Log, error) {
 		in.Limit = 50
 	}
 	rows, err := s.store.ListAuditLogs(ctx, sqlcgen.ListAuditLogsParams{
-		Column1:     in.Category,
-		Category:    in.Category,
-		Column3:     in.Subcategory,
-		Subcategory: in.Subcategory,
-		Column5:     in.EventType,
-		EventType:   in.EventType,
-		Column7:     in.ActorUserID,
-		ActorUserID: uuid.NullUUID{UUID: mustParseUUIDMaybe(in.ActorUserID), Valid: in.ActorUserID != ""},
-		Column9:     in.TargetType,
-		TargetType:  sql.NullString{String: in.TargetType, Valid: in.TargetType != ""},
-		Column11:    in.TargetID,
-		TargetID:    sql.NullString{String: in.TargetID, Valid: in.TargetID != ""},
-		Column13:    in.Outcome,
-		Outcome:     in.Outcome,
-		Limit:       int32(in.Limit),
-		Before:      sql.NullTime{Time: in.Before.UTC(), Valid: in.BeforeValid},
+		CategoryFilter:    in.Category,
+		Category:          in.Category,
+		SubcategoryFilter: in.Subcategory,
+		Subcategory:       in.Subcategory,
+		EventTypeFilter:   in.EventType,
+		EventType:         in.EventType,
+		ActorUserIDFilter: in.ActorUserID,
+		ActorUserID:       uuid.NullUUID{UUID: mustParseUUIDMaybe(in.ActorUserID), Valid: in.ActorUserID != ""},
+		TargetTypeFilter:  in.TargetType,
+		TargetType:        sqltype.Text(in.TargetType),
+		TargetIDFilter:    in.TargetID,
+		TargetID:          sqltype.Text(in.TargetID),
+		OutcomeFilter:     in.Outcome,
+		Outcome:           in.Outcome,
+		Limit:             int32(in.Limit),
+		Before:            sqltype.OptionalTimestamptz(in.Before, in.BeforeValid),
 	})
 	if err != nil {
 		return nil, err
@@ -105,17 +105,17 @@ func insertParams(event Event) (sqlcgen.InsertAuditLogParams, error) {
 		Outcome:             event.Outcome,
 		ActorUserID:         uuid.NullUUID{UUID: mustParseUUIDMaybe(event.ActorUserID), Valid: event.ActorUserID != ""},
 		ActorOrganisationID: uuid.NullUUID{UUID: mustParseUUIDMaybe(event.ActorOrganisationID), Valid: event.ActorOrganisationID != ""},
-		TargetType:          sql.NullString{String: event.TargetType, Valid: event.TargetType != ""},
-		TargetID:            sql.NullString{String: event.TargetID, Valid: event.TargetID != ""},
-		TargetDisplay:       sql.NullString{String: event.TargetDisplay, Valid: event.TargetDisplay != ""},
-		RequestID:           sql.NullString{String: event.RequestID, Valid: event.RequestID != ""},
-		TraceID:             sql.NullString{String: event.TraceID, Valid: event.TraceID != ""},
-		SpanID:              sql.NullString{String: event.SpanID, Valid: event.SpanID != ""},
+		TargetType:          sqltype.Text(event.TargetType),
+		TargetID:            sqltype.Text(event.TargetID),
+		TargetDisplay:       sqltype.Text(event.TargetDisplay),
+		RequestID:           sqltype.Text(event.RequestID),
+		TraceID:             sqltype.Text(event.TraceID),
+		SpanID:              sqltype.Text(event.SpanID),
 		IpAddress:           event.IPAddress,
 		UserAgent:           event.UserAgent,
 		MetadataJson:        metadataJSON,
 		ChangesJson:         changesJSON,
-		CreatedAt:           event.CreatedAt.UTC(),
+		CreatedAt:           sqltype.Timestamptz(event.CreatedAt),
 	}, nil
 }
 
@@ -132,19 +132,12 @@ func logFromRow(row sqlcgen.AppAuditLog) (Log, error) {
 		ID: row.ID.String(), Category: row.Category, Subcategory: row.Subcategory, EventType: row.EventType,
 		Action: row.Action, Outcome: row.Outcome, ActorUserID: validUUID(row.ActorUserID),
 		ActorOrganisationID: validUUID(row.ActorOrganisationID),
-		TargetType:          validString(row.TargetType.String, row.TargetType.Valid), TargetID: validString(row.TargetID.String, row.TargetID.Valid),
-		TargetDisplay: validString(row.TargetDisplay.String, row.TargetDisplay.Valid), RequestID: validString(row.RequestID.String, row.RequestID.Valid),
-		TraceID: validString(row.TraceID.String, row.TraceID.Valid), SpanID: validString(row.SpanID.String, row.SpanID.Valid),
+		TargetType:          sqltype.TextValue(row.TargetType), TargetID: sqltype.TextValue(row.TargetID),
+		TargetDisplay: sqltype.TextValue(row.TargetDisplay), RequestID: sqltype.TextValue(row.RequestID),
+		TraceID: sqltype.TextValue(row.TraceID), SpanID: sqltype.TextValue(row.SpanID),
 		IPAddress: row.IpAddress, UserAgent: row.UserAgent, Metadata: metadata,
-		Changes: changes, CreatedAt: row.CreatedAt.UTC(),
+		Changes: changes, CreatedAt: sqltype.TimeValue(row.CreatedAt),
 	}, nil
-}
-
-func validString(value string, valid bool) string {
-	if !valid {
-		return ""
-	}
-	return value
 }
 
 func validUUID(value uuid.NullUUID) string {

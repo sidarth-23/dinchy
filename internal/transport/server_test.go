@@ -35,8 +35,8 @@ var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler {
 	t.Helper()
 	db := testsupport.OpenPostgresStore(t)
-	queries := sqlcgen.New(db.DB())
-	svc, err := auth.NewService(db.DB(), queries, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), email.NoopSender{}, nil)
+	queries := sqlcgen.New(db.Pool())
+	svc, err := auth.NewService(db.Pool(), queries, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), email.NoopSender{}, nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
 	srv := transport.New(":0", dist, svc, nil, db, false, devMode, devProxyURL, nil)

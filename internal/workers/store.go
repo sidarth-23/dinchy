@@ -2,9 +2,9 @@ package workers
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
@@ -14,9 +14,9 @@ import (
 // Store is the data access contract required by the worker runtime.
 type Store interface {
 	EnsureTask(ctx context.Context, arg sqlcgen.EnsureTaskParams) error
-	ClaimTask(ctx context.Context, arg sqlcgen.ClaimTaskParams) (sql.Result, error)
+	ClaimTask(ctx context.Context, arg sqlcgen.ClaimTaskParams) (pgconn.CommandTag, error)
 	FinishTask(ctx context.Context, arg sqlcgen.FinishTaskParams) error
-	DeleteEndedSessionsOlderThan(ctx context.Context, arg sqlcgen.DeleteEndedSessionsOlderThanParams) (sql.Result, error)
+	DeleteEndedSessionsOlderThan(ctx context.Context, arg sqlcgen.DeleteEndedSessionsOlderThanParams) (pgconn.CommandTag, error)
 }
 
 func taskIDForName(taskName string) uuid.UUID {

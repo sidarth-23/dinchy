@@ -142,11 +142,11 @@ UPDATE two_factors
 SET
   failed_verification_count = failed_verification_count + 1,
   locked_until = CASE
-    WHEN failed_verification_count + 1 >= $1 THEN $2
+    WHEN failed_verification_count + 1 >= sqlc.arg('failure_limit') THEN sqlc.arg('locked_until')
     ELSE locked_until
   END,
-  updated_at = $3
-WHERE user_id = $4;
+  updated_at = sqlc.arg('updated_at')
+WHERE user_id = sqlc.arg('user_id');
 
 -- name: RevokeSessionsForUser :exec
 UPDATE sessions

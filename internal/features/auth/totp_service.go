@@ -2,11 +2,11 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pquerna/otp/totp"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -14,6 +14,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 const (
@@ -31,8 +32,8 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 		UserID:    id.MustParse(userID),
 		Secret:    key.Secret(),
 		Verified:  false,
-		CreatedAt: s.clock.Now().UTC(),
-		UpdatedAt: s.clock.Now().UTC(),
+		CreatedAt: sqltype.Timestamptz(s.clock.Now()),
+		UpdatedAt: sqltype.Timestamptz(s.clock.Now()),
 	}); err != nil {
 		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))
 	}
@@ -42,7 +43,7 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	twoFactorRow, err := s.store.FindTwoFactorByUserID(ctx, id.MustParse(userID))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
 		}
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
@@ -55,7 +56,7 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	if !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
 		return s.recordTOTPFailure(ctx, userID, twoFactor.FailedVerificationCount, now, i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
-	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sql.NullInt64{Int64: totpStep(now), Valid: true}, UpdatedAt: now}); err != nil {
+	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sqltype.Int8(totpStep(now)), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
 	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorEnabledEvent{
@@ -129,7 +130,7 @@ func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) e
 	if twoFactor.LastUsedStepValid && twoFactor.LastUsedStep == step {
 		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
-	return s.store.MarkTwoFactorUsed(ctx, sqlcgen.MarkTwoFactorUsedParams{UserID: id.MustParse(userID), LastUsedStep: sql.NullInt64{Int64: step, Valid: true}, UpdatedAt: now})
+	return s.store.MarkTwoFactorUsed(ctx, sqlcgen.MarkTwoFactorUsedParams{UserID: id.MustParse(userID), LastUsedStep: sqltype.Int8(step), UpdatedAt: sqltype.Timestamptz(now)})
 }
 
 func totpStep(t time.Time) int64 {
@@ -138,14 +139,14 @@ func totpStep(t time.Time) int64 {
 
 func (s *Service) recordTOTPFailure(ctx context.Context, userID string, currentCount int64, now time.Time, message i18n.Message) error {
 	nextCount := currentCount + 1
-	lockedUntil := sql.NullTime{}
+	lockedUntil := sqltype.OptionalTimestamptz(time.Time{}, false)
 	if nextCount >= totpFailureLimit {
-		lockedUntil = sql.NullTime{Time: now.Add(totpLockDuration), Valid: true}
+		lockedUntil = sqltype.Timestamptz(now.Add(totpLockDuration))
 	}
 	if err := s.store.RegisterTwoFactorFailure(ctx, sqlcgen.RegisterTwoFactorFailureParams{
 		FailureLimit: nextCount,
 		LockedUntil:  lockedUntil,
-		UpdatedAt:    now,
+		UpdatedAt:    sqltype.Timestamptz(now),
 		UserID:       id.MustParse(userID),
 	}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))

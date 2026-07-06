@@ -7,8 +7,8 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
-	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const listSSOProviderSettings = `-- name: ListSSOProviderSettings :many
@@ -18,7 +18,7 @@ ORDER BY provider_id
 `
 
 func (q *Queries) ListSSOProviderSettings(ctx context.Context) ([]SsoProviderSetting, error) {
-	rows, err := q.db.QueryContext(ctx, listSSOProviderSettings)
+	rows, err := q.db.Query(ctx, listSSOProviderSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -38,9 +38,6 @@ func (q *Queries) ListSSOProviderSettings(ctx context.Context) ([]SsoProviderSet
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -67,17 +64,17 @@ ON CONFLICT(provider_id) DO UPDATE SET
 `
 
 type UpsertSSOProviderSettingParams struct {
-	ProviderID   string
-	ClientID     sql.NullString
-	ClientSecret sql.NullString
-	CallbackUrl  sql.NullString
-	Enabled      bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ProviderID   string             `db:"provider_id" json:"provider_id"`
+	ClientID     pgtype.Text        `db:"client_id" json:"client_id"`
+	ClientSecret pgtype.Text        `db:"client_secret" json:"client_secret"`
+	CallbackUrl  pgtype.Text        `db:"callback_url" json:"callback_url"`
+	Enabled      bool               `db:"enabled" json:"enabled"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) UpsertSSOProviderSetting(ctx context.Context, arg UpsertSSOProviderSettingParams) error {
-	_, err := q.db.ExecContext(ctx, upsertSSOProviderSetting,
+	_, err := q.db.Exec(ctx, upsertSSOProviderSetting,
 		arg.ProviderID,
 		arg.ClientID,
 		arg.ClientSecret,

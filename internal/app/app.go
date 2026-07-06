@@ -53,14 +53,14 @@ func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
 func (a *App) Start() error {
 	ctx := context.Background()
 
-	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN)
+	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN, store.WithLogger(a.logger))
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageOpenStore),
 		)
 	}
 	a.closer = s
-	queries := sqlcgen.New(s.DB())
+	queries := sqlcgen.New(s.Pool())
 
 	cacheStore, err := cache.Open(ctx, a.cfg.Cache)
 	if err != nil {
@@ -106,7 +106,7 @@ func (a *App) Start() error {
 		}
 		sender = smtpSender
 	}
-	authSvc, err := auth.NewService(s.DB(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, eventBusSvc)
+	authSvc, err := auth.NewService(s.Pool(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, eventBusSvc)
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageSetup),

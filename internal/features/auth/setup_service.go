@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -10,8 +9,8 @@ import (
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
-	"github.com/sidarth-23/dinchy/internal/platform/sqlutil"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
@@ -91,9 +90,9 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 		ID:              id.MustParse(in.ID),
 		Email:           in.Email,
 		DisplayName:     in.DisplayName,
-		EmailVerifiedAt: sql.NullTime{Time: now.UTC(), Valid: true},
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		EmailVerifiedAt: sqltype.Timestamptz(now),
+		CreatedAt:       sqltype.Timestamptz(now),
+		UpdatedAt:       sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertUser))
 	}
@@ -102,9 +101,9 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 		UserID:            id.MustParse(in.ID),
 		Provider:          string(AccountProviderPassword),
 		ProviderAccountID: in.Email,
-		PasswordHash:      sqlutil.NullString(in.PasswordHash),
-		CreatedAt:         now,
-		UpdatedAt:         now,
+		PasswordHash:      sqltype.Text(in.PasswordHash),
+		CreatedAt:         sqltype.Timestamptz(now),
+		UpdatedAt:         sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertAccount))
 	}
@@ -112,9 +111,9 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 		ID:        id.MustParse(in.OrganisationID),
 		Name:      in.OrganisationName,
 		Slug:      in.OrganisationSlug,
-		Logo:      sql.NullString{},
-		CreatedAt: now,
-		UpdatedAt: now,
+		Logo:      sqltype.Text(""),
+		CreatedAt: sqltype.Timestamptz(now),
+		UpdatedAt: sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisation))
 	}
@@ -123,8 +122,8 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 		OrganisationID: id.MustParse(in.OrganisationID),
 		UserID:         id.MustParse(in.ID),
 		Role:           string(RoleOwner),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		CreatedAt:      sqltype.Timestamptz(now),
+		UpdatedAt:      sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisationMember))
 	}

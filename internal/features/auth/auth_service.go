@@ -3,10 +3,11 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -19,11 +20,12 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 type Service struct {
-	db         *sql.DB
+	db         *pgxpool.Pool
 	beginTx    func(context.Context) (*setupTransaction, error)
 	store      Store
 	idg        *id.Generator
@@ -35,7 +37,7 @@ type Service struct {
 	publisher  eventbus.Publisher
 }
 
-func NewService(db *sql.DB, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, cacheStore cachecore.Store, cacheKeyer cachecore.Keyer, sender email.Sender, publisher eventbus.Publisher) (*Service, error) {
+func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, cacheStore cachecore.Store, cacheKeyer cachecore.Keyer, sender email.Sender, publisher eventbus.Publisher) (*Service, error) {
 	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
 		return nil, err
@@ -46,14 +48,14 @@ func NewService(db *sql.DB, s Store, idg *id.Generator, clk clock.Clock, authCon
 	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, cache: cacheStore, email: sender, publisher: publisher}
 	if db != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
-			tx, err := db.BeginTx(ctx, nil)
+			tx, err := db.Begin(ctx)
 			if err != nil {
 				return nil, err
 			}
 			return &setupTransaction{
 				queries:  sqlcgen.New(tx),
-				commit:   tx.Commit,
-				rollback: tx.Rollback,
+				commit:   func() error { return tx.Commit(ctx) },
+				rollback: func() error { return tx.Rollback(ctx) },
 			}, nil
 		}
 	}
@@ -163,7 +165,7 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, password string) (*User, error) {
 	row, err := s.store.FindUserByEmail(ctx, transform.Email(emailAddress))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 		}
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
@@ -175,7 +177,7 @@ func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, passwo
 	userID := id.MustParse(user.ID)
 	accountRow, err := s.store.FindPasswordAccountByUserID(ctx, userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 		}
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
@@ -209,7 +211,7 @@ func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, slug str
 	if slug != "" {
 		orgRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(userID), Slug: slug})
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 			}
 			return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindOrganisation))
@@ -251,11 +253,11 @@ func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, ua
 		TokenHash:            tokenHash,
 		IpAddress:            ip,
 		UserAgent:            ua,
-		LastSeenAt:           now.UTC(),
-		IdleExpiresAt:        now.Add(s.authConfig.SessionIdleTimeout).UTC(),
-		ExpiresAt:            now.Add(s.authConfig.SessionMaxLifetime).UTC(),
-		CreatedAt:            now.UTC(),
-		UpdatedAt:            now.UTC(),
+		LastSeenAt:           sqltype.Timestamptz(now),
+		IdleExpiresAt:        sqltype.Timestamptz(now.Add(s.authConfig.SessionIdleTimeout)),
+		ExpiresAt:            sqltype.Timestamptz(now.Add(s.authConfig.SessionMaxLifetime)),
+		CreatedAt:            sqltype.Timestamptz(now),
+		UpdatedAt:            sqltype.Timestamptz(now),
 	})
 	if err != nil {
 		return "", apperrors.Annotate(err,
@@ -276,7 +278,7 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 	}
 	organisationRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(session.UserID), Slug: organisationSlug})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 		}
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageFindOrganisation))
@@ -297,7 +299,7 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUse
 	}
 	row, err := s.store.GetSessionByTokenHash(ctx, security.HashToken(rawToken))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
@@ -320,8 +322,8 @@ func sessionFromGetSessionRow(row sqlcgen.GetSessionByTokenHashRow) *SessionWith
 		OrganisationName: row.OrganisationName,
 		OrganisationSlug: row.OrganisationSlug,
 		Role:             Role(row.Role),
-		IdleExpiresAt:    row.IdleExpiresAt.UTC(),
-		ExpiresAt:        row.ExpiresAt.UTC(),
+		IdleExpiresAt:    sqltype.TimeValue(row.IdleExpiresAt),
+		ExpiresAt:        sqltype.TimeValue(row.ExpiresAt),
 	}
 	if row.RevokedAt.Valid {
 		session.RevokedAt = row.RevokedAt
@@ -334,7 +336,8 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 		return nil
 	}
 	session, sessionErr := s.Session(ctx, rawToken)
-	err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sql.NullTime{Time: s.clock.Now().UTC(), Valid: true}, UpdatedAt: s.clock.Now().UTC(), TokenHash: security.HashToken(rawToken)})
+	now := s.clock.Now()
+	err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now), TokenHash: security.HashToken(rawToken)})
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}

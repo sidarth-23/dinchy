@@ -31,9 +31,9 @@ var sessionFixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 func newSessionService(t *testing.T) *auth.Service {
 	t.Helper()
 	db := testsupport.OpenPostgresStore(t)
-	queries := sqlcgen.New(db.DB())
+	queries := sqlcgen.New(db.Pool())
 	svc, err := auth.NewService(
-		db.DB(),
+		db.Pool(),
 		queries,
 		id.NewGenerator(),
 		fakeClock{now: sessionFixedTime},

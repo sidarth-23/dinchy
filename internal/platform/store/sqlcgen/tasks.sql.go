@@ -7,15 +7,18 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const claimTask = `-- name: ClaimTask :execresult
 UPDATE scheduled_tasks
-SET lease_owner = $1, lease_expires_at = $2, last_run_at = $3, updated_at = $4
+SET lease_owner = $1,
+    lease_expires_at = $2,
+    last_run_at = $3,
+    updated_at = $4
 WHERE task_name = $5
   AND enabled = TRUE
   AND (lease_expires_at IS NULL OR lease_expires_at < $6)
@@ -23,43 +26,50 @@ WHERE task_name = $5
 `
 
 type ClaimTaskParams struct {
-	LeaseOwner       sql.NullString
-	LeaseExpiresAt   sql.NullTime
-	LastRunAt        sql.NullTime
-	UpdatedAt        time.Time
-	TaskName         string
-	LeaseExpiresAt_2 sql.NullTime
-	NextRunAt        sql.NullTime
+	LeaseOwner           pgtype.Text        `db:"lease_owner" json:"lease_owner"`
+	LeaseExpiresAt       pgtype.Timestamptz `db:"lease_expires_at" json:"lease_expires_at"`
+	LastRunAt            pgtype.Timestamptz `db:"last_run_at" json:"last_run_at"`
+	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	TaskName             string             `db:"task_name" json:"task_name"`
+	LeaseExpiresAtCutoff pgtype.Timestamptz `db:"lease_expires_at_cutoff" json:"lease_expires_at_cutoff"`
+	NextRunAtCutoff      pgtype.Timestamptz `db:"next_run_at_cutoff" json:"next_run_at_cutoff"`
 }
 
-func (q *Queries) ClaimTask(ctx context.Context, arg ClaimTaskParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, claimTask,
+func (q *Queries) ClaimTask(ctx context.Context, arg ClaimTaskParams) (pgconn.CommandTag, error) {
+	return q.db.Exec(ctx, claimTask,
 		arg.LeaseOwner,
 		arg.LeaseExpiresAt,
 		arg.LastRunAt,
 		arg.UpdatedAt,
 		arg.TaskName,
-		arg.LeaseExpiresAt_2,
-		arg.NextRunAt,
+		arg.LeaseExpiresAtCutoff,
+		arg.NextRunAtCutoff,
 	)
 }
 
 const ensureTask = `-- name: EnsureTask :exec
 INSERT INTO scheduled_tasks (id, task_name, enabled, schedule_interval_seconds, next_run_at, updated_at)
-VALUES ($1, $2, TRUE, $3, $4, $5)
+VALUES (
+  $1,
+  $2,
+  TRUE,
+  $3,
+  $4,
+  $5
+)
 ON CONFLICT(task_name) DO NOTHING
 `
 
 type EnsureTaskParams struct {
-	ID                      uuid.UUID
-	TaskName                string
-	ScheduleIntervalSeconds int64
-	NextRunAt               sql.NullTime
-	UpdatedAt               time.Time
+	ID                      uuid.UUID          `db:"id" json:"id"`
+	TaskName                string             `db:"task_name" json:"task_name"`
+	ScheduleIntervalSeconds int64              `db:"schedule_interval_seconds" json:"schedule_interval_seconds"`
+	NextRunAt               pgtype.Timestamptz `db:"next_run_at" json:"next_run_at"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) EnsureTask(ctx context.Context, arg EnsureTaskParams) error {
-	_, err := q.db.ExecContext(ctx, ensureTask,
+	_, err := q.db.Exec(ctx, ensureTask,
 		arg.ID,
 		arg.TaskName,
 		arg.ScheduleIntervalSeconds,
@@ -72,29 +82,29 @@ func (q *Queries) EnsureTask(ctx context.Context, arg EnsureTaskParams) error {
 const finishTask = `-- name: FinishTask :exec
 UPDATE scheduled_tasks
 SET
-    lease_owner       = NULL,
-    lease_expires_at  = NULL,
-    last_finished_at  = $1,
-    next_run_at       = $2,
-    last_status       = $3,
-    last_error_code   = $4,
+    lease_owner        = NULL,
+    lease_expires_at   = NULL,
+    last_finished_at   = $1,
+    next_run_at        = $2,
+    last_status        = $3,
+    last_error_code    = $4,
     last_error_message = $5,
-    updated_at        = $6
+    updated_at         = $6
 WHERE task_name = $7
 `
 
 type FinishTaskParams struct {
-	LastFinishedAt   sql.NullTime
-	NextRunAt        sql.NullTime
-	LastStatus       sql.NullString
-	LastErrorCode    sql.NullString
-	LastErrorMessage sql.NullString
-	UpdatedAt        time.Time
-	TaskName         string
+	LastFinishedAt   pgtype.Timestamptz `db:"last_finished_at" json:"last_finished_at"`
+	NextRunAt        pgtype.Timestamptz `db:"next_run_at" json:"next_run_at"`
+	LastStatus       pgtype.Text        `db:"last_status" json:"last_status"`
+	LastErrorCode    pgtype.Text        `db:"last_error_code" json:"last_error_code"`
+	LastErrorMessage pgtype.Text        `db:"last_error_message" json:"last_error_message"`
+	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	TaskName         string             `db:"task_name" json:"task_name"`
 }
 
 func (q *Queries) FinishTask(ctx context.Context, arg FinishTaskParams) error {
-	_, err := q.db.ExecContext(ctx, finishTask,
+	_, err := q.db.Exec(ctx, finishTask,
 		arg.LastFinishedAt,
 		arg.NextRunAt,
 		arg.LastStatus,

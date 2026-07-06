@@ -3,12 +3,14 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
+	"log/slog"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -18,63 +20,87 @@ import (
 
 // Queries is the backend-neutral query contract used by the store package.
 type Queries interface {
-	CountUsers(ctx context.Context) (int64, error)
-	EnsureDefaultSettings(ctx context.Context, arg sqlcgen.EnsureDefaultSettingsParams) error
-	GetInstanceName(ctx context.Context) (string, error)
-}
-
-// DBTX is the common interface satisfied by both *sql.DB and *sql.Tx.
-type DBTX interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	sqlcgen.Querier
 }
 
 // Store owns a database connection or transaction and executes queries through the sqlc adapter.
 type Store struct {
-	db   *sql.DB
-	tx   *sql.Tx
+	pool *pgxpool.Pool
+	tx   pgx.Tx
 	q    Queries
-	newQ func(DBTX) Queries
+	newQ func(sqlcgen.DBTX) Queries
 	name string
 }
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+type openOptions struct {
+	logger *slog.Logger
+}
+
+// Option configures Store creation.
+type Option func(*openOptions)
+
+// WithLogger enables pgx debug query tracing through logger.
+func WithLogger(logger *slog.Logger) Option {
+	return func(options *openOptions) {
+		options.logger = logger
+	}
+}
+
 // Open creates a PostgreSQL store, runs migrations, and seeds default settings.
-func Open(ctx context.Context, dsn string) (*Store, error) {
+func Open(ctx context.Context, dsn string, opts ...Option) (*Store, error) {
+	var options openOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("parse postgres pool config: %w", err)))
+	}
+	if options.logger != nil {
+		poolConfig.ConnConfig.Tracer = queryTracer{logger: options.logger}
+	}
+
 	if err := goose.SetDialect("postgres"); err != nil {
 		return nil, err
 	}
 	goose.SetBaseFS(migrationsFS)
 
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
+	migrationConfig := *poolConfig.ConnConfig
+	migrationDB := stdlib.OpenDB(migrationConfig)
+	if err := goose.Up(migrationDB, "migrations"); err != nil {
+		return nil, closeWithErr(migrationDB, err)
 	}
-	if err := goose.Up(db, "migrations"); err != nil {
-		return nil, closeWithErr(db, err)
+	if err := migrationDB.Close(); err != nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("close postgres migration handle: %w", err)))
 	}
 
-	s := &Store{db: db, q: newQueries(db), newQ: newQueries, name: "postgres"}
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("open postgres pool: %w", err)))
+	}
+
+	s := &Store{pool: pool, q: newQueries(pool), newQ: newQueries, name: "postgres"}
 	if err := s.EnsureDefaultSettings(ctx); err != nil {
-		return nil, closeWithErr(db, err)
+		pool.Close()
+		return nil, err
 	}
 	return s, nil
 }
 
-// New opens a root store backed by db.
-func New(db *sql.DB, name string, newQ func(DBTX) Queries) *Store {
-	return &Store{db: db, q: newQ(db), newQ: newQ, name: name}
+// New opens a root store backed by pool.
+func New(pool *pgxpool.Pool, name string, newQ func(sqlcgen.DBTX) Queries) *Store {
+	return &Store{pool: pool, q: newQ(pool), newQ: newQ, name: name}
 }
 
-func newQueries(db DBTX) Queries {
+func newQueries(db sqlcgen.DBTX) Queries {
 	return sqlcgen.New(db)
 }
 
-func newTxStore(tx *sql.Tx, name string, newQ func(DBTX) Queries) *Store {
+func newTxStore(tx pgx.Tx, name string, newQ func(sqlcgen.DBTX) Queries) *Store {
 	return &Store{tx: tx, q: newQ(tx), newQ: newQ, name: name}
 }
 
@@ -83,25 +109,26 @@ func (s *Store) Query() Queries {
 	return s.q
 }
 
-// DB exposes the underlying database handle for callers that need the raw sqlc queries.
-func (s *Store) DB() *sql.DB {
-	return s.db
+// Pool exposes the underlying connection pool for callers that need raw sqlc queries.
+func (s *Store) Pool() *pgxpool.Pool {
+	return s.pool
 }
 
 // PingContext verifies the database connection is alive.
 func (s *Store) PingContext(ctx context.Context) error {
-	if s.db == nil {
+	if s.pool == nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("%s cannot ping a transaction-scoped store", s.name)), apperrors.WithOperation(apperrors.OperationPingContext))
 	}
-	return s.db.PingContext(ctx)
+	return s.pool.Ping(ctx)
 }
 
 // Close shuts down the database connection.
 func (s *Store) Close() error {
-	if s.db == nil {
+	if s.pool == nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("%s cannot close a transaction-scoped store", s.name)), apperrors.WithOperation(apperrors.OperationClose))
 	}
-	return s.db.Close()
+	s.pool.Close()
+	return nil
 }
 
 // WithTx executes fn in a transaction.
@@ -116,14 +143,14 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 		return nil
 	}
 
-	sqlTx, err := s.db.BeginTx(ctx, nil)
+	pgxTx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationBeginTx))
 	}
 
-	txStore := newTxStore(sqlTx, s.name, s.newQ)
+	txStore := newTxStore(pgxTx, s.name, s.newQ)
 	if err := fn(txStore); err != nil {
-		if rbErr := sqlTx.Rollback(); rbErr != nil {
+		if rbErr := pgxTx.Rollback(ctx); rbErr != nil {
 			return errors.Join(
 				apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationWithTx), apperrors.WithStage(apperrors.StageBody)),
 				apperrors.Annotate(rbErr, apperrors.WithOperation(apperrors.OperationRollback)),
@@ -132,7 +159,7 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationWithTx), apperrors.WithStage(apperrors.StageBody))
 	}
 
-	if err := sqlTx.Commit(); err != nil {
+	if err := pgxTx.Commit(ctx); err != nil {
 		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCommit))
 	}
 	return nil

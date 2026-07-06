@@ -5,170 +5,157 @@
 package sqlcgen
 
 import (
-	"database/sql"
-	"time"
-
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Account struct {
-	ID                uuid.UUID
-	UserID            uuid.UUID
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      sql.NullString
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                uuid.UUID          `db:"id" json:"id"`
+	UserID            uuid.UUID          `db:"user_id" json:"user_id"`
+	Provider          string             `db:"provider" json:"provider"`
+	ProviderAccountID string             `db:"provider_account_id" json:"provider_account_id"`
+	PasswordHash      pgtype.Text        `db:"password_hash" json:"password_hash"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type AppAuditLog struct {
-	ID                  uuid.UUID
-	Category            string
-	Subcategory         string
-	EventType           string
-	Action              string
-	Outcome             string
-	ActorUserID         uuid.NullUUID
-	ActorOrganisationID uuid.NullUUID
-	TargetType          sql.NullString
-	TargetID            sql.NullString
-	TargetDisplay       sql.NullString
-	RequestID           sql.NullString
-	TraceID             sql.NullString
-	SpanID              sql.NullString
-	IpAddress           string
-	UserAgent           string
-	MetadataJson        string
-	ChangesJson         string
-	CreatedAt           time.Time
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	Category            string             `db:"category" json:"category"`
+	Subcategory         string             `db:"subcategory" json:"subcategory"`
+	EventType           string             `db:"event_type" json:"event_type"`
+	Action              string             `db:"action" json:"action"`
+	Outcome             string             `db:"outcome" json:"outcome"`
+	ActorUserID         uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
+	ActorOrganisationID uuid.NullUUID      `db:"actor_organisation_id" json:"actor_organisation_id"`
+	TargetType          pgtype.Text        `db:"target_type" json:"target_type"`
+	TargetID            pgtype.Text        `db:"target_id" json:"target_id"`
+	TargetDisplay       pgtype.Text        `db:"target_display" json:"target_display"`
+	RequestID           pgtype.Text        `db:"request_id" json:"request_id"`
+	TraceID             pgtype.Text        `db:"trace_id" json:"trace_id"`
+	SpanID              pgtype.Text        `db:"span_id" json:"span_id"`
+	IpAddress           string             `db:"ip_address" json:"ip_address"`
+	UserAgent           string             `db:"user_agent" json:"user_agent"`
+	MetadataJson        string             `db:"metadata_json" json:"metadata_json"`
+	ChangesJson         string             `db:"changes_json" json:"changes_json"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type AppSetting struct {
-	ID                            string
-	InstanceName                  string
-	SessionIdleTimeoutSeconds     int64
-	SessionMaxLifetimeSeconds     int64
-	SessionCleanupIntervalSeconds int64
-	SessionRetentionSeconds       int64
-	CreatedAt                     time.Time
-	UpdatedAt                     time.Time
-}
-
-type AuthAuditLog struct {
-	ID           uuid.UUID
-	EventType    string
-	UserID       uuid.NullUUID
-	ActorUserID  uuid.NullUUID
-	IpAddress    string
-	UserAgent    string
-	MetadataJson string
-	CreatedAt    time.Time
+	ID                            string             `db:"id" json:"id"`
+	InstanceName                  string             `db:"instance_name" json:"instance_name"`
+	SessionIdleTimeoutSeconds     int64              `db:"session_idle_timeout_seconds" json:"session_idle_timeout_seconds"`
+	SessionMaxLifetimeSeconds     int64              `db:"session_max_lifetime_seconds" json:"session_max_lifetime_seconds"`
+	SessionCleanupIntervalSeconds int64              `db:"session_cleanup_interval_seconds" json:"session_cleanup_interval_seconds"`
+	SessionRetentionSeconds       int64              `db:"session_retention_seconds" json:"session_retention_seconds"`
+	CreatedAt                     pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Organisation struct {
-	ID        uuid.UUID
-	Name      string
-	Slug      string
-	Logo      sql.NullString
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID          `db:"id" json:"id"`
+	Name      string             `db:"name" json:"name"`
+	Slug      string             `db:"slug" json:"slug"`
+	Logo      pgtype.Text        `db:"logo" json:"logo"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OrganisationInvitation struct {
-	ID              uuid.UUID
-	OrganisationID  uuid.UUID
-	Email           string
-	Role            string
-	Status          string
-	TokenHash       string
-	ExpiresAt       time.Time
-	InvitedByUserID uuid.UUID
-	AcceptedAt      sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	Email           string             `db:"email" json:"email"`
+	Role            string             `db:"role" json:"role"`
+	Status          string             `db:"status" json:"status"`
+	TokenHash       string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	InvitedByUserID uuid.UUID          `db:"invited_by_user_id" json:"invited_by_user_id"`
+	AcceptedAt      pgtype.Timestamptz `db:"accepted_at" json:"accepted_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OrganisationMember struct {
-	ID             uuid.UUID
-	OrganisationID uuid.UUID
-	UserID         uuid.UUID
-	Role           string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganisationID uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	UserID         uuid.UUID          `db:"user_id" json:"user_id"`
+	Role           string             `db:"role" json:"role"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type ScheduledTask struct {
-	ID                      uuid.UUID
-	TaskName                string
-	Enabled                 bool
-	ScheduleIntervalSeconds int64
-	LeaseOwner              sql.NullString
-	LeaseExpiresAt          sql.NullTime
-	LastRunAt               sql.NullTime
-	LastFinishedAt          sql.NullTime
-	NextRunAt               sql.NullTime
-	LastStatus              sql.NullString
-	LastErrorCode           sql.NullString
-	LastErrorMessage        sql.NullString
-	UpdatedAt               time.Time
+	ID                      uuid.UUID          `db:"id" json:"id"`
+	TaskName                string             `db:"task_name" json:"task_name"`
+	Enabled                 bool               `db:"enabled" json:"enabled"`
+	ScheduleIntervalSeconds int64              `db:"schedule_interval_seconds" json:"schedule_interval_seconds"`
+	LeaseOwner              pgtype.Text        `db:"lease_owner" json:"lease_owner"`
+	LeaseExpiresAt          pgtype.Timestamptz `db:"lease_expires_at" json:"lease_expires_at"`
+	LastRunAt               pgtype.Timestamptz `db:"last_run_at" json:"last_run_at"`
+	LastFinishedAt          pgtype.Timestamptz `db:"last_finished_at" json:"last_finished_at"`
+	NextRunAt               pgtype.Timestamptz `db:"next_run_at" json:"next_run_at"`
+	LastStatus              pgtype.Text        `db:"last_status" json:"last_status"`
+	LastErrorCode           pgtype.Text        `db:"last_error_code" json:"last_error_code"`
+	LastErrorMessage        pgtype.Text        `db:"last_error_message" json:"last_error_message"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Session struct {
-	ID                   uuid.UUID
-	UserID               uuid.UUID
-	ActiveOrganisationID uuid.UUID
-	TokenHash            string
-	IpAddress            string
-	UserAgent            string
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	ExpiresAt            time.Time
-	RevokedAt            sql.NullTime
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	UserID               uuid.UUID          `db:"user_id" json:"user_id"`
+	ActiveOrganisationID uuid.UUID          `db:"active_organisation_id" json:"active_organisation_id"`
+	TokenHash            string             `db:"token_hash" json:"token_hash"`
+	IpAddress            string             `db:"ip_address" json:"ip_address"`
+	UserAgent            string             `db:"user_agent" json:"user_agent"`
+	LastSeenAt           pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	IdleExpiresAt        pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
+	ExpiresAt            pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	RevokedAt            pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
+	CreatedAt            pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type SsoProviderSetting struct {
-	ProviderID   string
-	ClientID     sql.NullString
-	ClientSecret sql.NullString
-	CallbackUrl  sql.NullString
-	Enabled      bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ProviderID   string             `db:"provider_id" json:"provider_id"`
+	ClientID     pgtype.Text        `db:"client_id" json:"client_id"`
+	ClientSecret pgtype.Text        `db:"client_secret" json:"client_secret"`
+	CallbackUrl  pgtype.Text        `db:"callback_url" json:"callback_url"`
+	Enabled      bool               `db:"enabled" json:"enabled"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type TwoFactor struct {
-	ID                      uuid.UUID
-	UserID                  uuid.UUID
-	Secret                  string
-	Verified                bool
-	LastUsedStep            sql.NullInt64
-	FailedVerificationCount int64
-	LockedUntil             sql.NullTime
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
+	ID                      uuid.UUID          `db:"id" json:"id"`
+	UserID                  uuid.UUID          `db:"user_id" json:"user_id"`
+	Secret                  string             `db:"secret" json:"secret"`
+	Verified                bool               `db:"verified" json:"verified"`
+	LastUsedStep            pgtype.Int8        `db:"last_used_step" json:"last_used_step"`
+	FailedVerificationCount int64              `db:"failed_verification_count" json:"failed_verification_count"`
+	LockedUntil             pgtype.Timestamptz `db:"locked_until" json:"locked_until"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type User struct {
-	ID              uuid.UUID
-	Email           string
-	DisplayName     string
-	EmailVerifiedAt sql.NullTime
-	DisabledAt      sql.NullTime
-	LastLoginAt     sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID              uuid.UUID          `db:"id" json:"id"`
+	Email           string             `db:"email" json:"email"`
+	DisplayName     string             `db:"display_name" json:"display_name"`
+	EmailVerifiedAt pgtype.Timestamptz `db:"email_verified_at" json:"email_verified_at"`
+	DisabledAt      pgtype.Timestamptz `db:"disabled_at" json:"disabled_at"`
+	LastLoginAt     pgtype.Timestamptz `db:"last_login_at" json:"last_login_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type VerificationToken struct {
-	ID         uuid.UUID
-	UserID     uuid.NullUUID
-	Email      string
-	Purpose    string
-	TokenHash  string
-	ExpiresAt  time.Time
-	ConsumedAt sql.NullTime
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID         uuid.UUID          `db:"id" json:"id"`
+	UserID     uuid.NullUUID      `db:"user_id" json:"user_id"`
+	Email      string             `db:"email" json:"email"`
+	Purpose    string             `db:"purpose" json:"purpose"`
+	TokenHash  string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt  pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	ConsumedAt pgtype.Timestamptz `db:"consumed_at" json:"consumed_at"`
+	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }

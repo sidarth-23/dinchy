@@ -2,12 +2,12 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +20,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 var (
@@ -96,7 +97,7 @@ func HashPasswordForTest(t *testing.T, password string) string {
 }
 
 func findUserRow(rowID, email, displayName string) sqlcgen.FindUserByEmailRow {
-	return sqlcgen.FindUserByEmailRow{ID: id.MustParse(rowID), Email: email, DisplayName: displayName, EmailVerifiedAt: sql.NullTime{Time: fixedTime, Valid: true}}
+	return sqlcgen.FindUserByEmailRow{ID: id.MustParse(rowID), Email: email, DisplayName: displayName, EmailVerifiedAt: sqltype.Timestamptz(fixedTime)}
 }
 
 func passwordAccountRow(rowID, userID, provider, providerAccountID, passwordHash string) sqlcgen.FindPasswordAccountByUserIDRow {
@@ -105,7 +106,7 @@ func passwordAccountRow(rowID, userID, provider, providerAccountID, passwordHash
 		UserID:            id.MustParse(userID),
 		Provider:          provider,
 		ProviderAccountID: providerAccountID,
-		PasswordHash:      sql.NullString{String: passwordHash, Valid: passwordHash != ""},
+		PasswordHash:      sqltype.Text(passwordHash),
 	}
 }
 
@@ -113,7 +114,7 @@ func organisationRow(rowID, name, slug, role string) sqlcgen.ListOrganisationsFo
 	return sqlcgen.ListOrganisationsForUserRow{ID: id.MustParse(rowID), Name: name, Slug: slug, Role: role}
 }
 
-func sessionRow(rowID, userID, email, displayName, organisationID, organisationName, organisationSlug, role string, idleExpiresAt, expiresAt time.Time, revokedAt sql.NullTime) sqlcgen.GetSessionByTokenHashRow {
+func sessionRow(rowID, userID, email, displayName, organisationID, organisationName, organisationSlug, role string, idleExpiresAt, expiresAt time.Time, revokedAt pgtype.Timestamptz) sqlcgen.GetSessionByTokenHashRow {
 	return sqlcgen.GetSessionByTokenHashRow{
 		ID:                   id.MustParse(rowID),
 		UserID:               id.MustParse(userID),
@@ -123,8 +124,8 @@ func sessionRow(rowID, userID, email, displayName, organisationID, organisationN
 		OrganisationName:     organisationName,
 		OrganisationSlug:     organisationSlug,
 		Role:                 role,
-		IdleExpiresAt:        idleExpiresAt,
-		ExpiresAt:            expiresAt,
+		IdleExpiresAt:        sqltype.Timestamptz(idleExpiresAt),
+		ExpiresAt:            sqltype.Timestamptz(expiresAt),
 		RevokedAt:            revokedAt,
 	}
 }
@@ -266,7 +267,7 @@ func TestSession_ValidToken(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
@@ -287,7 +288,7 @@ func TestSession_ExpiredIdle(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(-1*time.Second), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(-1*time.Second), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
@@ -298,7 +299,7 @@ func TestSession_ExpiredAbsolute(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(-1*time.Second), sql.NullTime{}), nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(-1*time.Second), pgtype.Timestamptz{}), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
@@ -309,7 +310,7 @@ func TestSession_Revoked(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{Time: fixedTime.Add(-time.Hour), Valid: true}), nil)
+	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sqltype.Timestamptz(fixedTime.Add(-time.Hour))), nil)
 
 	got, err := svc.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
@@ -322,7 +323,7 @@ func TestLogout_RevokesSession(t *testing.T) {
 
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sql.NullTime{}), nil)
+		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), gomock.Any()).Return(nil)
 
 	require.NoError(t, svc.Logout(testCtx, "rawtoken"))

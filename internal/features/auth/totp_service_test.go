@@ -2,11 +2,12 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 // testTOTPSecret is a valid base32 TOTP seed used to derive live codes.
@@ -32,13 +34,13 @@ func validTOTPCode(t *testing.T) string {
 	return code
 }
 
-func twoFactorRow(rowID, userID, secret string, verified bool, lastUsedStep int64, lastUsedStepValid bool, failedVerificationCount int64, lockedUntil sql.NullTime) sqlcgen.FindTwoFactorByUserIDRow {
+func twoFactorRow(rowID, userID, secret string, verified bool, lastUsedStep int64, lastUsedStepValid bool, failedVerificationCount int64, lockedUntil pgtype.Timestamptz) sqlcgen.FindTwoFactorByUserIDRow {
 	return sqlcgen.FindTwoFactorByUserIDRow{
 		ID:                      id.MustParse(rowID),
 		UserID:                  id.MustParse(userID),
 		Secret:                  secret,
 		Verified:                verified,
-		LastUsedStep:            sql.NullInt64{Int64: lastUsedStep, Valid: lastUsedStepValid},
+		LastUsedStep:            sqltype.OptionalInt8(lastUsedStep, lastUsedStepValid),
 		FailedVerificationCount: failedVerificationCount,
 		LockedUntil:             lockedUntil,
 	}
@@ -66,7 +68,7 @@ func TestConfirmTOTP_NoEnrollment(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, sql.ErrNoRows)
+	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, pgx.ErrNoRows)
 
 	err := svc.ConfirmTOTP(testCtx, testUserID, "123456")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP)))
@@ -77,7 +79,7 @@ func TestConfirmTOTP_InvalidCode(t *testing.T) {
 	svc, store := newTestService(t)
 
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
-		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, false, 0, false, 0, sql.NullTime{}), nil)
+		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, false, 0, false, 0, pgtype.Timestamptz{}), nil)
 	store.EXPECT().RegisterTwoFactorFailure(gomock.Any(), gomock.Any()).Return(nil)
 
 	err := svc.ConfirmTOTP(testCtx, testUserID, "000000")
@@ -89,7 +91,7 @@ func TestConfirmTOTP_Success(t *testing.T) {
 	svc, store := newTestService(t)
 
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
-		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, sql.NullTime{}), nil)
+		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, pgtype.Timestamptz{}), nil)
 	store.EXPECT().ConfirmTwoFactor(gomock.Any(), gomock.Any()).Return(nil)
 
 	require.NoError(t, svc.ConfirmTOTP(testCtx, testUserID, validTOTPCode(t)))
@@ -100,7 +102,7 @@ func TestConfirmTOTP_LocksAfterRepeatedFailures(t *testing.T) {
 
 	var failedCount int64
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).DoAndReturn(func(context.Context, uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error) {
-		return twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, failedCount, sql.NullTime{}), nil
+		return twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, failedCount, pgtype.Timestamptz{}), nil
 	}).Times(int(totpFailureLimit))
 	store.EXPECT().RegisterTwoFactorFailure(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, params sqlcgen.RegisterTwoFactorFailureParams) error {
 		failedCount++
@@ -144,7 +146,7 @@ func TestLogin_TOTPRequiredWhenCodeMissing(t *testing.T) {
 	svc, store := newTestService(t)
 	expectPasswordLogin(t, store)
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
-		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, sql.NullTime{}), nil)
+		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, pgtype.Timestamptz{}), nil)
 	store.EXPECT().RegisterTwoFactorFailure(gomock.Any(), gomock.Any()).Return(nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "secret", "", "", "", "")
@@ -156,7 +158,7 @@ func TestLogin_TOTPReplayedStepRejected(t *testing.T) {
 	svc, store := newTestService(t)
 	expectPasswordLogin(t, store)
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
-		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, totpStep(fixedTime), true, 0, sql.NullTime{}), nil)
+		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, totpStep(fixedTime), true, 0, pgtype.Timestamptz{}), nil)
 	store.EXPECT().RegisterTwoFactorFailure(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	_, err := svc.Login(testCtx, "user@example.com", "secret", "", validTOTPCode(t), "", "")
@@ -168,7 +170,7 @@ func TestLogin_TOTPSuccessMarksStepUsed(t *testing.T) {
 	svc, store := newTestService(t)
 	expectPasswordLogin(t, store)
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
-		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, sql.NullTime{}), nil)
+		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, pgtype.Timestamptz{}), nil)
 	store.EXPECT().MarkTwoFactorUsed(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil)
@@ -185,7 +187,7 @@ func TestLogin_TOTPFailureLocksAccount(t *testing.T) {
 
 	var failedCount int64
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).DoAndReturn(func(context.Context, uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error) {
-		return twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, failedCount, sql.NullTime{}), nil
+		return twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, failedCount, pgtype.Timestamptz{}), nil
 	}).Times(int(totpFailureLimit))
 	store.EXPECT().RegisterTwoFactorFailure(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, params sqlcgen.RegisterTwoFactorFailureParams) error {
 		failedCount++
