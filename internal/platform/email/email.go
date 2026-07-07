@@ -13,6 +13,7 @@ type Message struct {
 	To      string
 	Subject string
 	Text    string
+	HTML    string
 }
 
 type Sender interface {
@@ -60,6 +61,9 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 	}
 	m.Subject(msg.Subject)
 	m.SetBodyString(mail.TypeTextPlain, msg.Text)
+	if msg.HTML != "" {
+		m.AddAlternativeString(mail.TypeTextHTML, msg.HTML)
+	}
 
 	options := []mail.Option{mail.WithPort(int(s.cfg.Port))}
 	if s.cfg.Username != "" {

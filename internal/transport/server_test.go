@@ -15,7 +15,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/testsupport"
@@ -36,7 +35,7 @@ func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler 
 	t.Helper()
 	db := testsupport.OpenPostgresStore(t)
 	queries := sqlcgen.New(db.Pool())
-	svc, err := auth.NewService(db.Pool(), queries, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), email.NoopSender{}, nil)
+	svc, err := auth.NewService(db.Pool(), queries, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), nil, nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
 	srv := transport.New(":0", dist, svc, nil, db, false, devMode, devProxyURL, nil)

@@ -8,11 +8,11 @@
 - cleanup auth module
   - it has util functions which can be taken out
   - it has too many files with small functions. organize it properly
-- clean the sql queries in sqlc so that the params are not random column_7 etc. It should be named properly and the params should be named properly
 - organise and name code generator and validator properly and add it to pre commit hooks
-- move database to pgx/v5 and configure sqlc properly to get all the benefits of both. also take care of error handling and logging with this properly
 - let's create the class for features properly so that most of the features extend from a base feature class
 - worth of panic in backend and recovery mechanism
 - never log and return errors at the same time. See the core of the idea and create a proper base framework
 - have a clean email service with clean templates and example generator. The module should take care of delivery and error handling
 - there are a lot of micro utility function which makes no sense. Update that to be in main function and update the agent rule
+- setup smtp and sso with env keys only and set api endpoints to set the value to the file instead of db
+  - I want to have a setup where there is a another go internal service where all the stuff directly interacting with the system is a different service

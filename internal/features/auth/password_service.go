@@ -39,7 +39,7 @@ type VerificationToken struct {
 }
 
 func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error {
-	if !s.email.Configured() {
+	if !s.mailer.Configured() {
 		return apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
 	start := s.clock.Now()
@@ -74,11 +74,10 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageCreateVerificationToken))
 	}
-	return s.email.Send(ctx, email.Message{
-		To:      emailAddress,
-		Subject: "Reset your Dinchy password",
-		Text:    passwordResetEmailText(rawToken),
-	})
+	if err := s.mailer.SendPasswordReset(ctx, email.PasswordResetEmail{To: emailAddress, Token: rawToken}); err != nil {
+		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageSendEmail))
+	}
+	return nil
 }
 
 func verificationTokenFromFindVerificationRow(row sqlcgen.FindVerificationTokenRow) *VerificationToken {

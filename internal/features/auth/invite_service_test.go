@@ -64,7 +64,9 @@ func TestCreateInvitation_SendsEmailAndStoresToken(t *testing.T) {
 	assert.Equal(t, "invitee@example.com", invitation.Email)
 	assert.Len(t, sender.sent, 1)
 	assert.Equal(t, "invitee@example.com", sender.sent[0].To)
-	assert.Contains(t, sender.sent[0].Text, "Accept the invitation")
+	assert.Contains(t, sender.sent[0].Text, "Default")
+	assert.Contains(t, sender.sent[0].Text, "https://app.test/accept-invitation?token=")
+	assert.NotEmpty(t, sender.sent[0].HTML)
 }
 
 func TestAcceptInvitation_CreatesUserAndSession(t *testing.T) {

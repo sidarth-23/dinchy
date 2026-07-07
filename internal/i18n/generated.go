@@ -32,7 +32,16 @@ const (
 	CodeAuthUnauthenticated       Code = "auth.unauthenticated"
 	CodeConfigLoadFailed          Code = "config.load_failed"
 	CodeConfigValidationFailed    Code = "config.validation_failed"
+	CodeEmailFooter               Code = "email.footer"
+	CodeEmailInvitationBody       Code = "email.invitation_body"
+	CodeEmailInvitationCta        Code = "email.invitation_cta"
+	CodeEmailInvitationHeading    Code = "email.invitation_heading"
+	CodeEmailInvitationSubject    Code = "email.invitation_subject"
 	CodeEmailNotConfigured        Code = "email.not_configured"
+	CodeEmailPasswordResetBody    Code = "email.password_reset_body"
+	CodeEmailPasswordResetCta     Code = "email.password_reset_cta"
+	CodeEmailPasswordResetHeading Code = "email.password_reset_heading"
+	CodeEmailPasswordResetSubject Code = "email.password_reset_subject"
 	CodeRequestValidationFailed   Code = "request.validation_failed"
 	CodeSecurityCSRFFailed        Code = "security.csrf_failed"
 	CodeSecurityHTTPSRequired     Code = "security.https_required"
@@ -64,7 +73,16 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeAuthUnauthenticated:       "Authentication required.",
 		CodeConfigLoadFailed:          "Failed to load configuration.",
 		CodeConfigValidationFailed:    "Configuration is invalid.",
+		CodeEmailFooter:               "This is an automated message from Dinchy. Please do not reply to this email.",
+		CodeEmailInvitationBody:       "You have been invited to join {{.organisation}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon.",
+		CodeEmailInvitationCta:        "Accept invitation",
+		CodeEmailInvitationHeading:    "Join {{.organisation}} on Dinchy",
+		CodeEmailInvitationSubject:    "You are invited to join {{.organisation}} on Dinchy",
 		CodeEmailNotConfigured:        "Email delivery is not configured.",
+		CodeEmailPasswordResetBody:    "We received a request to reset your Dinchy password. Click the button below to choose a new one. If you did not request this, you can safely ignore this email.",
+		CodeEmailPasswordResetCta:     "Reset password",
+		CodeEmailPasswordResetHeading: "Reset your password",
+		CodeEmailPasswordResetSubject: "Reset your Dinchy password",
 		CodeRequestValidationFailed:   "Some fields need attention.",
 		CodeSecurityCSRFFailed:        "Missing or invalid CSRF token.",
 		CodeSecurityHTTPSRequired:     "This endpoint requires a secure (HTTPS) connection.",

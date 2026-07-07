@@ -59,7 +59,7 @@ func parseInvitationRole(role string) (Role, error) {
 }
 
 func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser, emailAddress, role, ip, userAgent string) (*Invitation, error) {
-	if !s.email.Configured() {
+	if !s.mailer.Configured() {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
 	if inviter == nil {
@@ -122,10 +122,11 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 	}); err != nil {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageCreateInvitation))
 	}
-	if err := s.email.Send(ctx, email.Message{
-		To:      emailAddress,
-		Subject: "You are invited to Dinchy",
-		Text:    invitationEmailText(inviter.OrganisationName, string(invitationRole), rawToken),
+	if err := s.mailer.SendInvitation(ctx, email.InvitationEmail{
+		To:               emailAddress,
+		OrganisationName: inviter.OrganisationName,
+		Role:             string(invitationRole),
+		Token:            rawToken,
 	}); err != nil {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageSendEmail))
 	}

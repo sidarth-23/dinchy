@@ -195,6 +195,82 @@
           "translations": {
             "en": "Email delivery is not configured."
           }
+        },
+        {
+          "name": "invitation_subject",
+          "params": [
+            {
+              "name": "organisation",
+              "type": "string"
+            }
+          ],
+          "translations": {
+            "en": "You are invited to join {{.organisation}} on Dinchy"
+          }
+        },
+        {
+          "name": "invitation_heading",
+          "params": [
+            {
+              "name": "organisation",
+              "type": "string"
+            }
+          ],
+          "translations": {
+            "en": "Join {{.organisation}} on Dinchy"
+          }
+        },
+        {
+          "name": "invitation_body",
+          "params": [
+            {
+              "name": "organisation",
+              "type": "string"
+            },
+            {
+              "name": "role",
+              "type": "string"
+            }
+          ],
+          "translations": {
+            "en": "You have been invited to join {{.organisation}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon."
+          }
+        },
+        {
+          "name": "invitation_cta",
+          "translations": {
+            "en": "Accept invitation"
+          }
+        },
+        {
+          "name": "password_reset_subject",
+          "translations": {
+            "en": "Reset your Dinchy password"
+          }
+        },
+        {
+          "name": "password_reset_heading",
+          "translations": {
+            "en": "Reset your password"
+          }
+        },
+        {
+          "name": "password_reset_body",
+          "translations": {
+            "en": "We received a request to reset your Dinchy password. Click the button below to choose a new one. If you did not request this, you can safely ignore this email."
+          }
+        },
+        {
+          "name": "password_reset_cta",
+          "translations": {
+            "en": "Reset password"
+          }
+        },
+        {
+          "name": "footer",
+          "translations": {
+            "en": "This is an automated message from Dinchy. Please do not reply to this email."
+          }
         }
       ]
     },

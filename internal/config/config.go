@@ -24,6 +24,9 @@ type Config struct {
 	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,http_url"`
 	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
 	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
+	// PublicBaseURL is the externally reachable base URL used to build links in
+	// outbound email (invitation and password reset). Required when SMTP is enabled.
+	PublicBaseURL string `env:"DINCHY_PUBLIC_BASE_URL" validate:"omitempty,http_url"`
 	// Auth contains authentication behavior and lifetime settings.
 	Auth AuthConfig
 	// SSO contains startup SSO provider values loaded from environment.

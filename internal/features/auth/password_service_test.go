@@ -37,7 +37,9 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
-	svc, err := NewService(nil, store, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), sender, nil)
+	mailer, err := email.NewMailer(sender, "https://app.test")
+	require.NoError(t, err)
+	svc, err := NewService(nil, store, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), mailer, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{

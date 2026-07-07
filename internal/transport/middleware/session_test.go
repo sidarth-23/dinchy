@@ -13,7 +13,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/testsupport"
@@ -41,7 +40,7 @@ func newSessionService(t *testing.T) *auth.Service {
 		nil,
 		nil,
 		cachecore.NewKeyer("test"),
-		email.NoopSender{},
+		nil,
 		nil,
 	)
 	require.NoError(t, err)

@@ -33,19 +33,22 @@ type Service struct {
 	authConfig config.AuthConfig
 	sso        *ssoRegistry
 	cache      cachecore.Store
-	email      email.Sender
+	mailer     *email.Mailer
 	publisher  eventbus.Publisher
 }
 
-func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, cacheStore cachecore.Store, cacheKeyer cachecore.Keyer, sender email.Sender, publisher eventbus.Publisher) (*Service, error) {
+func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, cacheStore cachecore.Store, cacheKeyer cachecore.Keyer, mailer *email.Mailer, publisher eventbus.Publisher) (*Service, error) {
 	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
 		return nil, err
 	}
-	if sender == nil {
-		sender = email.NoopSender{}
+	if mailer == nil {
+		mailer, err = email.NewMailer(email.NoopSender{}, "")
+		if err != nil {
+			return nil, err
+		}
 	}
-	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, cache: cacheStore, email: sender, publisher: publisher}
+	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, cache: cacheStore, mailer: mailer, publisher: publisher}
 	if db != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
 			tx, err := db.Begin(ctx)
