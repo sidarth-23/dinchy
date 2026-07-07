@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -53,7 +52,7 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	if twoFactor.locked(now) {
 		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))
 	}
-	if !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
+	if !totp.Validate(code, twoFactor.Secret) {
 		return s.recordTOTPFailure(ctx, userID, twoFactor.FailedVerificationCount, now, i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
 	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sqltype.Int8(totpStep(now)), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
@@ -120,7 +119,7 @@ func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) e
 		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))
 	}
 	step := totpStep(now)
-	if code == "" || !totp.Validate(strings.TrimSpace(code), twoFactor.Secret) {
+	if code == "" || !totp.Validate(code, twoFactor.Secret) {
 		msg := i18n.Msg(i18n.CodeAuthInvalidTOTP)
 		if code == "" {
 			msg = i18n.Msg(i18n.CodeAuthTOTPRequired)

@@ -21,7 +21,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 type Service struct {
@@ -166,7 +165,7 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 }
 
 func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, password string) (*User, error) {
-	row, err := s.store.FindUserByEmail(ctx, transform.Email(emailAddress))
+	row, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
@@ -199,7 +198,6 @@ func userFromFindUserRow(row sqlcgen.FindUserByEmailRow) *User {
 }
 
 func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, slug string) (*Organisation, error) {
-	slug = transform.Trim(slug)
 	if slug != "" {
 		orgRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(userID), Slug: slug})
 		if err != nil {

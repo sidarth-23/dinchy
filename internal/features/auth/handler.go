@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -32,6 +31,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Get application bootstrap state",
 		Description: "Returns setup status, authentication state, app metadata, and current user info. Called by the frontend on initial load.",
 		Tags:        []string{"Bootstrap"},
+		Errors:      []int{http.StatusForbidden},
 	}, a.bootstrap)
 
 	huma.Register(h, huma.Operation{
@@ -41,6 +41,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Authenticate with email and password",
 		Description: "Validates credentials and issues a session cookie. Returns the current bootstrap state with viewer info.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.login)
 
 	huma.Register(h, huma.Operation{
@@ -50,6 +51,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "End the current session",
 		Description: "Revokes the current session and clears the session cookie.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusForbidden},
 	}, a.logout)
 
 	huma.Register(h, huma.Operation{
@@ -59,6 +61,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Get current session state",
 		Description: "Returns bootstrap state for the current request. Used to validate that a session is still active.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusForbidden},
 	}, a.session)
 
 	huma.Register(h, huma.Operation{
@@ -77,6 +80,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Start an SSO login",
 		Description: "Redirects to the provider authorization URL and sets a short-lived state cookie.",
 		Tags:        []string{"Auth", "SSO"},
+		Errors:      []int{http.StatusBadRequest, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.ssoStart)
 
 	huma.Register(h, huma.Operation{
@@ -86,6 +90,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Complete an SSO login",
 		Description: "Consumes the provider callback, creates a session, and redirects back into the app.",
 		Tags:        []string{"Auth", "SSO"},
+		Errors:      []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.ssoCallback)
 
 	huma.Register(h, huma.Operation{
@@ -93,7 +98,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/organisations/select",
 		Summary:     "Switch active organisation",
+		Description: "Sets the active organisation for the current session and reissues the session cookie.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.selectOrganisation)
 
 	huma.Register(h, huma.Operation{
@@ -101,7 +108,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/invitations",
 		Summary:     "Create an organisation invitation",
+		Description: "Invites a member to the current organisation. Requires an owner or admin session.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
 	}, a.createInvitation)
 
 	huma.Register(h, huma.Operation{
@@ -109,7 +118,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/invitations/{token}/accept",
 		Summary:     "Accept an organisation invitation",
+		Description: "Consumes an invitation token, provisions the member account, and issues a session cookie.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusBadRequest, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.acceptInvitation)
 
 	huma.Register(h, huma.Operation{
@@ -117,7 +128,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/forgot-password",
 		Summary:     "Request a password reset",
+		Description: "Sends a password reset email when the address matches an account. Always returns 200 to avoid account enumeration.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusUnprocessableEntity},
 	}, a.forgotPassword)
 
 	huma.Register(h, huma.Operation{
@@ -125,7 +138,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/reset-password",
 		Summary:     "Reset password",
+		Description: "Sets a new password using a valid reset token and revokes existing sessions.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusBadRequest, http.StatusUnprocessableEntity},
 	}, a.resetPassword)
 
 	huma.Register(h, huma.Operation{
@@ -133,7 +148,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/totp/enroll",
 		Summary:     "Start TOTP enrollment",
+		Description: "Generates a TOTP secret and provisioning URL for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
+		Errors:      []int{http.StatusUnauthorized},
 	}, a.totpEnroll)
 
 	huma.Register(h, huma.Operation{
@@ -141,7 +158,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/totp/confirm",
 		Summary:     "Confirm TOTP enrollment",
+		Description: "Verifies a TOTP code and enables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
+		Errors:      []int{http.StatusUnauthorized, http.StatusUnprocessableEntity, http.StatusTooManyRequests},
 	}, a.totpConfirm)
 
 	huma.Register(h, huma.Operation{
@@ -149,7 +168,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/totp/disable",
 		Summary:     "Disable TOTP",
+		Description: "Disables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
+		Errors:      []int{http.StatusUnauthorized},
 	}, a.totpDisable)
 
 	huma.Register(h, huma.Operation{
@@ -159,6 +180,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Create the first admin user",
 		Description: "Creates the initial admin account. Returns 409 if setup has already been completed.",
 		Tags:        []string{"Setup"},
+		Errors:      []int{http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
 	}, a.setup)
 }
 
@@ -478,7 +500,7 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	}
 	token, err := a.auth.SetupFirstUser(
 		ctx,
-		strings.ToLower(in.Body.Email),
+		in.Body.Email,
 		in.Body.DisplayName,
 		in.Body.Password,
 		support.RemoteIPFrom(ctx),

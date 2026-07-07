@@ -11,7 +11,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 type setupTransaction struct {
@@ -25,7 +24,6 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
-	emailAddress = transform.Email(emailAddress)
 	now := s.clock.Now()
 	organisationID := s.idg.New()
 	if s.beginTx == nil {
@@ -42,7 +40,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 		OrganisationMemberID: s.idg.New(),
 		Email:                emailAddress,
 		PasswordHash:         hash,
-		DisplayName:          transform.Trim(displayName),
+		DisplayName:          displayName,
 		OrganisationName:     s.authConfig.DefaultOrganisationName,
 		OrganisationSlug:     s.authConfig.DefaultOrganisationSlug,
 		Now:                  now,

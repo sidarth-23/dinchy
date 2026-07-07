@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -67,7 +68,7 @@ func TestAPILogin_Success(t *testing.T) {
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
 		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 
-	out, err := api.login(ctx, &LoginIn{Body: LoginBody{Email: "  USER@EXAMPLE.COM  ", Password: "secret"}})
+	out, err := api.login(ctx, &LoginIn{Body: LoginBody{Email: "user@example.com", Password: "secret"}})
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
 	assert.Equal(t, api.auth.SessionCookieName(), out.SetCookie[0].Name)
@@ -122,7 +123,7 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
 		AnyTimes()
 
-	out, err := api.setup(ctx, &SetupIn{Body: SetupBody{Email: "  ADMIN@EXAMPLE.COM  ", DisplayName: "Admin", Password: "password123"}})
+	out, err := api.setup(ctx, &SetupIn{Body: SetupBody{Email: "admin@example.com", DisplayName: "Admin", Password: "password123"}})
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
 	assert.Equal(t, api.auth.SessionCookieName(), out.SetCookie[0].Name)
@@ -267,4 +268,65 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	require.Len(t, out.SetCookie, 2)
 	assert.True(t, out.SetCookie[0].Secure)
 	assert.True(t, out.SetCookie[1].Secure)
+}
+
+// The following tests exercise the full huma pipeline (schema validation and
+// resolvers run before the handler) via humatest, confirming registration does
+// not panic on the operation tags and that strict validation and boundary
+// normalization behave as intended.
+
+func TestHumaValidation_RejectsInvalidInvitationRole(t *testing.T) {
+	t.Parallel()
+	svc, _ := newTestService(t)
+	_, api := humatest.New(t)
+	Register(api, svc, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+
+	// "owner" is not in the role enum; validation rejects it before the handler runs.
+	resp := api.Post("/auth/invitations", map[string]any{"email": "invitee@example.com", "role": "owner"})
+	require.Equal(t, http.StatusUnprocessableEntity, resp.Code, resp.Body.String())
+	assert.Contains(t, resp.Body.String(), "role")
+}
+
+func TestHumaValidation_RejectsMalformedEmail(t *testing.T) {
+	t.Parallel()
+	svc, _ := newTestService(t)
+	_, api := humatest.New(t)
+	Register(api, svc, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+
+	// A malformed address fails format:email validation before the handler runs.
+	resp := api.Post("/auth/forgot-password", map[string]any{"email": "not-an-email"})
+	require.Equal(t, http.StatusUnprocessableEntity, resp.Code, resp.Body.String())
+}
+
+func TestHumaResolver_LowercasesSetupEmailEndToEnd(t *testing.T) {
+	t.Parallel()
+	svc, store := newTestService(t)
+	store.EXPECT().CountUsers(gomock.Any()).Return(int64(0), nil)
+	store.EXPECT().
+		InsertUser(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, in sqlcgen.InsertUserParams) error {
+			assert.Equal(t, "admin@example.com", in.Email, "resolver must lowercase the email before the handler")
+			return nil
+		})
+	store.EXPECT().InsertAccount(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertOrganisation(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertOrganisationMember(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().
+		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
+		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
+	store.EXPECT().
+		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		AnyTimes()
+
+	_, api := humatest.New(t)
+	Register(api, svc, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+
+	resp := api.Post("/setup/first-user", map[string]any{
+		"email":        "ADMIN@EXAMPLE.COM",
+		"display_name": "Admin",
+		"password":     "password123",
+	})
+	require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
 }

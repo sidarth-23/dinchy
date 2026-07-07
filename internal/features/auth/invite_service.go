@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,14 +14,9 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
-const (
-	invitationRoleMember    = "member"
-	invitationRoleAdmin     = "admin"
-	invitationStatusPending = "pending"
-)
+const invitationStatusPending = "pending"
 
 func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *Invitation {
 	if row.ID == uuid.Nil {
@@ -44,7 +38,7 @@ func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *In
 	return invitation
 }
 
-func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser, emailAddress, role, ip, userAgent string) (*Invitation, error) {
+func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser, emailAddress string, invitationRole Role, ip, userAgent string) (*Invitation, error) {
 	if !s.mailer.Configured() {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
@@ -54,15 +48,6 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 	if inviter.Role != RoleOwner && inviter.Role != RoleAdmin {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
 	}
-	normalizedRole := strings.ToLower(transform.Trim(role))
-	var invitationRole Role
-	switch normalizedRole {
-	case invitationRoleMember, invitationRoleAdmin:
-		invitationRole = Role(normalizedRole)
-	default:
-		return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationRoleInvalid))
-	}
-	emailAddress = transform.Email(emailAddress)
 	now := s.clock.Now().UTC()
 	organisationID := id.MustParse(inviter.OrganisationID)
 
@@ -165,7 +150,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	}
 
 	emailAddress := invitation.Email
-	userDisplayName := transform.Trim(displayName)
+	userDisplayName := displayName
 	if userDisplayName == "" {
 		userDisplayName = emailAddress
 	}

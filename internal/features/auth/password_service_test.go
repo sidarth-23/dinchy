@@ -105,8 +105,9 @@ func TestForgotPassword_CreatesTokenAndSends(t *testing.T) {
 			return nil
 		})
 
-	// Leading/trailing whitespace and case must be normalized before lookup.
-	require.NoError(t, svc.ForgotPassword(testCtx, "  USER@EXAMPLE.COM  "))
+	// Email normalization happens at the transport boundary (ForgotPasswordBody.Resolve),
+	// so the service receives an already-canonical address.
+	require.NoError(t, svc.ForgotPassword(testCtx, "user@example.com"))
 	require.Len(t, sender.sent, 1)
 	assert.Equal(t, "user@example.com", sender.sent[0].To)
 	assert.NotEmpty(t, sender.sent[0].Text)

@@ -159,28 +159,6 @@ func TestSetupFirstUser_Success(t *testing.T) {
 	assert.NotEmpty(t, token)
 }
 
-func TestSetupFirstUser_EmailNormalized(t *testing.T) {
-	t.Parallel()
-	svc, store := newTestService(t)
-
-	store.EXPECT().
-		CountUsers(gomock.Any()).
-		Return(int64(0), nil)
-	store.EXPECT().
-		InsertUser(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, in sqlcgen.InsertUserParams) error {
-			assert.Equal(t, "admin@example.com", in.Email, "email must be normalized to lowercase")
-			return nil
-		})
-	store.EXPECT().InsertAccount(gomock.Any(), gomock.Any()).Return(nil)
-	store.EXPECT().InsertOrganisation(gomock.Any(), gomock.Any()).Return(nil)
-	store.EXPECT().InsertOrganisationMember(gomock.Any(), gomock.Any()).Return(nil)
-	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
-
-	_, err := svc.SetupFirstUser(testCtx, "  ADMIN@EXAMPLE.COM  ", "Admin", "password123", "", "")
-	require.NoError(t, err)
-}
-
 func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
@@ -236,26 +214,6 @@ func TestLogin_UserNotFound(t *testing.T) {
 
 	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "", "", "")
 	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
-}
-
-func TestLogin_EmailNormalized(t *testing.T) {
-	t.Parallel()
-	svc, store := newTestService(t)
-
-	store.EXPECT().
-		FindUserByEmail(gomock.Any(), "user@example.com").
-		Return(findUserRow(testUserID, "user@example.com", "User"), nil)
-	store.EXPECT().
-		FindPasswordAccountByUserID(gomock.Any(), id.MustParse(testUserID)).
-		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "p")), nil)
-	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
-	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil)
-	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
-
-	_, err := svc.Login(testCtx, "  USER@EXAMPLE.COM  ", "p", "", "", "", "")
-	require.NoError(t, err)
 }
 
 func TestSession_ValidToken(t *testing.T) {

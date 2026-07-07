@@ -4,8 +4,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/sidarth-23/dinchy/internal/config"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 type SSOProviderOut struct {
@@ -18,9 +21,15 @@ type SSOProvidersOut struct {
 }
 
 type SSOStartIn struct {
-	ProviderID       string `path:"provider_id"`
-	ReturnTo         string `query:"return_to"`
-	OrganisationSlug string `query:"organisation_slug"`
+	ProviderID       string `path:"provider_id" minLength:"1" example:"google" doc:"Configured SSO provider identifier"`
+	ReturnTo         string `query:"return_to" doc:"Relative path to return to after login"`
+	OrganisationSlug string `query:"organisation_slug" maxLength:"64" doc:"Organisation slug to scope the login to"`
+}
+
+// Resolve trims the organisation slug; ReturnTo is left for the open-redirect guard.
+func (in *SSOStartIn) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &in.OrganisationSlug)
+	return nil
 }
 
 type SSOStartOut struct {
@@ -30,11 +39,11 @@ type SSOStartOut struct {
 }
 
 type SSOCallbackIn struct {
-	ProviderID  string `path:"provider_id"`
-	Code        string `query:"code"`
-	State       string `query:"state"`
-	Error       string `query:"error"`
-	ErrorDetail string `query:"error_description"`
+	ProviderID  string `path:"provider_id" minLength:"1" example:"google" doc:"Configured SSO provider identifier"`
+	Code        string `query:"code" doc:"Authorization code returned by the provider (absent on error callbacks)"`
+	State       string `query:"state" doc:"Opaque state token echoed back by the provider (absent on error callbacks)"`
+	Error       string `query:"error" doc:"Error code returned by the provider when login fails"`
+	ErrorDetail string `query:"error_description" doc:"Human-readable error detail from the provider"`
 }
 
 type SSOCallbackOut struct {

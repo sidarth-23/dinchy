@@ -81,12 +81,6 @@
           }
         },
         {
-          "name": "invitation_role_invalid",
-          "translations": {
-            "en": "The invitation role is invalid."
-          }
-        },
-        {
           "name": "totp_locked",
           "translations": {
             "en": "Two-factor authentication is temporarily locked. Try again later."

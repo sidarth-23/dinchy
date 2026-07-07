@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -71,7 +70,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	cacheState := ssoCacheState{
 		ProviderID:       providerID,
 		ReturnTo:         internalReturnPath(returnTo),
-		OrganisationSlug: strings.TrimSpace(organisationSlug),
+		OrganisationSlug: organisationSlug,
 		State:            stateToken,
 		Session:          session.Marshal(),
 	}
@@ -133,7 +132,12 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 		user = &User{ID: userRow.ID.String(), Email: userRow.Email, DisplayName: userRow.DisplayName, EmailVerified: userRow.EmailVerifiedAt.Valid}
 	}
 	if user == nil && gothUser.Email != "" {
-		emailRow, emailErr := s.store.FindUserByEmail(ctx, transform.Email(gothUser.Email))
+		// gothUser.Email comes from the SSO provider, not a validated request, so it
+		// is normalized here at the ingestion boundary to match stored (lowercased)
+		// emails.
+		providerEmail := gothUser.Email
+		transform.ApplyTo(transform.SpecEmail, &providerEmail)
+		emailRow, emailErr := s.store.FindUserByEmail(ctx, providerEmail)
 		if emailErr != nil {
 			if errors.Is(emailErr, pgx.ErrNoRows) {
 				return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))

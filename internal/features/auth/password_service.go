@@ -15,7 +15,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 const passwordResetMinimumDuration = 250 * time.Millisecond
@@ -44,7 +43,6 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	}
 	start := s.clock.Now()
 	defer waitUntil(start.Add(passwordResetMinimumDuration))
-	emailAddress = transform.Email(emailAddress)
 	userRow, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

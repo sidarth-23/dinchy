@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 //go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
@@ -106,209 +108,6 @@ type SessionWithUser struct {
 	RevokedAt        pgtype.Timestamptz
 }
 
-type CreateSessionInput struct {
-	ID             string
-	UserID         string
-	OrganisationID string
-	TokenHash      string
-	IP             string
-	UserAgent      string
-	Now            time.Time
-	IdleExpiresAt  time.Time
-	ExpiresAt      time.Time
-}
-
-type UpdateUserPasswordHashInput struct {
-	UserID       string
-	PasswordHash string
-	Now          time.Time
-}
-
-type UpdateUserEmailVerifiedAtInput struct {
-	UserID string
-	Now    time.Time
-}
-
-type UserRow struct {
-	ID          string
-	Email       string
-	DisplayName string
-}
-
-type AccountRow struct {
-	ID                string
-	UserID            string
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      string
-}
-
-type OrganisationRow struct {
-	ID   string
-	Name string
-	Slug string
-	Role string
-}
-
-type SSOProviderSettingRow struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
-type TaskParams struct {
-	ID                      string
-	TaskName                string
-	ScheduleIntervalSeconds int64
-	NextRunAt               time.Time
-	UpdatedAt               time.Time
-}
-
-type ClaimTaskParams struct {
-	LeaseOwner      string
-	LeaseExpiresAt  time.Time
-	LastRunAt       time.Time
-	UpdatedAt       time.Time
-	TaskName        string
-	LeaseExpiresAt2 time.Time
-	NextRunAt       time.Time
-}
-
-type FinishTaskParams struct {
-	LastFinishedAt   time.Time
-	NextRunAt        time.Time
-	LastStatus       string
-	LastErrorCode    string
-	LastErrorMessage string
-	UpdatedAt        time.Time
-	TaskName         string
-}
-
-type UpdateUserPasswordHashParams struct {
-	UserID       string
-	PasswordHash string
-	UpdatedAt    time.Time
-}
-
-type InsertUserParams struct {
-	ID              string
-	Email           string
-	DisplayName     string
-	EmailVerifiedAt time.Time
-	EmailVerified   bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
-
-type InsertAccountParams struct {
-	ID                string
-	UserID            string
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-}
-
-type InsertOrganisationParams struct {
-	ID        string
-	Name      string
-	Slug      string
-	Logo      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type InsertOrganisationMemberParams struct {
-	ID             string
-	OrganisationID string
-	UserID         string
-	Role           string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
-type InsertVerificationTokenParams struct {
-	ID          string
-	UserID      string
-	UserIDValid bool
-	Email       string
-	Purpose     string
-	TokenHash   string
-	ExpiresAt   time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type ConsumeVerificationTokenParams struct {
-	ID         string
-	ConsumedAt time.Time
-	UpdatedAt  time.Time
-}
-
-type SaveTwoFactorParams struct {
-	ID        string
-	UserID    string
-	Secret    string
-	Verified  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type UseTwoFactorParams struct {
-	UserID       string
-	LastUsedStep int64
-	UpdatedAt    time.Time
-}
-
-type InsertSessionParams struct {
-	ID                   string
-	UserID               string
-	ActiveOrganisationID string
-	TokenHash            string
-	IPAddress            string
-	UserAgent            string
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	ExpiresAt            time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-}
-
-type SessionRow struct {
-	ID                   string
-	UserID               string
-	Email                string
-	DisplayName          string
-	ActiveOrganisationID string
-	OrganisationName     string
-	OrganisationSlug     string
-	Role                 string
-	IdleExpiresAt        time.Time
-	ExpiresAt            time.Time
-	RevokedAt            time.Time
-	RevokedAtValid       bool
-}
-
-type RevokeSessionParams struct {
-	RevokedAt time.Time
-	UpdatedAt time.Time
-	TokenHash string
-}
-
-type RevokeSessionsForUserParams struct {
-	RevokedAt time.Time
-	UpdatedAt time.Time
-	UserID    string
-}
-
 type Store interface {
 	CountUsers(ctx context.Context) (int64, error)
 	InsertUser(ctx context.Context, arg sqlcgen.InsertUserParams) error
@@ -360,10 +159,10 @@ type ViewerOut struct {
 }
 
 type OrganisationOut struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-	Role string `json:"role"`
+	ID   string `json:"id" doc:"Organisation identifier"`
+	Name string `json:"name" doc:"Organisation display name"`
+	Slug string `json:"slug" doc:"Organisation slug"`
+	Role string `json:"role" doc:"Viewer's role in this organisation"`
 }
 
 // AppOut contains application-level metadata returned in every API response body.
@@ -388,10 +187,19 @@ type BootstrapOut struct {
 
 // LoginBody contains the credentials required to authenticate.
 type LoginBody struct {
-	Email            string `json:"email" format:"email" minLength:"3" maxLength:"254" doc:"User email address"`
-	Password         string `json:"password" minLength:"1" maxLength:"128" doc:"User password"`
-	OrganisationSlug string `json:"organisation_slug,omitempty" doc:"Organisation slug when the user has multiple memberships"`
-	TOTPCode         string `json:"totp_code,omitempty" doc:"TOTP code when two-factor authentication is enabled"`
+	Email            string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"User email address"`
+	Password         string `json:"password" minLength:"1" maxLength:"128" example:"correct horse battery staple" doc:"User password"`
+	OrganisationSlug string `json:"organisation_slug,omitempty" maxLength:"64" example:"acme" doc:"Organisation slug when the user has multiple memberships"`
+	TOTPCode         string `json:"totp_code,omitempty" maxLength:"8" example:"123456" doc:"TOTP code when two-factor authentication is enabled"`
+}
+
+// Resolve normalizes the login credentials before validation errors are returned
+// so downstream services receive canonical values.
+func (b *LoginBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+	transform.ApplyTo(transform.SpecTrim, &b.TOTPCode)
+	return nil
 }
 
 // LoginIn is the huma input type for the login endpoint.
@@ -406,7 +214,13 @@ type LoginOut struct {
 }
 
 type SelectOrganisationBody struct {
-	OrganisationSlug string `json:"organisation_slug" minLength:"1"`
+	OrganisationSlug string `json:"organisation_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organisation to make active"`
+}
+
+// Resolve trims the organisation slug before it reaches the service.
+func (b *SelectOrganisationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+	return nil
 }
 
 type SelectOrganisationIn struct {
@@ -419,7 +233,13 @@ type SelectOrganisationOut struct {
 }
 
 type ForgotPasswordBody struct {
-	Email string `json:"email" format:"email" minLength:"3" maxLength:"254"`
+	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to send the reset link to"`
+}
+
+// Resolve normalizes the email before the reset request is processed.
+func (b *ForgotPasswordBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	return nil
 }
 
 type ForgotPasswordIn struct {
@@ -433,8 +253,14 @@ type ForgotPasswordOut struct {
 }
 
 type CreateInvitationBody struct {
-	Email string `json:"email" format:"email" minLength:"3" maxLength:"254"`
-	Role  string `json:"role" minLength:"1" maxLength:"32"`
+	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to invite"`
+	Role  Role   `json:"role" enum:"member,admin" example:"member" doc:"Role granted to the invited member"`
+}
+
+// Resolve normalizes the invitee email; the role is validated by its enum.
+func (b *CreateInvitationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	return nil
 }
 
 type CreateInvitationIn struct {
@@ -448,12 +274,18 @@ type CreateInvitationOut struct {
 }
 
 type AcceptInvitationBody struct {
-	DisplayName string `json:"display_name" minLength:"1" maxLength:"100"`
-	Password    string `json:"password" minLength:"8" maxLength:"128"`
+	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" example:"Ada Lovelace" doc:"Display name for the new member"`
+	Password    string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"Password (minimum 8 characters)"`
+}
+
+// Resolve trims the display name before the invitation is accepted.
+func (b *AcceptInvitationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.DisplayName)
+	return nil
 }
 
 type AcceptInvitationIn struct {
-	Token string `path:"token" minLength:"1"`
+	Token string `path:"token" minLength:"1" doc:"Invitation token from the invite link"`
 	Body  AcceptInvitationBody
 }
 
@@ -463,8 +295,8 @@ type AcceptInvitationOut struct {
 }
 
 type ResetPasswordBody struct {
-	Token    string `json:"token" minLength:"1"`
-	Password string `json:"password" minLength:"8" maxLength:"128"`
+	Token    string `json:"token" minLength:"1" doc:"Reset token from the password reset email"`
+	Password string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"New password (minimum 8 characters)"`
 }
 
 type ResetPasswordIn struct {
@@ -485,7 +317,13 @@ type TOTPEnrollOut struct {
 }
 
 type TOTPConfirmBody struct {
-	Code string `json:"code" minLength:"6" maxLength:"8"`
+	Code string `json:"code" minLength:"6" maxLength:"8" example:"123456" doc:"TOTP code from the authenticator app"`
+}
+
+// Resolve trims the confirmation code before it is verified.
+func (b *TOTPConfirmBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.Code)
+	return nil
 }
 
 type TOTPConfirmIn struct {
@@ -512,9 +350,16 @@ type SessionOut struct {
 
 // SetupBody contains the fields required to create the first admin user.
 type SetupBody struct {
-	Email       string `json:"email" format:"email" minLength:"3" maxLength:"254" doc:"Admin email address"`
-	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" doc:"Display name for the admin user"`
-	Password    string `json:"password" minLength:"8" maxLength:"128" doc:"Password (minimum 8 characters)"`
+	Email       string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"admin@example.com" doc:"Admin email address"`
+	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" example:"Ada Lovelace" doc:"Display name for the admin user"`
+	Password    string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"Password (minimum 8 characters)"`
+}
+
+// Resolve normalizes the admin email and display name during first-user setup.
+func (b *SetupBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	transform.ApplyTo(transform.SpecTrim, &b.DisplayName)
+	return nil
 }
 
 // SetupIn is the huma input type for the first-user setup endpoint.

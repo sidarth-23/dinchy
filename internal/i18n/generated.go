@@ -15,7 +15,6 @@ const (
 	CodeAuthInvalidTOTP           Code = "auth.invalid_totp"
 	CodeAuthInvitationExists      Code = "auth.invitation_exists"
 	CodeAuthInvitationInvalid     Code = "auth.invitation_invalid"
-	CodeAuthInvitationRoleInvalid Code = "auth.invitation_role_invalid"
 	CodeAuthOIDCInvalidState      Code = "auth.oidc.invalid_state"
 	CodeAuthOIDCLoginFailed       Code = "auth.oidc.login_failed"
 	CodeAuthOIDCProviderNotFound  Code = "auth.oidc.provider_not_found"
@@ -55,7 +54,6 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeAuthInvalidTOTP:           "Invalid two-factor authentication code.",
 		CodeAuthInvitationExists:      "An active invitation already exists for that email address.",
 		CodeAuthInvitationInvalid:     "The invitation is invalid or has expired.",
-		CodeAuthInvitationRoleInvalid: "The invitation role is invalid.",
 		CodeAuthOIDCInvalidState:      "The OIDC login flow is invalid or has expired.",
 		CodeAuthOIDCLoginFailed:       "Unable to sign in with that OIDC provider.",
 		CodeAuthOIDCProviderNotFound:  "The selected OIDC provider is not available.",

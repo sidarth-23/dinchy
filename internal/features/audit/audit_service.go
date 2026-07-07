@@ -53,9 +53,6 @@ func (s *Service) Handle(ctx context.Context, event eventbus.Event) error {
 var _ eventbus.Subscriber = (*Service)(nil)
 
 func (s *Service) List(ctx context.Context, in ListInput) ([]eventbus.Event, error) {
-	if in.Limit <= 0 || in.Limit > 200 {
-		in.Limit = 50
-	}
 	rows, err := s.store.ListAuditLogs(ctx, sqlcgen.ListAuditLogsParams{
 		CategoryFilter:    in.Category,
 		Category:          in.Category,

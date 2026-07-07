@@ -2,7 +2,7 @@ package audit
 
 import (
 	"context"
-	"time"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -19,9 +19,12 @@ func Register(h huma.API, service *Service) {
 	api := &API{service: service}
 	huma.Register(h, huma.Operation{
 		OperationID: "audit-list-logs",
-		Method:      "GET",
+		Method:      http.MethodGet,
 		Path:        "/audit/logs",
 		Summary:     "List audit logs",
+		Description: "Returns audit log entries filtered by the query parameters. Requires an owner or admin session.",
+		Tags:        []string{"Audit"},
+		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, api.list)
 }
 
@@ -33,20 +36,10 @@ func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
 	if session.Role != auth.RoleOwner && session.Role != auth.RoleAdmin {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	var before time.Time
-	beforeValid := false
-	if in.Before != "" {
-		parsed, err := time.Parse(time.RFC3339Nano, in.Before)
-		if err != nil {
-			return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeRequestValidationFailed))
-		}
-		before = parsed.UTC()
-		beforeValid = true
-	}
 	logs, err := a.service.List(ctx, ListInput{
 		Category: in.Category, Subcategory: in.Subcategory, EventType: in.EventType,
 		ActorUserID: in.ActorUserID, TargetType: in.TargetType, TargetID: in.TargetID,
-		Outcome: in.Outcome, Before: before, BeforeValid: beforeValid, Limit: in.Limit,
+		Outcome: in.Outcome, Before: in.Before.UTC(), BeforeValid: !in.Before.IsZero(), Limit: in.Limit,
 	})
 	if err != nil {
 		return nil, err
