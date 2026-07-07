@@ -17,41 +17,6 @@ type SSOProvidersOut struct {
 	Body []SSOProviderOut
 }
 
-type SSOProviderFieldOut struct {
-	Set    bool   `json:"set"`
-	Source string `json:"source,omitempty" enum:"env,db"`
-}
-
-type SSOProviderSettingOut struct {
-	ID            string              `json:"id"`
-	Name          string              `json:"name"`
-	ClientID      SSOProviderFieldOut `json:"client_id"`
-	ClientSecret  SSOProviderFieldOut `json:"client_secret"`
-	CallbackURL   SSOProviderFieldOut `json:"callback_url"`
-	Enabled       bool                `json:"enabled"`
-	EnabledSource string              `json:"enabled_source,omitempty" enum:"env,db"`
-}
-
-type SSOProviderSettingsOut struct {
-	Body []SSOProviderSettingOut
-}
-
-type SSOProviderSettingUpdateIn struct {
-	ProviderID string `path:"provider_id"`
-	Body       SSOProviderSettingUpdateBody
-}
-
-type SSOProviderSettingUpdateBody struct {
-	ClientID     *string `json:"client_id,omitempty"`
-	ClientSecret *string `json:"client_secret,omitempty"`
-	CallbackURL  *string `json:"callback_url,omitempty"`
-	Enabled      *bool   `json:"enabled,omitempty"`
-}
-
-type SSOProviderSettingUpdateOut struct {
-	Body SSOProviderSettingOut
-}
-
 type SSOStartIn struct {
 	ProviderID       string `path:"provider_id"`
 	ReturnTo         string `query:"return_to"`
@@ -91,17 +56,4 @@ type ssoCacheState struct {
 	OrganisationSlug string `json:"organisation_slug"`
 	State            string `json:"state"`
 	Session          string `json:"session"`
-}
-
-type mergedSSOProviderSetting struct {
-	ID                string
-	Name              string
-	ClientID          string
-	ClientIDSource    string
-	Secret            string
-	SecretSource      string
-	CallbackURL       string
-	CallbackURLSource string
-	Enabled           bool
-	EnabledSource     string
 }

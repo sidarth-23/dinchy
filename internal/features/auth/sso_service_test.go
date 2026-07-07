@@ -136,7 +136,6 @@ func newSSOTestService(t *testing.T) (*Service, *MockStore) {
 		return &fakeSSOProvider{name: string(cfg.ID)}, nil
 	}
 	t.Cleanup(func() { newGothProviderForSSO = originalProviderFactory })
-	store.EXPECT().ListSSOProviderSettings(gomock.Any()).Return(nil, nil).AnyTimes()
 	return svc, store
 }
 

@@ -115,16 +115,6 @@ type Session struct {
 	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type SsoProviderSetting struct {
-	ProviderID   string             `db:"provider_id" json:"provider_id"`
-	ClientID     pgtype.Text        `db:"client_id" json:"client_id"`
-	ClientSecret pgtype.Text        `db:"client_secret" json:"client_secret"`
-	CallbackUrl  pgtype.Text        `db:"callback_url" json:"callback_url"`
-	Enabled      bool               `db:"enabled" json:"enabled"`
-	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
 type TwoFactor struct {
 	ID                      uuid.UUID          `db:"id" json:"id"`
 	UserID                  uuid.UUID          `db:"user_id" json:"user_id"`

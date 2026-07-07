@@ -226,7 +226,6 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	api, store := newHTTPTestAPI(t)
 	svc, _ := newSSOTestService(t)
 	api.auth.sso = svc.sso
-	store.EXPECT().ListSSOProviderSettings(gomock.Any()).Return(nil, nil).AnyTimes()
 
 	_, cookies, err := api.auth.startSSO(testCtx, "github", "/dashboard", "")
 	require.NoError(t, err)

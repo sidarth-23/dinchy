@@ -157,12 +157,6 @@
               "translations": {
                 "en": "A cache store is required before SSO can be enabled."
               }
-            },
-            {
-              "name": "field_managed_by_env",
-              "translations": {
-                "en": "This SSO setting is managed by environment configuration."
-              }
             }
           ]
         }

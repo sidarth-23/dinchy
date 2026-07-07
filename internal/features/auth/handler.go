@@ -71,24 +71,6 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 	}, a.ssoProviders)
 
 	huma.Register(h, huma.Operation{
-		OperationID: "auth-sso-settings",
-		Method:      http.MethodGet,
-		Path:        "/auth/sso/settings",
-		Summary:     "List SSO provider settings",
-		Description: "Returns SSO provider setting status without exposing secret values.",
-		Tags:        []string{"Auth", "SSO"},
-	}, a.ssoSettings)
-
-	huma.Register(h, huma.Operation{
-		OperationID: "auth-sso-settings-update",
-		Method:      http.MethodPut,
-		Path:        "/auth/sso/settings/{provider_id}",
-		Summary:     "Update an SSO provider setting",
-		Description: "Updates DB-backed SSO provider settings. Env-backed fields are read-only.",
-		Tags:        []string{"Auth", "SSO"},
-	}, a.updateSSOSettings)
-
-	huma.Register(h, huma.Operation{
 		OperationID: "auth-sso-start",
 		Method:      http.MethodGet,
 		Path:        "/auth/sso/{provider_id}/start",
@@ -290,39 +272,6 @@ func (a *API) ssoProviders(ctx context.Context, _ *struct{}) (*SSOProvidersOut, 
 	}
 	out := &SSOProvidersOut{Body: providers}
 	return out, nil
-}
-
-func (a *API) ssoSettings(ctx context.Context, _ *struct{}) (*SSOProviderSettingsOut, error) {
-	if err := requireSSOSettingsAccess(ctx); err != nil {
-		return nil, err
-	}
-	settings, err := a.auth.listSSOProviderSettings(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &SSOProviderSettingsOut{Body: settings}, nil
-}
-
-func (a *API) updateSSOSettings(ctx context.Context, in *SSOProviderSettingUpdateIn) (*SSOProviderSettingUpdateOut, error) {
-	if err := requireSSOSettingsAccess(ctx); err != nil {
-		return nil, err
-	}
-	setting, err := a.auth.updateSSOProviderSetting(ctx, in.ProviderID, in.Body)
-	if err != nil {
-		return nil, err
-	}
-	return &SSOProviderSettingUpdateOut{Body: setting}, nil
-}
-
-func requireSSOSettingsAccess(ctx context.Context) error {
-	session := SessionFrom(ctx)
-	if session == nil {
-		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
-	}
-	if session.Role != RoleOwner && session.Role != RoleAdmin {
-		return apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
-	}
-	return nil
 }
 
 func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error) {

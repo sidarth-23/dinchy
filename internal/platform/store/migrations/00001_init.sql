@@ -95,16 +95,6 @@ CREATE TABLE IF NOT EXISTS two_factors (
   updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS sso_provider_settings (
-  provider_id TEXT PRIMARY KEY,
-  client_id TEXT,
-  client_secret TEXT,
-  callback_url TEXT,
-  enabled BOOLEAN NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS app_settings (
   id TEXT PRIMARY KEY,
   instance_name TEXT NOT NULL,

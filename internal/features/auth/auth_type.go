@@ -276,19 +276,6 @@ type UseTwoFactorParams struct {
 	UpdatedAt    time.Time
 }
 
-type UpsertSSOProviderSettingParams struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
 type InsertSessionParams struct {
 	ID                   string
 	UserID               string
@@ -357,36 +344,11 @@ type Store interface {
 	MarkTwoFactorUsed(ctx context.Context, arg sqlcgen.MarkTwoFactorUsedParams) error
 	RegisterTwoFactorFailure(ctx context.Context, arg sqlcgen.RegisterTwoFactorFailureParams) error
 	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
-	ListSSOProviderSettings(ctx context.Context) ([]sqlcgen.SsoProviderSetting, error)
-	UpsertSSOProviderSetting(ctx context.Context, arg sqlcgen.UpsertSSOProviderSettingParams) error
 	InsertSession(ctx context.Context, arg sqlcgen.InsertSessionParams) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (sqlcgen.GetSessionByTokenHashRow, error)
 	RevokeSessionByTokenHash(ctx context.Context, arg sqlcgen.RevokeSessionByTokenHashParams) error
 	RevokeSessionsForUser(ctx context.Context, arg sqlcgen.RevokeSessionsForUserParams) error
 	GetInstanceName(ctx context.Context) (string, error)
-}
-
-type SSOProviderSetting struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-}
-
-type UpsertSSOProviderSettingInput struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-	Now           time.Time
 }
 
 type BootstrapState struct {

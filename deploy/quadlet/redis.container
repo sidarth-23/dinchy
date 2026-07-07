@@ -1,0 +1,18 @@
+[Unit]
+Description=Dinchy Redis
+After=network-online.target
+
+[Container]
+# Redis 8.4+ is required: the event bus consumes with XREADGROUP ... CLAIM,
+# an option added in Redis 8.4. Do not downgrade to redis:8 (8.0-8.3 lack it).
+Image=docker.io/library/redis:8.4
+ContainerName=dinchy-redis
+Network=dinchy.network
+# Published to loopback only; the host-native Dinchy binary connects on 127.0.0.1:6379.
+PublishPort=127.0.0.1:6379:6379
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

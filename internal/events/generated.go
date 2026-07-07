@@ -80,7 +80,6 @@ const (
 	AuthSecurityAuthLoginSucceeded  Type = "auth.security.auth.login_succeeded"
 	AuthSecurityAuthLogoutSucceeded Type = "auth.security.auth.logout_succeeded"
 	AuthSecurityAuthSetupCompleted  Type = "auth.security.auth.setup_completed"
-	AuthSecuritySSOSettingsUpdated  Type = "auth.security.sso_settings.updated"
 	AuthSecurityTwoFactorDisabled   Type = "auth.security.two_factor.disabled"
 	AuthSecurityTwoFactorEnabled    Type = "auth.security.two_factor.enabled"
 )
@@ -129,17 +128,6 @@ var Definitions = map[Type]Definition{
 		Outcome:      "succeeded",
 		Description:  "The initial user setup flow completed",
 		MetadataKeys: []string{"email", "display_name"},
-	},
-	AuthSecuritySSOSettingsUpdated: {
-		ID:          "updated",
-		Type:        AuthSecuritySSOSettingsUpdated,
-		Path:        []string{"auth", "security", "sso_settings"},
-		Category:    "security",
-		Subcategory: "sso_settings",
-		Action:      "update_sso_settings",
-		Outcome:     "succeeded",
-		Description: "SSO settings were updated",
-		ChangeKeys:  []string{"client_id", "client_secret", "callback_url", "enabled"},
 	},
 	AuthSecurityTwoFactorDisabled: {
 		ID:          "disabled",
@@ -322,55 +310,6 @@ func NewAuthSecurityAuthSetupCompletedChanges() AuthSecurityAuthSetupCompletedCh
 }
 
 type AuthSecurityAuthSetupCompletedEvent = TypedEvent[AuthSecurityAuthSetupCompletedMetadata, AuthSecurityAuthSetupCompletedChanges]
-
-type AuthSecuritySSOSettingsUpdatedMetadataKey string
-
-type AuthSecuritySSOSettingsUpdatedMetadata struct {
-}
-
-func (value AuthSecuritySSOSettingsUpdatedMetadata) Map() map[string]any {
-	return map[string]any{}
-}
-
-func NewAuthSecuritySSOSettingsUpdatedMetadata() AuthSecuritySSOSettingsUpdatedMetadata {
-	return AuthSecuritySSOSettingsUpdatedMetadata{}
-}
-
-type AuthSecuritySSOSettingsUpdatedChangesKey string
-
-const (
-	AuthSecuritySSOSettingsUpdatedChangesKeyClientID     AuthSecuritySSOSettingsUpdatedChangesKey = "client_id"
-	AuthSecuritySSOSettingsUpdatedChangesKeyClientSecret AuthSecuritySSOSettingsUpdatedChangesKey = "client_secret"
-	AuthSecuritySSOSettingsUpdatedChangesKeyCallbackURL  AuthSecuritySSOSettingsUpdatedChangesKey = "callback_url"
-	AuthSecuritySSOSettingsUpdatedChangesKeyEnabled      AuthSecuritySSOSettingsUpdatedChangesKey = "enabled"
-)
-
-type AuthSecuritySSOSettingsUpdatedChanges struct {
-	ClientID     Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
-	ClientSecret Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
-	CallbackURL  Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
-	Enabled      Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]
-}
-
-func (value AuthSecuritySSOSettingsUpdatedChanges) Map() map[string]any {
-	return map[string]any{
-		"client_id":     value.ClientID.Value,
-		"client_secret": value.ClientSecret.Value,
-		"callback_url":  value.CallbackURL.Value,
-		"enabled":       value.Enabled.Value,
-	}
-}
-
-func NewAuthSecuritySSOSettingsUpdatedChanges(clientID bool, clientSecret bool, callbackURL bool, enabled bool) AuthSecuritySSOSettingsUpdatedChanges {
-	return AuthSecuritySSOSettingsUpdatedChanges{
-		ClientID:     Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyClientID, Value: clientID},
-		ClientSecret: Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyClientSecret, Value: clientSecret},
-		CallbackURL:  Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyCallbackURL, Value: callbackURL},
-		Enabled:      Field[AuthSecuritySSOSettingsUpdatedChangesKey, bool]{Key: AuthSecuritySSOSettingsUpdatedChangesKeyEnabled, Value: enabled},
-	}
-}
-
-type AuthSecuritySSOSettingsUpdatedEvent = TypedEvent[AuthSecuritySSOSettingsUpdatedMetadata, AuthSecuritySSOSettingsUpdatedChanges]
 
 type AuthSecurityTwoFactorDisabledMetadataKey string
 

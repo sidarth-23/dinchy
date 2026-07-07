@@ -150,6 +150,23 @@ func TestLoad_InvalidLoggingConfig_Fails(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestLoad_TraceSampleRatio_ParsesFloat(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_OTEL_TRACES_SAMPLE_RATIO", "0.25")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.InEpsilon(t, 0.25, cfg.Telemetry.SampleRatio, 1e-9)
+}
+
+func TestLoad_InvalidTraceSampleRatio_Fails(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_OTEL_TRACES_SAMPLE_RATIO", "not-a-float")
+
+	_, err := config.Load()
+	require.Error(t, err)
+}
+
 func TestLoad_AuditEnabledRequiresRedisCache(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_AUDIT_ENABLED", "true")

@@ -44,14 +44,12 @@ type Querier interface {
 	InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) error
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AppAuditLog, error)
 	ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]ListOrganisationsForUserRow, error)
-	ListSSOProviderSettings(ctx context.Context) ([]SsoProviderSetting, error)
 	MarkTwoFactorUsed(ctx context.Context, arg MarkTwoFactorUsedParams) error
 	RegisterTwoFactorFailure(ctx context.Context, arg RegisterTwoFactorFailureParams) error
 	RevokeSessionByTokenHash(ctx context.Context, arg RevokeSessionByTokenHashParams) error
 	RevokeSessionsForUser(ctx context.Context, arg RevokeSessionsForUserParams) error
 	UpdateUserEmailVerifiedAt(ctx context.Context, arg UpdateUserEmailVerifiedAtParams) error
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
-	UpsertSSOProviderSetting(ctx context.Context, arg UpsertSSOProviderSettingParams) error
 }
 
 var _ Querier = (*Queries)(nil)

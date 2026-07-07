@@ -23,7 +23,6 @@ const (
 	CodeAuthOrganisationRequired  Code = "auth.organisation_required"
 	CodeAuthSetupCompleted        Code = "auth.setup_completed"
 	CodeAuthSSOCacheRequired      Code = "auth.sso.cache_required"
-	CodeAuthSSOFieldManagedByEnv  Code = "auth.sso.field_managed_by_env"
 	CodeAuthSSOInvalidState       Code = "auth.sso.invalid_state"
 	CodeAuthSSOLoginFailed        Code = "auth.sso.login_failed"
 	CodeAuthSSOProviderNotFound   Code = "auth.sso.provider_not_found"
@@ -64,7 +63,6 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeAuthOrganisationRequired:  "Choose an organisation to continue.",
 		CodeAuthSetupCompleted:        "Setup has already been completed for {{.resource}} ({{.count}} users).",
 		CodeAuthSSOCacheRequired:      "A cache store is required before SSO can be enabled.",
-		CodeAuthSSOFieldManagedByEnv:  "This SSO setting is managed by environment configuration.",
 		CodeAuthSSOInvalidState:       "The SSO login flow is invalid or has expired.",
 		CodeAuthSSOLoginFailed:        "Unable to sign in with that SSO provider.",
 		CodeAuthSSOProviderNotFound:   "The selected SSO provider is not available.",

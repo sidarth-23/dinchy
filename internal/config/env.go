@@ -72,6 +72,16 @@ func loadFromEnv(cfg any) error {
 				)
 			}
 			v.Field(i).SetUint(parsed)
+		case reflect.Float32, reflect.Float64:
+			parsed, err := strconv.ParseFloat(raw, field.Type.Bits())
+			if err != nil {
+				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+					apperrors.WithCause(fmt.Errorf("parse float env %q for %q: %w", envKey, field.Name, err)),
+					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
+				)
+			}
+			v.Field(i).SetFloat(parsed)
 		default:
 			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),
