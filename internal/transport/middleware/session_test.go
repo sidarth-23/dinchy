@@ -13,17 +13,12 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/testsupport"
 	"github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
-
-type fakeClock struct {
-	now time.Time
-}
-
-func (c fakeClock) Now() time.Time { return c.now }
 
 var sessionFixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
@@ -35,7 +30,7 @@ func newSessionService(t *testing.T) *auth.Service {
 		db.Pool(),
 		queries,
 		id.NewGenerator(),
-		fakeClock{now: sessionFixedTime},
+		clock.Fixed(sessionFixedTime),
 		config.DefaultAuth(),
 		nil,
 		nil,

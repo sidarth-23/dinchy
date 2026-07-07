@@ -5,6 +5,7 @@ import (
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
@@ -20,15 +21,11 @@ const (
 // SessionCleanupWorker prunes ended sessions after the retention period.
 type SessionCleanupWorker struct {
 	store Store
-	clock contextClock
-}
-
-type contextClock interface {
-	Now() time.Time
+	clock clock.Clock
 }
 
 // NewSessionCleanupWorker creates the session cleanup worker.
-func NewSessionCleanupWorker(store Store, clk contextClock) Worker {
+func NewSessionCleanupWorker(store Store, clk clock.Clock) Worker {
 	return &SessionCleanupWorker{store: store, clock: clk}
 }
 

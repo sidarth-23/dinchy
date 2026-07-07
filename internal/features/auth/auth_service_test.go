@@ -16,6 +16,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
@@ -38,7 +39,7 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
-	clk := fakeClock{now: fixedTime}
+	clk := clock.Fixed(fixedTime)
 	noopMailer, err := email.NewMailer(email.NoopSender{}, "")
 	require.NoError(t, err)
 	svc, err := NewService(nil, store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), noopMailer, nil)
@@ -81,14 +82,6 @@ func (c *testCache) Delete(_ context.Context, key string) error {
 
 func (c *testCache) Ping(context.Context) error {
 	return nil
-}
-
-type fakeClock struct {
-	now time.Time
-}
-
-func (c fakeClock) Now() time.Time {
-	return c.now
 }
 
 func HashPasswordForTest(t *testing.T, password string) string {

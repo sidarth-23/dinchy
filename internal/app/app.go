@@ -84,7 +84,7 @@ func (a *App) Start() error {
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
-	clk := clock.RealClock{}
+	clk := clock.System{}
 	auditSvc, err := audit.NewService(queries, clk)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
