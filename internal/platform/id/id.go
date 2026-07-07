@@ -68,3 +68,19 @@ func NullUUID(value string, valid bool) (uuid.NullUUID, error) {
 	}
 	return uuid.NullUUID{UUID: parsed, Valid: true}, nil
 }
+
+// MustNullUUID converts a string and validity flag into a nullable UUID wrapper and panics on error.
+func MustNullUUID(value string, valid bool) uuid.NullUUID {
+	if !valid {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: MustParse(value), Valid: true}
+}
+
+// NullUUIDString renders a nullable UUID as its canonical string, or empty when not valid.
+func NullUUIDString(value uuid.NullUUID) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.UUID.String()
+}

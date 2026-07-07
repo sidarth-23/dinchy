@@ -4,27 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
-)
-
-const (
-	CategorySecurity = "security"
-
-	SubcategoryAuth        = "auth"
-	SubcategoryTwoFactor   = "two_factor"
-	SubcategorySSOSettings = "sso_settings"
-
-	OutcomeSucceeded = "succeeded"
-	OutcomeFailed    = "failed"
 )
 
 type Store interface {
 	InsertAuditLog(ctx context.Context, arg sqlcgen.InsertAuditLogParams) error
 	ListAuditLogs(ctx context.Context, arg sqlcgen.ListAuditLogsParams) ([]sqlcgen.AppAuditLog, error)
 }
-
-type Event = eventbus.Event
 
 type ListInput struct {
 	Category    string
@@ -38,8 +24,6 @@ type ListInput struct {
 	BeforeValid bool
 	Limit       int64
 }
-
-type Log = Event
 
 type ListIn struct {
 	Category    string `query:"category"`

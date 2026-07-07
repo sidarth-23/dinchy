@@ -84,7 +84,8 @@ func (a *App) Start() error {
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
-	auditSvc, err := audit.NewService(queries)
+	clk := clock.RealClock{}
+	auditSvc, err := audit.NewService(queries, clk)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
@@ -93,7 +94,6 @@ func (a *App) Start() error {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 
-	clk := clock.RealClock{}
 	var sender email.Sender = email.NoopSender{}
 	if a.cfg.SMTP.Enabled() {
 		smtpSender, err := email.NewSMTPSender(a.cfg.SMTP)
