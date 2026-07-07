@@ -13,8 +13,3 @@ type RealClock struct{}
 
 // Now returns the current time in UTC.
 func (RealClock) Now() time.Time { return time.Now().UTC() }
-
-// UTC normalizes a time to UTC.
-func UTC(value time.Time) time.Time {
-	return value.UTC()
-}
