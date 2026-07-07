@@ -67,34 +67,30 @@ func (a *App) Start() error {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 	a.cache = cacheStore
-	streamStore, _ := cacheStore.(cachecore.StreamStore)
-	var eventBusSvc *eventbus.Service
-	var auditSvc *audit.Service
-	if a.cfg.Audit.Enabled {
-		if streamStore == nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("redis stream store is required when audit is enabled")))
-		}
-		eventBusSvc, err = eventbus.NewService(streamStore, id.NewGenerator(), eventbus.Config{
-			StreamName:          a.cfg.EventBus.StreamName,
-			ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix,
-			ConsumerName:        a.cfg.EventBus.ConsumerName,
-			BatchSize:           a.cfg.EventBus.BatchSize,
-			RetentionWindow:     a.cfg.EventBus.RetentionWindow,
-			ClaimMinIdle:        a.cfg.EventBus.ClaimMinIdle,
-			ReadBlock:           a.cfg.EventBus.ReadBlock,
-			WorkerInterval:      a.cfg.EventBus.WorkerInterval,
-		})
-		if err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-		}
-		auditSvc, err = audit.NewService(queries)
-		if err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-		}
-		eventBusSvc.Register(auditSvc)
-		if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-		}
+	streamStore, ok := cacheStore.(cachecore.StreamStore)
+	if !ok {
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("cache backend does not support the streams required by the event bus")))
+	}
+	eventBusSvc, err := eventbus.NewService(streamStore, id.NewGenerator(), eventbus.Config{
+		StreamName:          a.cfg.EventBus.StreamName,
+		ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix,
+		ConsumerName:        a.cfg.EventBus.ConsumerName,
+		BatchSize:           a.cfg.EventBus.BatchSize,
+		RetentionWindow:     a.cfg.EventBus.RetentionWindow,
+		ClaimMinIdle:        a.cfg.EventBus.ClaimMinIdle,
+		ReadBlock:           a.cfg.EventBus.ReadBlock,
+		WorkerInterval:      a.cfg.EventBus.WorkerInterval,
+	})
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	auditSvc, err := audit.NewService(queries)
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	eventBusSvc.Register(auditSvc)
+	if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 
 	clk := clock.RealClock{}
@@ -127,9 +123,9 @@ func (a *App) Start() error {
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
-	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk)}
-	if eventBusSvc != nil {
-		registeredWorkers = append(registeredWorkers, eventbus.NewWorker(eventBusSvc, auditSvc.Name()))
+	registeredWorkers := []workers.Worker{
+		workers.NewSessionCleanupWorker(queries, clk),
+		eventbus.NewWorker(eventBusSvc, auditSvc.Name()),
 	}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, a.errCh, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {

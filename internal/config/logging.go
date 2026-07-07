@@ -16,9 +16,9 @@ type LogFormat string
 
 type LoggingConfig struct {
 	// Level is the minimum application log level.
-	Level LogLevel `env:"DINCHY_LOG_LEVEL" validate:"oneof=debug info warn error"`
+	Level LogLevel `env:"DINCHY_LOG_LEVEL" mod:"trim,lower" validate:"oneof=debug info warn error"`
 	// Format selects text or JSON log output.
-	Format LogFormat `env:"DINCHY_LOG_FORMAT" validate:"oneof=json text"`
+	Format LogFormat `env:"DINCHY_LOG_FORMAT" mod:"trim,lower" validate:"oneof=json text"`
 	// AddSource includes source file and line metadata in logs.
 	AddSource bool `env:"DINCHY_LOG_ADD_SOURCE"`
 }

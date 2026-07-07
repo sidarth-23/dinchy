@@ -4,11 +4,11 @@ import "time"
 
 type EventBusConfig struct {
 	// StreamName is the Redis stream used for durable event handoff.
-	StreamName string `env:"DINCHY_EVENT_BUS_STREAM_NAME" validate:"required"`
+	StreamName string `env:"DINCHY_EVENT_BUS_STREAM_NAME" mod:"trim" validate:"required"`
 	// ConsumerGroupPrefix is the prefix used to derive one consumer group per subscriber.
-	ConsumerGroupPrefix string `env:"DINCHY_EVENT_BUS_CONSUMER_GROUP_PREFIX" validate:"required"`
+	ConsumerGroupPrefix string `env:"DINCHY_EVENT_BUS_CONSUMER_GROUP_PREFIX" mod:"trim" validate:"required"`
 	// ConsumerName identifies this process in each subscriber consumer group.
-	ConsumerName string `env:"DINCHY_EVENT_BUS_CONSUMER_NAME"`
+	ConsumerName string `env:"DINCHY_EVENT_BUS_CONSUMER_NAME" mod:"trim" validate:"required"`
 	// BatchSize is the maximum number of stream messages processed per subscriber pass.
 	BatchSize int `env:"DINCHY_EVENT_BUS_BATCH_SIZE" validate:"gt=0"`
 	// RetentionWindow controls how long messages remain eligible for replay in Redis.

@@ -20,9 +20,6 @@ type Store struct {
 }
 
 func Open(cfg config.CacheConfig) (*Store, error) {
-	if strings.TrimSpace(cfg.Addr) == "" {
-		return nil, fmt.Errorf("DINCHY_CACHE_ADDR is required for cache backend %q", cfg.Backend)
-	}
 	client := goredis.NewClient(&goredis.Options{
 		Addr:     cfg.Addr,
 		Username: cfg.Username,

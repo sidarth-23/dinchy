@@ -3,9 +3,7 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"strings"
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/platform/cache/core"
@@ -17,21 +15,16 @@ type Store interface {
 	io.Closer
 }
 
+// Open connects to the Redis cache. The cache is mandatory, so a healthy
+// connection is required for startup to proceed.
 func Open(ctx context.Context, cfg config.CacheConfig) (Store, error) {
-	switch strings.ToLower(strings.TrimSpace(string(cfg.Backend))) {
-	case "":
-		return nil, nil
-	case string(config.CacheBackendRedis):
-		store, err := cacheredis.Open(cfg)
-		if err != nil {
-			return nil, err
-		}
-		if err := store.Ping(ctx); err != nil {
-			_ = store.Close()
-			return nil, err
-		}
-		return store, nil
-	default:
-		return nil, fmt.Errorf("unsupported cache backend %q", cfg.Backend)
+	store, err := cacheredis.Open(cfg)
+	if err != nil {
+		return nil, err
 	}
+	if err := store.Ping(ctx); err != nil {
+		_ = store.Close()
+		return nil, err
+	}
+	return store, nil
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -48,30 +47,6 @@ func NewService(stream core.StreamStore, idg *id.Generator, cfg Config) (*Servic
 	}
 	if idg == nil {
 		idg = id.NewGenerator()
-	}
-	if strings.TrimSpace(cfg.StreamName) == "" {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event stream name is required")))
-	}
-	if strings.TrimSpace(cfg.ConsumerGroupPrefix) == "" {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event consumer group prefix is required")))
-	}
-	if strings.TrimSpace(cfg.ConsumerName) == "" {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event consumer name is required")))
-	}
-	if cfg.BatchSize <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event batch size must be positive")))
-	}
-	if cfg.RetentionWindow <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event retention window must be positive")))
-	}
-	if cfg.ClaimMinIdle <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event claim idle duration must be positive")))
-	}
-	if cfg.ReadBlock <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event read block must be positive")))
-	}
-	if cfg.WorkerInterval <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event worker interval must be positive")))
 	}
 	return &Service{
 		stream:      stream,
@@ -176,7 +151,7 @@ func (s *Service) ProcessSubscriber(ctx context.Context, name string) (int64, er
 }
 
 func (s *Service) consumerGroupName(subscriberName string) string {
-	return strings.TrimSpace(s.cfg.ConsumerGroupPrefix) + ":" + subscriberName
+	return s.cfg.ConsumerGroupPrefix + ":" + subscriberName
 }
 
 func sanitizeMap(in map[string]any) map[string]any {

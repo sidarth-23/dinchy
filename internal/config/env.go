@@ -16,6 +16,47 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
+// applyMods walks cfg recursively and normalizes every string field carrying a
+// `mod:"..."` tag using the transform registry. Running once at load keeps all
+// value normalization in the config phase so consumers read accurate values.
+func applyMods(cfg any) error {
+	return applyModsValue(reflect.ValueOf(cfg).Elem())
+}
+
+func applyModsValue(v reflect.Value) error {
+	t := v.Type()
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if field.Type.Kind() == reflect.Struct {
+			if err := applyModsValue(v.Field(i)); err != nil {
+				return err
+			}
+			continue
+		}
+		spec := field.Tag.Get("mod")
+		if spec == "" {
+			continue
+		}
+		if field.Type.Kind() != reflect.String {
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				apperrors.WithCause(fmt.Errorf("mod tag %q on non-string field %q", spec, field.Name)),
+				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
+			)
+		}
+		normalized, ok := transform.Apply(spec, v.Field(i).String())
+		if !ok {
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				apperrors.WithCause(fmt.Errorf("unknown mod %q on field %q", spec, field.Name)),
+				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
+			)
+		}
+		v.Field(i).SetString(normalized)
+	}
+	return nil
+}
+
 // loadFromEnv iterates Config fields, reads the env tag to find the env var name,
 // and overrides the field value only when the env var is non-empty.
 func loadFromEnv(cfg any) error {
@@ -34,12 +75,7 @@ func loadFromEnv(cfg any) error {
 		}
 		switch field.Type.Kind() {
 		case reflect.String:
-			switch envKey {
-			case "DINCHY_CACHE_BACKEND", "DINCHY_LOG_LEVEL", "DINCHY_LOG_FORMAT":
-				v.Field(i).SetString(strings.ToLower(transform.Trim(raw)))
-			default:
-				v.Field(i).SetString(raw)
-			}
+			v.Field(i).SetString(raw)
 		case reflect.Bool:
 			v.Field(i).SetBool(parseBool(raw))
 		case reflect.Int:

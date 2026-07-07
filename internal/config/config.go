@@ -41,8 +41,6 @@ type Config struct {
 	Logging LoggingConfig
 	// Telemetry controls OpenTelemetry logs and traces.
 	Telemetry TelemetryConfig
-	// Audit controls the audit subscriber worker.
-	Audit AuditConfig
 	// SSOProviders contains the enabled SSO providers derived from env configuration.
 	SSOProviders []SSOProviderConfig
 }
@@ -59,7 +57,6 @@ func defaultConfig() Config {
 		EventBus:     DefaultEventBus(),
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),
-		Audit:        DefaultAudit(),
 	}
 }
 
@@ -99,15 +96,12 @@ func Load() (Config, error) {
 	if err := loadFromEnv(&cfg.Telemetry); err != nil {
 		return Config{}, err
 	}
-	if err := loadFromEnv(&cfg.Audit); err != nil {
+	if err := applyMods(&cfg); err != nil {
 		return Config{}, err
 	}
 	cfg.SSOProviders = configuredSSOProviders(cfg)
 
 	v := validation.New()
-	if err := registerValidationRules(v); err != nil {
-		return Config{}, err
-	}
 	if err := v.Struct(cfg); err != nil {
 		return Config{}, err
 	}
