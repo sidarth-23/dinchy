@@ -16,10 +16,15 @@
         },
         "Go Text Template": {
             "hard_tabs": true
+        },
+        "Go HTML Template": {
+            "hard_tabs": false,
+            "tab_size": 2
         }
     },
     "file_types": {
-        "Go Text Template": ["**/*.go.tmpl"]
+        "Go Text Template": ["**/*.go.tmpl", "**/*.txt.tmpl"],
+        "Go HTML Template": ["**/*.html.tmpl"]
     },
     "lsp": {
         "json-language-server": {
