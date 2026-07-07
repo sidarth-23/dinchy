@@ -1,12 +1,58 @@
 package middleware
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
 	"net/http"
+	"runtime/debug"
 
 	chimw "github.com/go-chi/chi/v5/middleware"
+
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/logging"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
-// Recover catches panics, logs the backtrace, and returns HTTP 500.
-func Recover() func(http.Handler) http.Handler {
-	return chimw.Recoverer
+// Recover catches handler panics, logs them once through the structured
+// logging pipeline, and returns the standard 500 error envelope when the
+// response has not started yet.
+func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+			defer func() {
+				recovered := recover()
+				if recovered == nil {
+					return
+				}
+				if recovered == http.ErrAbortHandler {
+					panic(recovered)
+				}
+
+				ctx := r.Context()
+				logging.Panic(ctx, logger, "Recovered handler panic", recovered, debug.Stack(),
+					slog.String("request_id", support.RequestIDFrom(ctx)),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+				)
+				if ww.Status() == 0 {
+					writeErrorResponse(ctx, ww, logger, apperrors.ResponseFor(support.LangFrom(ctx), i18n.Default, http.StatusInternalServerError))
+				}
+			}()
+			next.ServeHTTP(ww, r)
+		})
+	}
+}
+
+func writeErrorResponse(ctx context.Context, w http.ResponseWriter, logger *slog.Logger, response *apperrors.ErrorResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.GetStatus())
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logging.Error(ctx, logger, "Encode error response", err)
+	}
 }

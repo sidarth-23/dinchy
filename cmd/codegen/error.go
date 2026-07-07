@@ -13,9 +13,11 @@ import (
 	manifest "github.com/sidarth-23/dinchy/internal/manifest"
 )
 
-type errorCatalog = manifest.ErrorCatalog
-type errorModule = manifest.ErrorModule
-type errorNode = manifest.ErrorNode
+type (
+	errorCatalog = manifest.ErrorCatalog
+	errorModule  = manifest.ErrorModule
+	errorNode    = manifest.ErrorNode
+)
 
 func runError(args []string) error {
 	fs := flag.NewFlagSet("error", flag.ContinueOnError)

@@ -22,7 +22,7 @@ func TestCORS_AllowsSameOrigin(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "https://app.example.test/api/bootstrap", nil)
+	req := httptest.NewRequest(http.MethodGet, "https://app.example.test/api/bootstrap", http.NoBody)
 	req = req.WithContext(support.WithSecure(req.Context(), true))
 	req.Header.Set("Origin", "https://app.example.test")
 	rr := httptest.NewRecorder()
@@ -43,7 +43,7 @@ func TestCORS_RejectsForeignOrigin(t *testing.T) {
 		t.Fatal("unexpected handler execution")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "https://app.example.test/api/auth/login", nil)
+	req := httptest.NewRequest(http.MethodPost, "https://app.example.test/api/auth/login", http.NoBody)
 	req = req.WithContext(support.WithSecure(req.Context(), true))
 	req.Header.Set("Origin", "https://evil.example.test")
 	rr := httptest.NewRecorder()
@@ -63,7 +63,7 @@ func TestCORS_AllowsDevOriginPreflight(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodOptions, "https://app.example.test/api/auth/login", nil)
+	req := httptest.NewRequest(http.MethodOptions, "https://app.example.test/api/auth/login", http.NoBody)
 	req = req.WithContext(support.WithSecure(req.Context(), true))
 	req.Header.Set("Origin", "http://127.0.0.1:5173")
 	req.Header.Set("Access-Control-Request-Method", http.MethodPost)

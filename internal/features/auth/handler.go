@@ -94,11 +94,11 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 	}, a.ssoCallback)
 
 	huma.Register(h, huma.Operation{
-		OperationID: "auth-select-organisation",
+		OperationID: "auth-select-organization",
 		Method:      http.MethodPost,
-		Path:        "/auth/organisations/select",
-		Summary:     "Switch active organisation",
-		Description: "Sets the active organisation for the current session and reissues the session cookie.",
+		Path:        "/auth/organizations/select",
+		Summary:     "Switch active organization",
+		Description: "Sets the active organization for the current session and reissues the session cookie.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.selectOrganisation)
@@ -107,8 +107,8 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		OperationID: "auth-create-invitation",
 		Method:      http.MethodPost,
 		Path:        "/auth/invitations",
-		Summary:     "Create an organisation invitation",
-		Description: "Invites a member to the current organisation. Requires an owner or admin session.",
+		Summary:     "Create an organization invitation",
+		Description: "Invites a member to the current organization. Requires an owner or admin session.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
 	}, a.createInvitation)
@@ -117,7 +117,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		OperationID: "auth-accept-invitation",
 		Method:      http.MethodPost,
 		Path:        "/auth/invitations/{token}/accept",
-		Summary:     "Accept an organisation invitation",
+		Summary:     "Accept an organization invitation",
 		Description: "Consumes an invitation token, provisions the member account, and issues a session cookie.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusBadRequest, http.StatusForbidden, http.StatusUnprocessableEntity},
@@ -556,11 +556,11 @@ func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody
 	body.App.InstanceName = instanceName
 	body.Viewer = &ViewerOut{Email: sess.Email, DisplayName: sess.DisplayName, Role: string(sess.Role)}
 	body.ActiveOrganisation = &OrganisationOut{ID: sess.OrganisationID, Name: sess.OrganisationName, Slug: sess.OrganisationSlug, Role: string(sess.Role)}
-	body.Organisations = organisationsOut(orgs)
+	body.Organizations = organisationsOut(orgs)
 	return nil
 }
 
-func organisationsOut(orgs []Organisation) []OrganisationOut {
+func organisationsOut(orgs []Organization) []OrganisationOut {
 	out := make([]OrganisationOut, 0, len(orgs))
 	for _, org := range orgs {
 		out = append(out, OrganisationOut{ID: org.ID, Name: org.Name, Slug: org.Slug, Role: string(org.Role)})

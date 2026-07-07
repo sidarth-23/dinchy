@@ -32,7 +32,7 @@ func TestAccessLog_AttachesRequestLogger(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 	})))
 
-	request := httptest.NewRequest(http.MethodPost, "https://app.example.test/api/auth/login", nil)
+	request := httptest.NewRequest(http.MethodPost, "https://app.example.test/api/auth/login", http.NoBody)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 

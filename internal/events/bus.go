@@ -79,6 +79,7 @@ func (s *Service) SubscriberNames() []string {
 	return names
 }
 
+//dinchy:allow-logreturn consumer-group setup returns annotated errors without owning the logging boundary
 func (s *Service) EnsureConsumerGroups(ctx context.Context) error {
 	for _, name := range s.SubscriberNames() {
 		if err := s.client.XGroupCreateMkStream(ctx, s.cfg.StreamName, s.consumerGroupName(name), "0").Err(); err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {

@@ -71,7 +71,7 @@ func TestMailer_SendInvitation(t *testing.T) {
 		t.Errorf("unexpected recipient %q", msg.To)
 	}
 	if !strings.Contains(msg.Subject, "Acme") {
-		t.Errorf("subject should carry the organisation name, got %q", msg.Subject)
+		t.Errorf("subject should carry the organization name, got %q", msg.Subject)
 	}
 	wantLink := "https://app.test/accept-invitation?token=invite-token"
 	if !strings.Contains(msg.Text, wantLink) {
@@ -81,7 +81,7 @@ func TestMailer_SendInvitation(t *testing.T) {
 		t.Errorf("HTML body missing CTA link %q", wantLink)
 	}
 	if !strings.Contains(msg.Text, "Acme") {
-		t.Errorf("plaintext body should mention the organisation:\n%s", msg.Text)
+		t.Errorf("plaintext body should mention the organization:\n%s", msg.Text)
 	}
 }
 

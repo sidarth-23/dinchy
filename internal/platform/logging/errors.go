@@ -59,3 +59,16 @@ func logError(ctx context.Context, logger *slog.Logger, message string, err erro
 	attrs = append(attrs, slog.Any("error", err))
 	logger.ErrorContext(ctx, message, attrs...)
 }
+
+// Panic records a recovered panic once at the boundary where it is handled.
+// slog has no panic level; this logs at Error level with the panic value and stack.
+func Panic(ctx context.Context, logger *slog.Logger, message string, recovered any, stack []byte, attrs ...any) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	attrs = append(attrs,
+		slog.Any("panic", recovered),
+		slog.String("stack", string(stack)),
+	)
+	logger.ErrorContext(ctx, message, attrs...)
+}

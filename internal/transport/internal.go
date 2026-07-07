@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -16,7 +17,7 @@ import (
 func NewInternal(addr string, db health.Pinger) *http.Server {
 	r := chi.NewRouter()
 	r.Use(mw.RequestID())
-	r.Use(mw.Recover())
+	r.Use(mw.Recover(slog.Default()))
 
 	apiRouter := chi.NewRouter()
 	cfg := huma.DefaultConfig("Dinchy Internal API", "0.1.0")

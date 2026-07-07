@@ -19,7 +19,7 @@ func NewGenerator() *Generator {
 func (g *Generator) New() string {
 	id, err := uuid.NewV7()
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("id: generate UUIDv7: %w", err))
 	}
 	return id.String()
 }
@@ -33,7 +33,7 @@ func Parse(value string) (uuid.UUID, error) {
 func MustParse(value string) uuid.UUID {
 	parsed, err := Parse(value)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("id: parse UUID %q: %w", value, err))
 	}
 	return parsed
 }

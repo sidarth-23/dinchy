@@ -36,66 +36,87 @@ func (s *sessionStore) InsertAccount(context.Context, sqlcgen.InsertAccountParam
 func (s *sessionStore) InsertOrganisation(context.Context, sqlcgen.InsertOrganisationParams) error {
 	return nil
 }
+
 func (s *sessionStore) InsertOrganisationMember(context.Context, sqlcgen.InsertOrganisationMemberParams) error {
 	return nil
 }
+
 func (s *sessionStore) FindUserByEmail(context.Context, string) (sqlcgen.FindUserByEmailRow, error) {
 	return sqlcgen.FindUserByEmailRow{}, nil
 }
+
 func (s *sessionStore) UpdateUserEmailVerifiedAt(context.Context, sqlcgen.UpdateUserEmailVerifiedAtParams) error {
 	return nil
 }
+
 func (s *sessionStore) FindPasswordAccountByUserID(context.Context, uuid.UUID) (sqlcgen.FindPasswordAccountByUserIDRow, error) {
 	return sqlcgen.FindPasswordAccountByUserIDRow{}, nil
 }
+
 func (s *sessionStore) FindUserByProviderAccount(context.Context, sqlcgen.FindUserByProviderAccountParams) (sqlcgen.FindUserByProviderAccountRow, error) {
 	return sqlcgen.FindUserByProviderAccountRow{}, nil
 }
+
 func (s *sessionStore) ListOrganisationsForUser(context.Context, uuid.UUID) ([]sqlcgen.ListOrganisationsForUserRow, error) {
 	return nil, nil
 }
+
 func (s *sessionStore) FindOrganisationBySlugForUser(context.Context, sqlcgen.FindOrganisationBySlugForUserParams) (sqlcgen.FindOrganisationBySlugForUserRow, error) {
 	return sqlcgen.FindOrganisationBySlugForUserRow{}, nil
 }
+
 func (s *sessionStore) FindOrganisationByIDForUser(context.Context, sqlcgen.FindOrganisationByIDForUserParams) (sqlcgen.FindOrganisationByIDForUserRow, error) {
 	return sqlcgen.FindOrganisationByIDForUserRow{}, nil
 }
+
 func (s *sessionStore) UpdateUserPasswordHash(context.Context, sqlcgen.UpdateUserPasswordHashParams) error {
 	return nil
 }
+
 func (s *sessionStore) InsertVerificationToken(context.Context, sqlcgen.InsertVerificationTokenParams) error {
 	return nil
 }
+
 func (s *sessionStore) FindVerificationToken(context.Context, sqlcgen.FindVerificationTokenParams) (sqlcgen.FindVerificationTokenRow, error) {
 	return sqlcgen.FindVerificationTokenRow{}, nil
 }
+
 func (s *sessionStore) ConsumeVerificationToken(context.Context, sqlcgen.ConsumeVerificationTokenParams) error {
 	return nil
 }
+
 func (s *sessionStore) InsertOrganisationInvitation(context.Context, sqlcgen.InsertOrganisationInvitationParams) error {
 	return nil
 }
+
 func (s *sessionStore) FindOrganisationInvitationByToken(context.Context, string) (sqlcgen.FindOrganisationInvitationByTokenRow, error) {
 	return sqlcgen.FindOrganisationInvitationByTokenRow{}, nil
 }
+
 func (s *sessionStore) FindPendingOrganisationInvitationByEmail(context.Context, sqlcgen.FindPendingOrganisationInvitationByEmailParams) (sqlcgen.FindPendingOrganisationInvitationByEmailRow, error) {
 	return sqlcgen.FindPendingOrganisationInvitationByEmailRow{}, nil
 }
+
 func (s *sessionStore) ConsumeOrganisationInvitation(context.Context, sqlcgen.ConsumeOrganisationInvitationParams) error {
 	return nil
 }
+
 func (s *sessionStore) InsertOrReplaceTwoFactor(context.Context, sqlcgen.InsertOrReplaceTwoFactorParams) error {
 	return nil
 }
+
 func (s *sessionStore) FindTwoFactorByUserID(context.Context, uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error) {
 	return sqlcgen.FindTwoFactorByUserIDRow{}, nil
 }
+
 func (s *sessionStore) ConfirmTwoFactor(context.Context, sqlcgen.ConfirmTwoFactorParams) error {
 	return nil
 }
+
 func (s *sessionStore) MarkTwoFactorUsed(context.Context, sqlcgen.MarkTwoFactorUsedParams) error {
 	return nil
 }
+
 func (s *sessionStore) RegisterTwoFactorFailure(context.Context, sqlcgen.RegisterTwoFactorFailureParams) error {
 	return nil
 }
@@ -104,9 +125,11 @@ func (s *sessionStore) InsertSession(context.Context, sqlcgen.InsertSessionParam
 func (s *sessionStore) GetSessionByTokenHash(context.Context, string) (sqlcgen.GetSessionByTokenHashRow, error) {
 	return s.session, s.sessionErr
 }
+
 func (s *sessionStore) RevokeSessionByTokenHash(context.Context, sqlcgen.RevokeSessionByTokenHashParams) error {
 	return nil
 }
+
 func (s *sessionStore) RevokeSessionsForUser(context.Context, sqlcgen.RevokeSessionsForUserParams) error {
 	return nil
 }
@@ -166,7 +189,7 @@ func TestSession_ValidCookieInjectsSession(t *testing.T) {
 
 	const token = "raw-token"
 	handler, ran, captured := sessionCapture(svc)
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: svc.SessionCookieName(), Value: token})
 
 	rr := httptest.NewRecorder()
@@ -184,7 +207,7 @@ func TestSession_NoCookieContinuesAnonymous(t *testing.T) {
 
 	handler, ran, captured := sessionCapture(svc)
 	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody))
 
 	assert.True(t, *ran, "request without a cookie should still be served")
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -196,7 +219,7 @@ func TestSession_InvalidCookieContinuesAnonymous(t *testing.T) {
 	svc := newSessionService(t, &sessionStore{sessionErr: pgx.ErrNoRows})
 
 	handler, ran, captured := sessionCapture(svc)
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: svc.SessionCookieName(), Value: "not-a-real-token"})
 
 	rr := httptest.NewRecorder()

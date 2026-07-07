@@ -5,8 +5,7 @@ package middleware
 
 import (
 	"crypto/subtle"
-	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -30,7 +29,7 @@ func CSRF() func(http.Handler) http.Handler {
 			if err != nil || cookie.Value == "" {
 				token, err = security.RandomToken(32)
 				if err != nil {
-					panic(err)
+					panic(fmt.Errorf("csrf: generate random token: %w", err))
 				}
 				http.SetCookie(w, support.CSRFCookie(token, secure))
 			} else {
@@ -42,11 +41,7 @@ func CSRF() func(http.Handler) http.Handler {
 				header := r.Header.Get("X-CSRF-Token")
 				if subtle.ConstantTimeCompare([]byte(token), []byte(header)) != 1 {
 					locErr := apperrors.Resolve(support.LangFrom(ctx), i18n.Default, apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed)))
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(locErr.GetStatus())
-					if err := json.NewEncoder(w).Encode(locErr); err != nil {
-						log.Printf("failed to encode CSRF error response: %v", err)
-					}
+					writeErrorResponse(ctx, w, nil, locErr)
 					return
 				}
 			}

@@ -9,10 +9,10 @@ import (
 	manifest "github.com/sidarth-23/dinchy/internal/manifest"
 )
 
-type i18nCatalog = manifest.I18nCatalog
-type i18nModule = manifest.I18nModule
-type i18nMessage = manifest.I18nMessage
-type i18nParam = manifest.I18nParam
+type (
+	i18nCatalog = manifest.I18nCatalog
+	i18nModule  = manifest.I18nModule
+)
 
 func runI18n(args []string) error {
 	fs := flag.NewFlagSet("i18n", flag.ContinueOnError)

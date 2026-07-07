@@ -53,6 +53,12 @@ func (s *Service) Handle(ctx context.Context, event events.Record) error {
 var _ events.Subscriber = (*Service)(nil)
 
 func (s *Service) List(ctx context.Context, in ListInput) ([]events.Record, error) {
+	actorUserID, err := id.NullUUID(in.ActorUserID, in.ActorUserID != "")
+	if err != nil {
+		return nil, apperrors.UnprocessableEntity(i18n.Msg(i18n.CodeRequestValidationFailed),
+			apperrors.WithFieldName(apperrors.FieldName("actor_user_id")),
+			apperrors.WithCause(err))
+	}
 	rows, err := s.store.ListAuditLogs(ctx, sqlcgen.ListAuditLogsParams{
 		CategoryFilter:    in.Category,
 		Category:          in.Category,
@@ -61,7 +67,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]events.Record, erro
 		EventTypeFilter:   in.EventType,
 		EventType:         in.EventType,
 		ActorUserIDFilter: in.ActorUserID,
-		ActorUserID:       id.MustNullUUID(in.ActorUserID, in.ActorUserID != ""),
+		ActorUserID:       actorUserID,
 		TargetTypeFilter:  in.TargetType,
 		TargetType:        sqltype.Text(in.TargetType),
 		TargetIDFilter:    in.TargetID,
@@ -94,15 +100,27 @@ func insertParams(event events.Record) (sqlcgen.InsertAuditLogParams, error) {
 	if err != nil {
 		return sqlcgen.InsertAuditLogParams{}, err
 	}
+	eventID, err := id.Parse(event.ID)
+	if err != nil {
+		return sqlcgen.InsertAuditLogParams{}, fmt.Errorf("parse audit event ID %q for event type %q: %w", event.ID, event.EventType, err)
+	}
+	actorUserID, err := id.NullUUID(event.ActorUserID, event.ActorUserID != "")
+	if err != nil {
+		return sqlcgen.InsertAuditLogParams{}, fmt.Errorf("parse audit actor user ID %q for event type %q: %w", event.ActorUserID, event.EventType, err)
+	}
+	actorOrganisationID, err := id.NullUUID(event.ActorOrganisationID, event.ActorOrganisationID != "")
+	if err != nil {
+		return sqlcgen.InsertAuditLogParams{}, fmt.Errorf("parse audit actor organization ID %q for event type %q: %w", event.ActorOrganisationID, event.EventType, err)
+	}
 	return sqlcgen.InsertAuditLogParams{
-		ID:                  id.MustParse(event.ID),
+		ID:                  eventID,
 		Category:            event.Category,
 		Subcategory:         event.Subcategory,
 		EventType:           event.EventType,
 		Action:              event.Action,
 		Outcome:             event.Outcome,
-		ActorUserID:         id.MustNullUUID(event.ActorUserID, event.ActorUserID != ""),
-		ActorOrganisationID: id.MustNullUUID(event.ActorOrganisationID, event.ActorOrganisationID != ""),
+		ActorUserID:         actorUserID,
+		ActorOrganisationID: actorOrganisationID,
 		TargetType:          sqltype.Text(event.TargetType),
 		TargetID:            sqltype.Text(event.TargetID),
 		TargetDisplay:       sqltype.Text(event.TargetDisplay),

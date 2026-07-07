@@ -3,12 +3,15 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -22,16 +25,15 @@ type Runtime struct {
 	logger  *slog.Logger
 	owner   string
 	cancel  context.CancelFunc
-	errCh   chan<- error
 	workers []Worker
 }
 
 // NewRuntime creates a worker runtime with the given store, clock, logger, and registered workers.
-func NewRuntime(s Store, clk clock.Clock, logger *slog.Logger, errCh chan<- error, registeredWorkers ...Worker) *Runtime {
+func NewRuntime(s Store, clk clock.Clock, logger *slog.Logger, registeredWorkers ...Worker) *Runtime {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Runtime{store: s, clock: clk, logger: logger, owner: "local", errCh: errCh, workers: registeredWorkers}
+	return &Runtime{store: s, clock: clk, logger: logger, owner: "local", workers: registeredWorkers}
 }
 
 // Start registers all workers and begins the background ticker loop.
@@ -80,10 +82,9 @@ func (r *Runtime) loop(ctx context.Context) {
 func (r *Runtime) runAllWorkers(ctx context.Context) {
 	for _, worker := range r.workers {
 		if err := r.runWorker(ctx, worker); err != nil {
-			if r.errCh != nil {
-				r.errCh <- err
-			}
-			return
+			logging.Error(ctx, r.logger, "Worker run failed", err,
+				slog.String("task", worker.TaskName()),
+			)
 		}
 	}
 }
@@ -109,6 +110,7 @@ func (r *Runtime) registerWorker(ctx context.Context, worker Worker) error {
 	return nil
 }
 
+//dinchy:allow-logreturn worker run errors are logged and handled by runAllWorkers at the owning boundary
 func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 	now := r.clock.Now()
 	leaseExpiresAt := now.Add(worker.LeaseDuration())
@@ -131,7 +133,7 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 		return nil
 	}
 
-	outcome, executeErr := worker.Execute(ctx)
+	outcome, executeErr := executeWorker(ctx, worker)
 	if executeErr != nil {
 		if finishErr := r.store.FinishTask(ctx, sqlcgen.FinishTaskParams{
 			LastFinishedAt:   sqltype.Timestamptz(now),
@@ -166,11 +168,15 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 			apperrors.WithDeletedCount(apperrors.DeletedCount(outcome.DeletedCount)),
 		)
 	}
-	if outcome.DeletedCount > 0 {
-		logging.Info(ctx, r.logger, "Completed worker run",
-			slog.String("task", worker.TaskName()),
-			slog.Int64("affected_count", outcome.DeletedCount),
-		)
-	}
 	return nil
+}
+
+func executeWorker(ctx context.Context, worker Worker) (outcome WorkerOutcome, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError),
+				apperrors.WithCause(fmt.Errorf("worker panicked: %v\n%s", recovered, debug.Stack())))
+		}
+	}()
+	return worker.Execute(ctx)
 }

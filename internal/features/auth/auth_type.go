@@ -37,7 +37,8 @@ type User struct {
 	Disabled      bool
 }
 
-type Organisation struct {
+// Organization describes a user-visible organization and the caller's role in it.
+type Organization struct {
 	ID   string
 	Name string
 	Slug string
@@ -159,10 +160,10 @@ type ViewerOut struct {
 }
 
 type OrganisationOut struct {
-	ID   string `json:"id" doc:"Organisation identifier"`
-	Name string `json:"name" doc:"Organisation display name"`
-	Slug string `json:"slug" doc:"Organisation slug"`
-	Role string `json:"role" doc:"Viewer's role in this organisation"`
+	ID   string `json:"id" doc:"Organization identifier"`
+	Name string `json:"name" doc:"Organization display name"`
+	Slug string `json:"slug" doc:"Organization slug"`
+	Role string `json:"role" doc:"Viewer's role in this organization"`
 }
 
 // AppOut contains application-level metadata returned in every API response body.
@@ -176,8 +177,8 @@ type BootstrapBody struct {
 	Authenticated      bool              `json:"authenticated" doc:"True when the request carries a valid session cookie"`
 	App                AppOut            `json:"app" doc:"Application-level metadata"`
 	Viewer             *ViewerOut        `json:"viewer" doc:"Current authenticated user, or null when not authenticated"`
-	ActiveOrganisation *OrganisationOut  `json:"active_organisation,omitempty"`
-	Organisations      []OrganisationOut `json:"organisations,omitempty"`
+	ActiveOrganisation *OrganisationOut  `json:"active_organization,omitempty"`
+	Organizations      []OrganisationOut `json:"organizations,omitempty"`
 }
 
 // BootstrapOut is the response type for the bootstrap endpoint.
@@ -189,7 +190,7 @@ type BootstrapOut struct {
 type LoginBody struct {
 	Email            string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"User email address"`
 	Password         string `json:"password" minLength:"1" maxLength:"128" example:"correct horse battery staple" doc:"User password"`
-	OrganisationSlug string `json:"organisation_slug,omitempty" maxLength:"64" example:"acme" doc:"Organisation slug when the user has multiple memberships"`
+	OrganisationSlug string `json:"organization_slug,omitempty" maxLength:"64" example:"acme" doc:"Organization slug when the user has multiple memberships"`
 	TOTPCode         string `json:"totp_code,omitempty" maxLength:"8" example:"123456" doc:"TOTP code when two-factor authentication is enabled"`
 }
 
@@ -214,10 +215,10 @@ type LoginOut struct {
 }
 
 type SelectOrganisationBody struct {
-	OrganisationSlug string `json:"organisation_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organisation to make active"`
+	OrganisationSlug string `json:"organization_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organization to make active"`
 }
 
-// Resolve trims the organisation slug before it reaches the service.
+// Resolve trims the organization slug before it reaches the service.
 func (b *SelectOrganisationBody) Resolve(huma.Context) []error {
 	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
 	return nil

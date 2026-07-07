@@ -30,10 +30,12 @@ func (s *Service) listSSOProviders(_ context.Context) ([]SSOProviderOut, error) 
 	}
 	return out, nil
 }
+
 func (s *Service) effectiveSSOProviderConfig(providerID string) (config.SSOProviderConfig, bool) {
 	providerConfig, ok := s.sso.envProviders[providerID]
 	return providerConfig, ok
 }
+
 func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisationSlug string) (string, []http.Cookie, error) {
 	providerConfig, ok := s.effectiveSSOProviderConfig(providerID)
 	if !ok || !providerConfig.Enabled {
@@ -68,6 +70,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	}
 	return authURL, []http.Cookie{{Name: s.sso.stateCookieName, Value: transactionID, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(s.sso.stateLifetime.Seconds()), Expires: s.clock.Now().Add(s.sso.stateLifetime)}}, nil
 }
+
 func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, transactionID, ip, userAgent string) (string, string, []http.Cookie, error) {
 	providerConfig, ok := s.effectiveSSOProviderConfig(providerID)
 	if !ok || !providerConfig.Enabled {
@@ -130,11 +133,11 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if user == nil {
 		return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
 	}
-	organisation, err := s.resolveLoginOrganisation(ctx, user.ID, cached.OrganisationSlug)
+	organization, err := s.resolveLoginOrganisation(ctx, user.ID, cached.OrganisationSlug)
 	if err != nil {
 		return "", "", nil, err
 	}
-	token, err := s.newSession(ctx, user.ID, organisation.ID, ip, userAgent)
+	token, err := s.newSession(ctx, user.ID, organization.ID, ip, userAgent)
 	if err != nil {
 		return "", "", nil, err
 	}

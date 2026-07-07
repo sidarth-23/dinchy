@@ -1,35 +1,35 @@
 # Install hooks with: mise run hooks:install
 pre-commit:
-  jobs:
-    - name: validate and generate
-      group:
-        parallel: true
-        jobs:
-          - name: validate error catalog
-            glob: "internal/errors/catalog*.json"
-            run: go run ./cmd/validate error -input internal/errors/catalog.json
+    jobs:
+        - name: validate and generate
+          group:
+              parallel: true
+              jobs:
+                  - name: validate error catalog
+                    glob: "internal/errors/catalog*.json"
+                    run: go run ./cmd/validate error -input internal/errors/catalog.json
 
-          - name: validate event catalog
-            glob: "internal/events/catalog*.json"
-            run: go run ./cmd/validate event -input internal/events/catalog.json
+                  - name: validate event catalog
+                    glob: "internal/events/catalog*.json"
+                    run: go run ./cmd/validate event -input internal/events/catalog.json
 
-          - name: validate i18n catalog
-            glob: "internal/i18n/catalog*.json"
-            run: go run ./cmd/validate i18n -input internal/i18n/catalog.json
+                  - name: validate i18n catalog
+                    glob: "internal/i18n/catalog*.json"
+                    run: go run ./cmd/validate i18n -input internal/i18n/catalog.json
 
-          - name: validate logreturn
-            glob: "*.go"
-            run: go run ./cmd/validate logreturn ./...
+                  - name: validate logreturn
+                    glob: "*.go"
+                    run: go run ./cmd/validate logreturn ./...
 
-          - name: generate catalogs
-            glob: "internal/{errors,events,i18n}/catalog*.json"
-            run: go generate ./internal/errors ./internal/i18n ./internal/events && git add internal/errors/generated.go internal/events/generated.go internal/i18n/generated.go
+                  - name: generate catalogs
+                    glob: "internal/{errors,events,i18n}/catalog*.json"
+                    run: go generate ./internal/errors ./internal/i18n ./internal/events && git add internal/errors/generated.go internal/events/generated.go internal/i18n/generated.go
 
-          - name: generate sqlc
-            glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"
-            run: sqlc generate && git add internal/platform/store/sqlcgen
+                  - name: generate sqlc
+                    glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"
+                    run: sqlc generate && git add internal/platform/store/sqlcgen
 
-    - name: golangci-lint
-      glob: "*.go"
-      run: golangci-lint run --fix
-      stage_fixed: true
+        - name: golangci-lint
+          glob: "*.go"
+          run: for dir in $(printf '%s\n' {staged_files} | xargs -n1 dirname | sort -u); do mise run lint:fix -- --new-from-rev=HEAD "$dir" || exit $?; done
+          stage_fixed: true

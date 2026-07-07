@@ -61,7 +61,7 @@ func Open(ctx context.Context, dsn string, opts ...Option) (*Store, error) {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("parse postgres pool config: %w", err)))
 	}
 	if options.logger != nil {
-		poolConfig.ConnConfig.Tracer = queryTracer{logger: options.logger}
+		poolConfig.ConnConfig.Tracer = queryTracer(options)
 	}
 
 	if err := goose.SetDialect("postgres"); err != nil {

@@ -21,7 +21,8 @@ const (
 	totpLockDuration = 15 * time.Minute
 )
 
-func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress string) (secret string, url string, err error) {
+// StartTOTPEnrollment creates a new TOTP secret and stores it for the user.
+func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress string) (secret, url string, err error) {
 	key, err := totp.Generate(totp.GenerateOpts{Issuer: s.authConfig.TOTPIssuer, AccountName: emailAddress})
 	if err != nil {
 		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))

@@ -42,8 +42,9 @@ func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &App{cfg: cfg, errCh: make(chan error, 3), logger: logger}, nil
+	return &App{cfg: cfg, errCh: make(chan error, 2), logger: logger}, nil
 }
+
 func (a *App) Start() error {
 	ctx := context.Background()
 	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN, store.WithLogger(a.logger))
@@ -97,7 +98,7 @@ func (a *App) Start() error {
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc.Name())}
-	a.workers = workers.NewRuntime(queries, clk, a.logger, a.errCh, registeredWorkers...)
+	a.workers = workers.NewRuntime(queries, clk, a.logger, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageStartTaskRuntime))
 	}
@@ -106,6 +107,7 @@ func (a *App) Start() error {
 	logging.Info(ctx, a.logger, "Application started", slog.String("public_addr", a.cfg.Addr), slog.String("internal_addr", a.cfg.InternalAddr), slog.Bool("dev_mode", a.cfg.DevMode))
 	return nil
 }
+
 func (a *App) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 	logging.Info(ctx, a.logger, "Application stopping")
@@ -137,6 +139,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 	return shutdownErr
 }
+
 func (a *App) Wait() error {
 	closed := 0
 	for {

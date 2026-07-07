@@ -20,10 +20,10 @@ type EventModule struct {
 }
 
 type EventDefinition struct {
-	ID           string     `json:"id"`
-	Description  string     `json:"description,omitempty"`
-	Action       string     `json:"action"`
-	Outcome      string     `json:"outcome"`
+	ID           string  `json:"id"`
+	Description  string  `json:"description,omitempty"`
+	Action       string  `json:"action"`
+	Outcome      string  `json:"outcome"`
 	MetadataKeys []Field `json:"metadata_keys,omitempty"`
 	ChangeKeys   []Field `json:"change_keys,omitempty"`
 }

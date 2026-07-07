@@ -34,7 +34,7 @@ func TestHealthz(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{})
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -47,7 +47,7 @@ func TestReadyz_Healthy(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{})
 
-	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -63,7 +63,7 @@ func TestReadyz_Unhealthy(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{err: assert.AnError})
 
-	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 

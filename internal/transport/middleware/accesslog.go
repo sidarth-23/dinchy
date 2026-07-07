@@ -28,7 +28,7 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.String("remote_ip", support.RemoteIPFrom(r.Context())),
 			}
 			if session := auth.SessionFrom(r.Context()); session != nil {
-				attrs = append(attrs, slog.String("actor_user_id", session.UserID), slog.String("actor_organisation_id", session.OrganisationID))
+				attrs = append(attrs, slog.String("actor_user_id", session.UserID), slog.String("actor_organization_id", session.OrganisationID))
 			}
 			requestLogger := logger.With(attrs...)
 			ctx := logging.WithLogger(r.Context(), requestLogger)

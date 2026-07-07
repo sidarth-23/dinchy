@@ -77,12 +77,13 @@ func (s *Service) publishEvent(ctx context.Context, event events.Event) error {
 	return s.publisher.Publish(ctx, event)
 }
 
-func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Organisation, error) {
+// OrganisationsForUser lists the organizations the given user can access.
+func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Organization, error) {
 	rows, err := s.store.ListOrganisationsForUser(ctx, id.MustParse(userID))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Organisation, 0, len(rows))
+	out := make([]Organization, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, organisationFromListOrganisationRow(row))
 	}
@@ -97,11 +98,11 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 	if err := s.verifyTOTPForLogin(ctx, user.ID, totpCode); err != nil {
 		return "", err
 	}
-	organisation, err := s.resolveLoginOrganisation(ctx, user.ID, organisationSlug)
+	organization, err := s.resolveLoginOrganisation(ctx, user.ID, organisationSlug)
 	if err != nil {
 		return "", err
 	}
-	return s.newSession(ctx, user.ID, organisation.ID, ip, userAgent)
+	return s.newSession(ctx, user.ID, organization.ID, ip, userAgent)
 }
 
 func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUser, error) {
@@ -156,12 +157,12 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 		}
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageFindOrganisation))
 	}
-	organisation := organisationFromFindOrganisationRow(organisationRow)
-	if organisation == nil {
+	organization := organisationFromFindOrganisationRow(organisationRow)
+	if organization == nil {
 		return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 	}
 	if err := s.Logout(ctx, rawToken); err != nil {
 		return "", err
 	}
-	return s.newSession(ctx, session.UserID, organisation.ID, ip, userAgent)
+	return s.newSession(ctx, session.UserID, organization.ID, ip, userAgent)
 }

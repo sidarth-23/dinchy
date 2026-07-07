@@ -17,15 +17,13 @@ test = "go test ./..."
 "test:race" = "CGO_ENABLED=1 go test -race ./..."
 "test:cover" = "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
 lint = "golangci-lint run"
+"lint:fix" = "golangci-lint run --fix"
 fmt = "golangci-lint fmt"
 generate = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate"
-"validate:logreturn" = "go run ./cmd/validate logreturn ./..."
 "db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
 "db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }
 "web:dev" = { dir = "web", run = "bun run dev" }
-"web:install" = { dir = "web", run = "bun run install" }
-"hooks:install" = "lefthook install"
 
 [settings]
 experimental = true

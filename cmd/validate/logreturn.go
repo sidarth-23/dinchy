@@ -30,6 +30,7 @@ type functionUnit struct {
 	errorResultIndexes []int
 }
 
+//dinchy:allow-logreturn validator entrypoint reports violations by returning an error
 func runValidateLogReturn(args []string) error {
 	patterns := args
 	if len(patterns) == 0 {
@@ -82,7 +83,7 @@ func runValidateLogReturn(args []string) error {
 	return errors.New(strings.Join(violations, "\n"))
 }
 
-func syntaxFallbackTarget(pattern string) (target string, recursive bool, ok bool) {
+func syntaxFallbackTarget(pattern string) (target string, recursive, ok bool) {
 	if pattern == "" {
 		return "", false, false
 	}
@@ -212,6 +213,7 @@ func fileNameForSyntax(pkg *packages.Package, index int, file *ast.File) string 
 	}
 	return ""
 }
+
 func shouldSkipPath(path string) bool {
 	return strings.Contains(filepath.ToSlash(path), sqlcGeneratedDirMarker)
 }
@@ -480,7 +482,7 @@ func logReturnViolation(fset *token.FileSet, filename string, unit functionUnit)
 				hasErrorReturn = true
 			}
 		}
-		return !(hasLog && hasErrorReturn)
+		return !hasLog || !hasErrorReturn
 	})
 	if !hasLog || !hasErrorReturn {
 		return ""
@@ -530,7 +532,7 @@ func isLoggingCallTyped(unit functionUnit, call *ast.CallExpr) bool {
 	}
 	if obj, ok := unit.info.Uses[sel.Sel].(*types.Func); ok && obj.Pkg() != nil && obj.Pkg().Path() == loggingPackagePath {
 		switch obj.Name() {
-		case "Error", "HTTPError":
+		case "Error", "HTTPError", "Panic":
 			return true
 		}
 	}
@@ -554,7 +556,7 @@ func isLoggingCallSyntax(call *ast.CallExpr) bool {
 		return false
 	}
 	switch sel.Sel.Name {
-	case "Error", "HTTPError", "ErrorContext":
+	case "Error", "HTTPError", "ErrorContext", "Panic":
 		return true
 	default:
 		return false

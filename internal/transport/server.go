@@ -49,7 +49,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 	r := chi.NewRouter()
 
 	r.Use(mw.RequestID())
-	r.Use(mw.Recover())
+	r.Use(mw.Recover(logger))
 	r.Use(mw.RealIP())
 	r.Use(mw.CleanPath())
 	r.Use(mw.SecureDetect())

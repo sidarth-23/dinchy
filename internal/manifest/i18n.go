@@ -47,7 +47,7 @@ func ValidateI18nCatalog(catalog I18nCatalog) error {
 	return validateI18nModules(catalog.Modules, nil, seenCodes, seenNames, langs)
 }
 
-func validateI18nModules(modules []I18nModule, modulePath []string, seenCodes, seenNames map[string]struct{}, langs map[string]struct{}) error {
+func validateI18nModules(modules []I18nModule, modulePath []string, seenCodes, seenNames, langs map[string]struct{}) error {
 	seenModuleNames := map[string]struct{}{}
 	for _, module := range modules {
 		if module.Name == "" {

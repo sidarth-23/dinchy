@@ -11,10 +11,12 @@ import (
 	manifest "github.com/sidarth-23/dinchy/internal/manifest"
 )
 
-type eventManifest = manifest.EventCatalog
-type eventModule = manifest.EventModule
-type eventDefinition = manifest.EventDefinition
-type eventField = manifest.Field
+type (
+	eventManifest   = manifest.EventCatalog
+	eventModule     = manifest.EventModule
+	eventDefinition = manifest.EventDefinition
+	eventField      = manifest.Field
+)
 
 func runEvent(args []string) error {
 	fs := flag.NewFlagSet("event", flag.ContinueOnError)

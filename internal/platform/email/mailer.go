@@ -26,7 +26,7 @@ type Mailer struct {
 	baseURL *url.URL
 }
 
-// InvitationEmail is the typed input for an organisation invitation email.
+// InvitationEmail is the typed input for an organization invitation email.
 type InvitationEmail struct {
 	To               string
 	OrganisationName string
@@ -73,13 +73,13 @@ func (m *Mailer) Configured() bool {
 	return m.sender.Configured()
 }
 
-// SendInvitation renders and sends an organisation invitation email.
+// SendInvitation renders and sends an organization invitation email.
 func (m *Mailer) SendInvitation(ctx context.Context, data InvitationEmail) error {
-	organisation := i18n.P("organisation", data.OrganisationName)
+	organization := i18n.P("organization", data.OrganisationName)
 	return m.send(ctx, data.To, presentation{
-		Subject:  resolve(i18n.Msg(i18n.CodeEmailInvitationSubject, organisation)),
-		Heading:  resolve(i18n.Msg(i18n.CodeEmailInvitationHeading, organisation)),
-		Body:     resolve(i18n.Msg(i18n.CodeEmailInvitationBody, organisation, i18n.P("role", data.Role))),
+		Subject:  resolve(i18n.Msg(i18n.CodeEmailInvitationSubject, organization)),
+		Heading:  resolve(i18n.Msg(i18n.CodeEmailInvitationHeading, organization)),
+		Body:     resolve(i18n.Msg(i18n.CodeEmailInvitationBody, organization, i18n.P("role", data.Role))),
 		CTALabel: resolve(i18n.Msg(i18n.CodeEmailInvitationCta)),
 		CTAURL:   m.actionURL(pathAcceptInvitation, data.Token),
 		Footer:   resolve(i18n.Msg(i18n.CodeEmailFooter)),

@@ -19,10 +19,10 @@ type AuthConfig struct {
 	InviteLifetime time.Duration `env:"DINCHY_AUTH_INVITE_LIFETIME" validate:"gt=0"`
 	// TOTPIssuer is the issuer label shown in authenticator apps for Dinchy TOTP secrets.
 	TOTPIssuer string `env:"DINCHY_AUTH_TOTP_ISSUER" validate:"required"`
-	// DefaultOrganisationName is the organisation name created during first-user setup.
-	DefaultOrganisationName string `env:"DINCHY_AUTH_DEFAULT_ORGANISATION_NAME" validate:"required"`
-	// DefaultOrganisationSlug is the organisation slug created during first-user setup.
-	DefaultOrganisationSlug string `env:"DINCHY_AUTH_DEFAULT_ORGANISATION_SLUG" validate:"required"`
+	// DefaultOrganisationName is the organization name created during first-user setup.
+	DefaultOrganisationName string `env:"DINCHY_AUTH_DEFAULT_ORGANIZATION_NAME" validate:"required"`
+	// DefaultOrganisationSlug is the organization slug created during first-user setup.
+	DefaultOrganisationSlug string `env:"DINCHY_AUTH_DEFAULT_ORGANIZATION_SLUG" validate:"required"`
 }
 
 func DefaultAuth() AuthConfig {

@@ -10,7 +10,7 @@ type Record struct {
 	Action              string         `json:"action"`
 	Outcome             string         `json:"outcome"`
 	ActorUserID         string         `json:"actor_user_id,omitempty"`
-	ActorOrganisationID string         `json:"actor_organisation_id,omitempty"`
+	ActorOrganisationID string         `json:"actor_organization_id,omitempty"`
 	TargetType          string         `json:"target_type,omitempty"`
 	TargetID            string         `json:"target_id,omitempty"`
 	TargetDisplay       string         `json:"target_display,omitempty"`
