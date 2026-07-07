@@ -84,7 +84,11 @@ func Annotate(err error, opts ...Option) error {
 	if appErr, ok := appErrorFrom(err); ok {
 		merged := []Option{WithCause(appErr.cause), WithMetaMap(appErr.meta)}
 		merged = append(merged, opts...)
-		return New(appErr.status, appErr.msg, merged...)
+		annotated := New(appErr.status, appErr.msg, merged...)
+		if appErr.logged {
+			annotated.logged = true
+		}
+		return annotated
 	}
 	opts = append([]Option{WithCause(err)}, opts...)
 	return Internal(i18n.Msg(i18n.CodeServerInternalError), opts...)

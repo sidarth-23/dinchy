@@ -15,6 +15,18 @@ type AppError struct {
 	msg    i18n.Message
 	meta   map[string]any
 	cause  error
+	logged bool
+}
+
+// Logged reports whether a boundary has already recorded this error.
+func (e *AppError) Logged() bool {
+	return e.logged
+}
+
+// MarkLogged records that a boundary has emitted this error so later
+// boundaries do not log it again.
+func (e *AppError) MarkLogged() {
+	e.logged = true
 }
 
 // Error implements the error interface.

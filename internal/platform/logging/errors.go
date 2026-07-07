@@ -35,6 +35,9 @@ func logError(ctx context.Context, logger *slog.Logger, message string, err erro
 	}
 
 	if appErr, ok := stdErrors.AsType[*apperrors.AppError](err); ok {
+		if appErr.Logged() {
+			return
+		}
 		if appErr.Status() < http.StatusInternalServerError {
 			return
 		}
@@ -48,6 +51,7 @@ func logError(ctx context.Context, logger *slog.Logger, message string, err erro
 		if cause := stdErrors.Unwrap(appErr); cause != nil {
 			attrs = append(attrs, slog.Any("cause", cause))
 		}
+		appErr.MarkLogged()
 		logger.ErrorContext(ctx, message, attrs...)
 		return
 	}

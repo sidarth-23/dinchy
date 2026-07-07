@@ -46,6 +46,7 @@ func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
 	t.Parallel()
 
 	base := apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2)), apperrors.WithStage(apperrors.StageSetup))
+	base.MarkLogged()
 	err := apperrors.Annotate(base, apperrors.WithStage(apperrors.StageSetup))
 
 	var got *apperrors.AppError
@@ -54,6 +55,7 @@ func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {
 	assert.Equal(t, "users", got.Meta()["resource"])
 	assert.Equal(t, 2, got.Meta()["count"])
 	assert.Equal(t, "setup", got.Meta()["stage"])
+	assert.True(t, got.Logged())
 	assert.True(t, stdErrors.Is(err, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2)))))
 }
 

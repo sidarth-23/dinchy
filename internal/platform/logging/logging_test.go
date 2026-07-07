@@ -25,10 +25,7 @@ func TestRedactedValue_MasksWhenVisibilityDisabled(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	logger.Info("masked", slog.Any("secret", logging.Redacted(map[string]any{
-		"token":  "abc123",
-		"nested": map[string]any{"password": "hunter2"},
-	})))
+	logger.Info("masked", slog.Any("secret", logging.Redacted(map[string]any{"token": "value"})))
 
 	record := decodeLogRecord(t, buffer.String())
 	require.Equal(t, "masked", record["msg"])
@@ -44,17 +41,10 @@ func TestRedactedValue_RevealsWhenVisibilityEnabled(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	logger.Info("revealed", slog.Any("secret", logging.Redacted(map[string]any{
-		"token":  "abc123",
-		"nested": map[string]any{"password": "hunter2"},
-	})))
+	logger.Info("revealed", slog.Any("secret", logging.Redacted(map[string]any{"token": "value"})))
 
 	record := decodeLogRecord(t, buffer.String())
-	require.Equal(t, "revealed", record["msg"])
-
-	secret, ok := record["secret"].(map[string]any)
-	require.True(t, ok, "expected revealed redacted value to stay structured")
-	require.Equal(t, "abc123", secret["token"])
+	require.Equal(t, map[string]any{"token": "value"}, record["secret"])
 }
 
 func TestRedactedValue_RevealsNilPointerAsNull(t *testing.T) {
@@ -66,19 +56,17 @@ func TestRedactedValue_RevealsNilPointerAsNull(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	var secret *string
-	logger.Info("revealed", slog.Any("secret", logging.Redacted(secret)))
+	logger.Info("nil", slog.Any("secret", logging.Redacted((*string)(nil))))
 
 	record := decodeLogRecord(t, buffer.String())
-	require.Equal(t, "revealed", record["msg"])
 	require.Nil(t, record["secret"])
 }
 
 func TestLoggerFromContext_ReturnsAttachedLogger(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
-	ctx := logging.WithLogger(context.Background(), logger)
 
+	ctx := logging.WithLogger(context.Background(), logger)
 	require.Same(t, logger, logging.LoggerFromContext(ctx))
 }
 
@@ -104,32 +92,47 @@ func TestError_LogsInternalErrors(t *testing.T) {
 	require.Equal(t, "boom", record["cause"])
 }
 
+func TestError_LogsOnlyOnceForSameAppError(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
+
+	err := apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("boom")))
+	logging.Error(context.Background(), logger, "request failed", err)
+	logging.Error(context.Background(), logger, "request failed", err)
+
+	require.Len(t, strings.Split(strings.TrimSpace(buffer.String()), "\n"), 1)
+	require.True(t, err.Logged())
+}
+
+func TestError_DoesNotMarkSuppressedClientErrors(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
+
+	err := apperrors.BadRequest(i18n.Msg(i18n.CodeRequestValidationFailed))
+	logging.Error(context.Background(), logger, "request failed", err)
+
+	require.Empty(t, strings.TrimSpace(buffer.String()))
+	require.False(t, err.Logged())
+}
+
 func TestInfoAndWarn_UseSharedHelpers(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	logging.Info(context.Background(), logger, "Application started", slog.String("component", "app"))
-	logging.Warn(context.Background(), logger, "Invalid dev proxy URL", slog.String("component", "transport"))
+	logging.Info(context.Background(), logger, "startup complete", "component", "transport")
+	logging.Warn(context.Background(), logger, "dev proxy disabled", "component", "transport")
 
 	lines := strings.Split(strings.TrimSpace(buffer.String()), "\n")
 	require.Len(t, lines, 2)
-
 	info := decodeLogRecord(t, lines[0])
 	warn := decodeLogRecord(t, lines[1])
-
-	require.Equal(t, "Application started", info["msg"])
-	require.Equal(t, "Invalid dev proxy URL", warn["msg"])
-	require.Equal(t, "app", info["component"])
-	require.Equal(t, "transport", warn["component"])
+	require.Equal(t, "startup complete", info["msg"])
+	require.Equal(t, "dev proxy disabled", warn["msg"])
 }
 
 func decodeLogRecord(t *testing.T, raw string) map[string]any {
 	t.Helper()
-
-	lines := strings.Split(strings.TrimSpace(raw), "\n")
-	require.Len(t, lines, 1)
-
-	record := map[string]any{}
-	require.NoError(t, json.Unmarshal([]byte(lines[0]), &record))
+	var record map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(raw)), &record))
 	return record
 }

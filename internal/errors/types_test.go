@@ -22,6 +22,7 @@ func TestAppError_MethodsExposeStableState(t *testing.T) {
 	assert.Equal(t, i18n.CodeServerInternalError, err.Code())
 	assert.Equal(t, string(i18n.CodeServerInternalError), err.Error())
 	assert.Equal(t, i18n.Msg(i18n.CodeServerInternalError), err.Message())
+	assert.False(t, err.Logged())
 	assert.Nil(t, err.Unwrap())
 	assert.Equal(t, map[string]any{"key": "value"}, err.Meta())
 }

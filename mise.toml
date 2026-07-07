@@ -17,6 +17,7 @@ test = "go test ./..."
 lint = "golangci-lint run"
 fmt = "golangci-lint fmt"
 generate = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate"
+"validate:logreturn" = "go run ./cmd/validate logreturn ./..."
 "db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
 "db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }
