@@ -12,15 +12,18 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
+// SSOProviderOut is a single configured SSO provider in an API response.
 type SSOProviderOut struct {
 	ID   string `json:"id" doc:"Provider identifier"`
 	Name string `json:"name" doc:"Provider display name"`
 }
 
+// SSOProvidersOut is the response body listing available SSO providers.
 type SSOProvidersOut struct {
 	Body []SSOProviderOut
 }
 
+// SSOStartIn is the request to begin an SSO login flow with a given provider.
 type SSOStartIn struct {
 	ProviderID       string `path:"provider_id" minLength:"1" example:"google" doc:"Configured SSO provider identifier"`
 	ReturnTo         string `query:"return_to" doc:"Relative path to return to after login"`
@@ -33,12 +36,14 @@ func (in *SSOStartIn) Resolve(huma.Context) []error {
 	return nil
 }
 
+// SSOStartOut redirects the client to the provider's authorization endpoint and sets the state cookie.
 type SSOStartOut struct {
 	Status    int           `status:"302"`
 	Location  string        `header:"Location"`
 	SetCookie []http.Cookie `header:"Set-Cookie"`
 }
 
+// SSOCallbackIn is the request the provider redirects back to after authorization.
 type SSOCallbackIn struct {
 	ProviderID  string `path:"provider_id" minLength:"1" example:"google" doc:"Configured SSO provider identifier"`
 	Code        string `query:"code" doc:"Authorization code returned by the provider (absent on error callbacks)"`
@@ -47,6 +52,7 @@ type SSOCallbackIn struct {
 	ErrorDetail string `query:"error_description" doc:"Human-readable error detail from the provider"`
 }
 
+// SSOCallbackOut redirects the client after the callback and sets the resulting session cookie.
 type SSOCallbackOut struct {
 	Status    int           `status:"302"`
 	Location  string        `header:"Location"`

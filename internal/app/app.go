@@ -1,3 +1,4 @@
+// Package app wires the application dependencies together and owns the server lifecycle.
 package app
 
 import (
@@ -27,6 +28,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/workers"
 )
 
+// App holds the wired dependencies and running servers for one application instance.
 type App struct {
 	cfg      config.Config
 	closer   io.Closer
@@ -38,6 +40,7 @@ type App struct {
 	logger   *slog.Logger
 }
 
+// NewApp creates an App from config, defaulting the logger when nil.
 func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if logger == nil {
 		logger = slog.Default()
@@ -45,6 +48,7 @@ func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
 	return &App{cfg: cfg, errCh: make(chan error, 2), logger: logger}, nil
 }
 
+// Start opens dependencies, wires services, and begins serving public and internal traffic.
 func (a *App) Start() error {
 	ctx := context.Background()
 	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN, store.WithLogger(a.logger))
@@ -108,6 +112,7 @@ func (a *App) Start() error {
 	return nil
 }
 
+// Shutdown stops workers and servers and closes dependencies, joining any errors.
 func (a *App) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 	logging.Info(ctx, a.logger, "Application stopping")
@@ -140,6 +145,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 	return shutdownErr
 }
 
+// Wait blocks until both servers stop, returning the first non-graceful error.
 func (a *App) Wait() error {
 	closed := 0
 	for {

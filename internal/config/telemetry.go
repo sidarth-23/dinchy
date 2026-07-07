@@ -4,6 +4,7 @@ import (
 	"strings"
 )
 
+// TelemetryConfig controls OpenTelemetry logs and traces.
 type TelemetryConfig struct {
 	// Enabled turns on OpenTelemetry trace and log exporters.
 	Enabled bool `env:"DINCHY_OTEL_ENABLED"`
@@ -23,6 +24,8 @@ type TelemetryConfig struct {
 	SampleRatio float64 `env:"DINCHY_OTEL_TRACES_SAMPLE_RATIO" validate:"gte=0,lte=1"`
 }
 
+// DefaultTelemetry returns the default telemetry configuration used when no
+// environment overrides are provided.
 func DefaultTelemetry() TelemetryConfig {
 	return TelemetryConfig{
 		ServiceName: "dinchy",
@@ -30,6 +33,7 @@ func DefaultTelemetry() TelemetryConfig {
 	}
 }
 
+// HeaderMap parses the comma-separated Headers into key=value pairs.
 func (c TelemetryConfig) HeaderMap() map[string]string {
 	out := map[string]string{}
 	for part := range strings.SplitSeq(c.Headers, ",") {

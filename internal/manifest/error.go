@@ -1,3 +1,6 @@
+// Package manifest decodes and validates the error, i18n, and event catalogs
+// that drive Dinchy's code generation, and derives the generated Go names,
+// codes, and metadata keys from them.
 package manifest
 
 import (
@@ -7,16 +10,19 @@ import (
 	"strings"
 )
 
+// ErrorCatalog is the root of the error manifest.
 type ErrorCatalog struct {
 	Modules []ErrorModule `json:"modules"`
 }
 
+// ErrorModule is a top-level namespace grouping error nodes.
 type ErrorModule struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
 	Modules     []ErrorNode `json:"modules,omitempty"`
 }
 
+// ErrorNode is a group of child nodes or a leaf describing a generated error metadata field.
 type ErrorNode struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
@@ -26,6 +32,7 @@ type ErrorNode struct {
 	Modules     []ErrorNode `json:"modules,omitempty"`
 }
 
+// DecodeErrorCatalog strictly decodes raw JSON into an ErrorCatalog.
 func DecodeErrorCatalog(raw []byte) (ErrorCatalog, error) {
 	var catalog ErrorCatalog
 	if err := decodeStrict(raw, &catalog); err != nil {
@@ -34,6 +41,8 @@ func DecodeErrorCatalog(raw []byte) (ErrorCatalog, error) {
 	return catalog, nil
 }
 
+// ValidateErrorCatalog reports whether the catalog is well-formed and free of
+// duplicate module names, generated type names, meta keys, and option names.
 func ValidateErrorCatalog(catalog ErrorCatalog) error {
 	if len(catalog.Modules) == 0 {
 		return fmt.Errorf("error catalog must define at least one module")
@@ -160,18 +169,22 @@ func validateErrorNode(node ErrorNode, path []string, seenSiblings, seenTypes, s
 	return nil
 }
 
+// ErrorTypeName returns the generated Go type name for a node path.
 func ErrorTypeName(segments ...string) string {
 	return GoNameFromPath(segments...)
 }
 
+// ErrorMetaKey returns the underscore-joined metadata key for a node path.
 func ErrorMetaKey(segments ...string) string {
 	return strings.Join(segments, "_")
 }
 
+// ErrorOptionName returns the generated functional-option name for a type name.
 func ErrorOptionName(typeName string) string {
 	return "With" + typeName
 }
 
+// ErrorGoType resolves a node's declared type, defaulting to string when unset.
 func ErrorGoType(goType string) string {
 	if goType == "" {
 		return "string"

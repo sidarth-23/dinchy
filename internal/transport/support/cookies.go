@@ -3,7 +3,7 @@ package support
 
 import "net/http"
 
-// Cookie names used across the application.
+// CSRFCookieName is the cookie name for the CSRF double-submit token.
 const CSRFCookieName = "dinchy_csrf"
 
 // ValueCookie builds an HttpOnly session-style cookie with a value.

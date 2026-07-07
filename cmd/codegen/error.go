@@ -1,3 +1,4 @@
+// Package main implements the codegen binary that renders manifest catalogs into generated Go source.
 package main
 
 import (

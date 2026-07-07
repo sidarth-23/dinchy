@@ -38,6 +38,7 @@ func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *In
 	return invitation
 }
 
+// CreateInvitation issues and emails an organization invitation, requiring the inviter to be an owner or admin and rejecting duplicates.
 func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser, emailAddress string, invitationRole Role, ip, userAgent string) (*Invitation, error) {
 	if !s.mailer.Configured() {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
@@ -116,6 +117,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 	}, nil
 }
 
+// AcceptInvitation consumes a valid invitation token, creating or updating the user and organization membership in one transaction, and returns a session token.
 func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, password, ip, userAgent string) (string, error) {
 	if s.beginTx == nil {
 		return "", apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("transaction opener is required for invitation acceptance")))

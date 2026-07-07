@@ -1,3 +1,4 @@
+// Package health serves liveness and readiness probes for the process.
 package health
 
 import (

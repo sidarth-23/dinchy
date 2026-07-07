@@ -7,11 +7,13 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
+// Store persists and retrieves audit log entries.
 type Store interface {
 	InsertAuditLog(ctx context.Context, arg sqlcgen.InsertAuditLogParams) error
 	ListAuditLogs(ctx context.Context, arg sqlcgen.ListAuditLogsParams) ([]sqlcgen.AppAuditLog, error)
 }
 
+// ListInput holds the parsed filters used to query audit logs.
 type ListInput struct {
 	Category    string
 	Subcategory string
@@ -25,6 +27,7 @@ type ListInput struct {
 	Limit       int64
 }
 
+// ListIn is the query-parameter request for listing audit logs.
 type ListIn struct {
 	Category    string    `query:"category" doc:"Filter by event category"`
 	Subcategory string    `query:"subcategory" doc:"Filter by event subcategory"`
@@ -37,6 +40,7 @@ type ListIn struct {
 	Limit       int64     `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Maximum number of logs to return"`
 }
 
+// LogOut is the serialized representation of a single audit log entry.
 type LogOut struct {
 	ID                  string         `json:"id" doc:"Audit log entry identifier"`
 	Category            string         `json:"category" doc:"Event category"`
@@ -59,6 +63,7 @@ type LogOut struct {
 	CreatedAt           time.Time      `json:"created_at" doc:"Timestamp the event was recorded"`
 }
 
+// ListOut is the response body wrapping the returned audit logs.
 type ListOut struct {
 	Body struct {
 		Logs []LogOut `json:"logs"`

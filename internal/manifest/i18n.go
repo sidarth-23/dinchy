@@ -5,10 +5,12 @@ import (
 	"strings"
 )
 
+// I18nCatalog is the root of the localization manifest.
 type I18nCatalog struct {
 	Modules []I18nModule `json:"modules"`
 }
 
+// I18nModule is a namespace grouping localized messages and nested modules.
 type I18nModule struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description,omitempty"`
@@ -16,6 +18,7 @@ type I18nModule struct {
 	Messages    []I18nMessage `json:"messages,omitempty"`
 }
 
+// I18nMessage is a translatable message with its per-language text and params.
 type I18nMessage struct {
 	Name         string            `json:"name"`
 	Description  string            `json:"description,omitempty"`
@@ -23,11 +26,13 @@ type I18nMessage struct {
 	Translations map[string]string `json:"translations"`
 }
 
+// I18nParam is a named, typed substitution slot within a message.
 type I18nParam struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 }
 
+// DecodeI18nCatalog strictly decodes raw JSON into an I18nCatalog.
 func DecodeI18nCatalog(raw []byte) (I18nCatalog, error) {
 	var catalog I18nCatalog
 	if err := decodeStrict(raw, &catalog); err != nil {
@@ -36,6 +41,8 @@ func DecodeI18nCatalog(raw []byte) (I18nCatalog, error) {
 	return catalog, nil
 }
 
+// ValidateI18nCatalog reports whether the catalog is well-formed, has no
+// duplicate codes, constant names, or params, and includes an en translation.
 func ValidateI18nCatalog(catalog I18nCatalog) error {
 	if len(catalog.Modules) == 0 {
 		return fmt.Errorf("i18n catalog must define at least one module")
@@ -126,11 +133,13 @@ func validateI18nModules(modules []I18nModule, modulePath []string, seenCodes, s
 	return nil
 }
 
+// I18nCodeFor returns the dot-joined message code for a module path and name.
 func I18nCodeFor(modulePath []string, messageName string) string {
 	parts := append(append([]string{}, modulePath...), messageName)
 	return strings.Join(parts, ".")
 }
 
+// I18nConstantName returns the generated Go constant name for a message.
 func I18nConstantName(modulePath []string, messageName string) string {
 	parts := append(append([]string{}, modulePath...), messageName)
 	return GoNameFromPath(parts...)

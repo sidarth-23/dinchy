@@ -1,3 +1,4 @@
+// Package errors provides structured, localizable application errors and response rendering.
 package errors
 
 //go:generate go run ../../cmd/codegen error -input catalog.json -output generated.go

@@ -1,5 +1,6 @@
 package config
 
+// DatabaseConfig holds the persistent storage backend settings.
 type DatabaseConfig struct {
 	// PostgresDSN is the connection string for the PostgreSQL backend.
 	PostgresDSN string `env:"DINCHY_POSTGRES_DSN" mod:"trim" validate:"required"`

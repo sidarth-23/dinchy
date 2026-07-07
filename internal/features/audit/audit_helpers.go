@@ -1,3 +1,4 @@
+// Package audit records and serves audit log entries for security-relevant events.
 package audit
 
 import (

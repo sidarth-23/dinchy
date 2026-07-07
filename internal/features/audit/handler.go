@@ -11,10 +11,12 @@ import (
 	"github.com/sidarth-23/dinchy/internal/i18n"
 )
 
+// API groups the audit handlers and their shared dependencies.
 type API struct {
 	service *Service
 }
 
+// Register mounts the audit operations on the given huma.API instance.
 func Register(h huma.API, service *Service) {
 	api := &API{service: service}
 	huma.Register(h, huma.Operation{

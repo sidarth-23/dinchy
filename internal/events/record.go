@@ -2,6 +2,7 @@ package events
 
 import "time"
 
+// Record is the serialized envelope of a published event as stored on the stream.
 type Record struct {
 	ID                  string         `json:"id"`
 	EventType           string         `json:"event_type"`

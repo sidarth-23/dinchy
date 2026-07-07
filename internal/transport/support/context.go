@@ -49,10 +49,12 @@ func UserAgentFrom(ctx context.Context) string {
 	return s
 }
 
+// RequestIDFrom returns the request ID assigned by the chi request-ID middleware.
 func RequestIDFrom(ctx context.Context) string {
 	return chimw.GetReqID(ctx)
 }
 
+// TraceIDFrom returns the current trace ID, or empty when no valid span is present.
 func TraceIDFrom(ctx context.Context) string {
 	spanContext := trace.SpanContextFromContext(ctx)
 	if !spanContext.IsValid() {
@@ -61,6 +63,7 @@ func TraceIDFrom(ctx context.Context) string {
 	return spanContext.TraceID().String()
 }
 
+// SpanIDFrom returns the current span ID, or empty when no valid span is present.
 func SpanIDFrom(ctx context.Context) string {
 	spanContext := trace.SpanContextFromContext(ctx)
 	if !spanContext.IsValid() {

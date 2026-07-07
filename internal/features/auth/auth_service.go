@@ -21,6 +21,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
+// Service handles authentication, sessions, TOTP, invitations, and SSO for the auth feature.
 type Service struct {
 	db         *pgxpool.Pool
 	beginTx    func(context.Context) (*setupTransaction, error)
@@ -34,6 +35,7 @@ type Service struct {
 	publisher  events.Publisher
 }
 
+// NewService builds an auth Service, wiring the SSO registry and falling back to a no-op mailer when none is provided.
 func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer platformredis.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
 	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
@@ -58,6 +60,7 @@ func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, a
 	return service, nil
 }
 
+// Bootstrap reports whether first-user setup is still required and the current instance name.
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {
 	count, err := s.store.CountUsers(ctx)
 	if err != nil {
@@ -90,6 +93,7 @@ func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Or
 	return out, nil
 }
 
+// Login verifies credentials and TOTP, resolves the target organization, and returns a new session token.
 func (s *Service) Login(ctx context.Context, emailAddress, password, organisationSlug, totpCode, ip, userAgent string) (string, error) {
 	user, err := s.findUserWithPassword(ctx, emailAddress, password)
 	if err != nil {
@@ -105,6 +109,7 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 	return s.newSession(ctx, user.ID, organization.ID, ip, userAgent)
 }
 
+// Session resolves a raw token to its active session, returning nil when the token is empty, unknown, revoked, or expired.
 func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUser, error) {
 	if rawToken == "" {
 		return nil, nil
@@ -124,6 +129,7 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUse
 	return session, nil
 }
 
+// Logout revokes the session identified by the raw token and emits a logout event.
 func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return nil
@@ -142,6 +148,7 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	return nil
 }
 
+// SelectOrganisation switches the current session to another organization the user belongs to, returning a fresh session token.
 func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisationSlug, ip, userAgent string) (string, error) {
 	session, err := s.Session(ctx, rawToken)
 	if err != nil {

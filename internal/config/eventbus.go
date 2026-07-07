@@ -2,6 +2,7 @@ package config
 
 import "time"
 
+// EventBusConfig holds the Redis stream settings for durable in-app events.
 type EventBusConfig struct {
 	// StreamName is the Redis stream used for durable event handoff.
 	StreamName string `env:"DINCHY_EVENT_BUS_STREAM_NAME" mod:"trim" validate:"required"`
@@ -21,6 +22,8 @@ type EventBusConfig struct {
 	WorkerInterval time.Duration `env:"DINCHY_EVENT_BUS_WORKER_INTERVAL" validate:"gt=0"`
 }
 
+// DefaultEventBus returns the default event bus configuration used when no
+// environment overrides are provided.
 func DefaultEventBus() EventBusConfig {
 	return EventBusConfig{
 		StreamName:          "app.events",

@@ -40,6 +40,7 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 	return key.Secret(), key.URL(), nil
 }
 
+// ConfirmTOTP validates the enrollment code, marks two-factor as verified, and records failures toward the lockout limit.
 func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	twoFactorRow, err := s.store.FindTwoFactorByUserID(ctx, id.MustParse(userID))
 	if err != nil {
@@ -91,6 +92,7 @@ func (t *TwoFactor) locked(now time.Time) bool {
 	return t.LockedUntilValid && now.Before(t.LockedUntil)
 }
 
+// DisableTOTP removes the user's two-factor enrollment and emits a disabled event.
 func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
 	if err := s.store.DisableTwoFactor(ctx, id.MustParse(userID)); err != nil {
 		return err

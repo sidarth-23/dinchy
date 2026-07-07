@@ -2,6 +2,7 @@ package config
 
 import "time"
 
+// AuthConfig holds authentication behavior, cookie names, and token lifetimes.
 type AuthConfig struct {
 	// SessionCookieName is the HTTP cookie name used for Dinchy session tokens.
 	SessionCookieName string `env:"DINCHY_AUTH_SESSION_COOKIE_NAME" validate:"required"`
@@ -25,6 +26,8 @@ type AuthConfig struct {
 	DefaultOrganisationSlug string `env:"DINCHY_AUTH_DEFAULT_ORGANIZATION_SLUG" validate:"required"`
 }
 
+// DefaultAuth returns the default authentication configuration used when no
+// environment overrides are provided.
 func DefaultAuth() AuthConfig {
 	return AuthConfig{
 		SessionCookieName:       "dinchy_session",

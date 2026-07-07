@@ -1,3 +1,4 @@
+// Package middleware provides HTTP middleware for the transport layer.
 package middleware
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
+// AccessLog returns middleware that binds a request-scoped logger and logs each completed request.
 func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()

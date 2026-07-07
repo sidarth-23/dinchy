@@ -8,10 +8,12 @@ import (
 	"strings"
 )
 
+// EventCatalog is the root of the event manifest.
 type EventCatalog struct {
 	Modules []EventModule `json:"modules"`
 }
 
+// EventModule is a namespace grouping event definitions and nested modules.
 type EventModule struct {
 	ID          string            `json:"id"`
 	Description string            `json:"description,omitempty"`
@@ -19,6 +21,7 @@ type EventModule struct {
 	Events      []EventDefinition `json:"events,omitempty"`
 }
 
+// EventDefinition describes a single event, its action and outcome, and its typed keys.
 type EventDefinition struct {
 	ID           string  `json:"id"`
 	Description  string  `json:"description,omitempty"`
@@ -28,11 +31,13 @@ type EventDefinition struct {
 	ChangeKeys   []Field `json:"change_keys,omitempty"`
 }
 
+// Field is a named, typed key on an event's metadata or changes.
 type Field struct {
 	Name string `json:"name"`
 	Type string `json:"type,omitempty"`
 }
 
+// DecodeEventCatalog strictly decodes raw JSON into an EventCatalog.
 func DecodeEventCatalog(raw []byte) (EventCatalog, error) {
 	var catalog EventCatalog
 	if err := decodeStrict(raw, &catalog); err != nil {
@@ -41,6 +46,8 @@ func DecodeEventCatalog(raw []byte) (EventCatalog, error) {
 	return catalog, nil
 }
 
+// ValidateEventCatalog reports whether the catalog is well-formed and free of
+// duplicate module IDs, event types, generated constant names, and field keys.
 func ValidateEventCatalog(catalog EventCatalog) error {
 	if len(catalog.Modules) == 0 {
 		return fmt.Errorf("event catalog must define at least one module")
@@ -125,11 +132,13 @@ func validateTypedFields(eventType, field string, fields []Field) error {
 	return nil
 }
 
+// EventTypeFor returns the dotted event type string for a module path and ID.
 func EventTypeFor(modulePath []string, eventID string) string {
 	parts := append(append([]string{}, modulePath...), eventID)
 	return DisplayPath(parts)
 }
 
+// EventConstantName returns the generated Go constant name for an event.
 func EventConstantName(modulePath []string, eventID string) string {
 	parts := append(append([]string{}, modulePath...), eventID)
 	var name strings.Builder

@@ -1,3 +1,4 @@
+// Package email delivers transactional email and builds localized message copy.
 package email
 
 import (

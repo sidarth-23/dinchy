@@ -1,3 +1,5 @@
+// Package events provides a Redis-stream-backed event bus that publishes domain
+// events and dispatches them to registered subscribers via consumer groups.
 package events
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
 
+// Config holds the Redis stream and consumer-group tuning for the event bus.
 type Config struct {
 	StreamName          string
 	ConsumerGroupPrefix string
@@ -26,15 +29,20 @@ type Config struct {
 	WorkerInterval      time.Duration
 }
 
+// Publisher publishes an event to the bus.
 type Publisher interface {
 	Publish(ctx context.Context, event Event) error
 }
 
+// Subscriber consumes event records dispatched to it by name.
 type Subscriber interface {
+	// Name returns the stable identifier used to route and track the subscriber.
 	Name() string
+	// Handle processes one event record; a returned error leaves it unacknowledged.
 	Handle(ctx context.Context, event Record) error
 }
 
+// Service is a Redis-backed event bus that publishes events and dispatches them to subscribers.
 type Service struct {
 	client      *goredis.Client
 	idg         *id.Generator
@@ -42,6 +50,7 @@ type Service struct {
 	subscribers map[string]Subscriber
 }
 
+// NewService constructs a Service; the Redis client is required and a default ID generator is used when idg is nil.
 func NewService(client *goredis.Client, idg *id.Generator, cfg Config) (*Service, error) {
 	if client == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("redis client is required for the event bus")))
@@ -52,6 +61,7 @@ func NewService(client *goredis.Client, idg *id.Generator, cfg Config) (*Service
 	return &Service{client: client, idg: idg, cfg: cfg, subscribers: map[string]Subscriber{}}, nil
 }
 
+// Register adds a subscriber, keyed by its name.
 func (s *Service) Register(subscriber Subscriber) {
 	if s == nil || subscriber == nil {
 		return
@@ -59,6 +69,7 @@ func (s *Service) Register(subscriber Subscriber) {
 	s.subscribers[subscriber.Name()] = subscriber
 }
 
+// Subscriber returns the registered subscriber for name and whether it exists.
 func (s *Service) Subscriber(name string) (Subscriber, bool) {
 	if s == nil {
 		return nil, false
@@ -67,6 +78,7 @@ func (s *Service) Subscriber(name string) (Subscriber, bool) {
 	return subscriber, ok
 }
 
+// SubscriberNames returns the registered subscriber names in sorted order.
 func (s *Service) SubscriberNames() []string {
 	if s == nil {
 		return nil
@@ -79,6 +91,8 @@ func (s *Service) SubscriberNames() []string {
 	return names
 }
 
+// EnsureConsumerGroups creates the stream consumer group for each subscriber, ignoring already-existing groups.
+//
 //dinchy:allow-logreturn consumer-group setup returns annotated errors without owning the logging boundary
 func (s *Service) EnsureConsumerGroups(ctx context.Context) error {
 	for _, name := range s.SubscriberNames() {
@@ -89,6 +103,7 @@ func (s *Service) EnsureConsumerGroups(ctx context.Context) error {
 	return nil
 }
 
+// Publish records the event onto the stream, assigning an ID and timestamp when absent.
 func (s *Service) Publish(ctx context.Context, event Event) error {
 	if s == nil {
 		return nil
@@ -122,6 +137,7 @@ func (s *Service) Publish(ctx context.Context, event Event) error {
 	return nil
 }
 
+// ProcessSubscriber reads and handles a batch of pending messages for the named subscriber, acking each, and returns the number processed.
 func (s *Service) ProcessSubscriber(ctx context.Context, name string) (int64, error) {
 	if s == nil {
 		return 0, nil

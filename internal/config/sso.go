@@ -1,13 +1,16 @@
 package config
 
+// SSOProviderID identifies a supported SSO provider.
 type SSOProviderID string
 
+// Supported SSO provider identifiers.
 const (
 	SSOProviderGoogle SSOProviderID = "google"
 	SSOProviderGitHub SSOProviderID = "github"
 	SSOProviderGitLab SSOProviderID = "gitlab"
 )
 
+// SSOProviderDefinition pairs an SSO provider ID with its display name.
 type SSOProviderDefinition struct {
 	ID   SSOProviderID
 	Name string
@@ -19,6 +22,7 @@ var supportedSSOProviderDefinitions = []SSOProviderDefinition{
 	{ID: SSOProviderGitLab, Name: "GitLab"},
 }
 
+// SSOProviderConfig holds the resolved OAuth credentials for a single SSO provider.
 type SSOProviderConfig struct {
 	// ID identifies the SSO provider internally.
 	ID SSOProviderID
@@ -34,6 +38,7 @@ type SSOProviderConfig struct {
 	Enabled bool
 }
 
+// SSOEnvConfig holds the raw SSO provider credentials loaded from environment.
 type SSOEnvConfig struct {
 	// GoogleClientID is the Google OAuth client ID; Google SSO is enabled only when ID, secret, and callback URL are set.
 	GoogleClientID string `env:"DINCHY_GOOGLE_CLIENT_ID" mod:"trim"`
@@ -55,10 +60,12 @@ type SSOEnvConfig struct {
 	GitLabCallbackURL string `env:"DINCHY_GITLAB_CALLBACK_URL" mod:"trim" validate:"omitempty,url"`
 }
 
+// SupportedSSOProviders returns a copy of the supported SSO provider definitions.
 func SupportedSSOProviders() []SSOProviderDefinition {
 	return append([]SSOProviderDefinition(nil), supportedSSOProviderDefinitions...)
 }
 
+// IsSupportedSSOProvider reports whether providerID names a supported SSO provider.
 func IsSupportedSSOProvider(providerID string) bool {
 	for _, provider := range SupportedSSOProviders() {
 		if string(provider.ID) == providerID {

@@ -1,3 +1,4 @@
+// Package testsupport provides ephemeral Postgres containers for integration tests.
 package testsupport
 
 import (

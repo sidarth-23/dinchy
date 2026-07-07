@@ -15,6 +15,7 @@ import (
 
 var revealRedacted atomic.Bool
 
+// New builds a slog.Logger from cfg, attaching trace context and an optional OpenTelemetry handler.
 func New(cfg config.LoggingConfig, revealSensitive bool, otel slog.Handler) *slog.Logger {
 	SetRedactionVisible(revealSensitive)
 
@@ -42,6 +43,7 @@ func New(cfg config.LoggingConfig, revealSensitive bool, otel slog.Handler) *slo
 	return slog.New(base)
 }
 
+// Default returns the process-wide default logger.
 func Default() *slog.Logger {
 	return slog.Default()
 }
@@ -52,6 +54,7 @@ func SetRedactionVisible(visible bool) {
 	revealRedacted.Store(visible)
 }
 
+// CloseAll closes each non-nil closer and returns the first error encountered.
 func CloseAll(ctx context.Context, closers ...io.Closer) error {
 	var err error
 	for _, closer := range closers {

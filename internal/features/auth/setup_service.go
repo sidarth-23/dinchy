@@ -19,6 +19,7 @@ type setupTransaction struct {
 	rollback func() error
 }
 
+// SetupFirstUser creates the initial owner, account, and organization in one transaction and returns a session token.
 func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName, password, ip, userAgent string) (string, error) {
 	hash, err := security.HashPassword(password)
 	if err != nil {

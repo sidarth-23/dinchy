@@ -1,5 +1,6 @@
 package config
 
+// RedisConfig holds the shared Redis backend settings for ephemeral state and event streams.
 type RedisConfig struct {
 	// Addr is the network address for the shared Redis backend used for ephemeral state and event streams.
 	Addr string `env:"DINCHY_REDIS_ADDR" mod:"trim" validate:"required,hostname_port"`
@@ -13,6 +14,8 @@ type RedisConfig struct {
 	KeyPrefix string `env:"DINCHY_REDIS_KEY_PREFIX"`
 }
 
+// DefaultRedis returns the default Redis configuration used when no
+// environment overrides are provided.
 func DefaultRedis() RedisConfig {
 	return RedisConfig{
 		Addr:      "127.0.0.1:6379",

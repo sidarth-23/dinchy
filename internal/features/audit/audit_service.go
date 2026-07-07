@@ -13,12 +13,14 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
+// Service records and lists audit events. It implements events.Subscriber.
 type Service struct {
 	store Store
 	idg   *id.Generator
 	clock clock.Clock
 }
 
+// NewService builds an audit Service, requiring a non-nil store and clock.
 func NewService(store Store, clk clock.Clock) (*Service, error) {
 	if store == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit store is required")))
@@ -29,10 +31,12 @@ func NewService(store Store, clk clock.Clock) (*Service, error) {
 	return &Service{store: store, idg: id.NewGenerator(), clock: clk}, nil
 }
 
+// Name returns the subscriber name used for event routing and logging.
 func (s *Service) Name() string {
 	return "audit"
 }
 
+// Handle persists an event as an audit log, assigning an ID and timestamp when absent.
 func (s *Service) Handle(ctx context.Context, event events.Record) error {
 	if event.ID == "" {
 		event.ID = s.idg.New()
@@ -52,6 +56,7 @@ func (s *Service) Handle(ctx context.Context, event events.Record) error {
 
 var _ events.Subscriber = (*Service)(nil)
 
+// List returns audit records matching the given filters.
 func (s *Service) List(ctx context.Context, in ListInput) ([]events.Record, error) {
 	actorUserID, err := id.NullUUID(in.ActorUserID, in.ActorUserID != "")
 	if err != nil {

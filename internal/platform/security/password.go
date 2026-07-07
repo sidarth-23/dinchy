@@ -1,3 +1,4 @@
+// Package security hashes passwords and generates tokens for authentication.
 package security
 
 import (
@@ -19,6 +20,7 @@ type parsedPasswordHash struct {
 	hash   []byte
 }
 
+// HashPassword returns an Argon2id hash of password encoded with its parameters and salt.
 func HashPassword(password string) (string, error) {
 	params := config.DefaultPasswordHashParams()
 	salt := make([]byte, params.SaltLen)
@@ -41,6 +43,7 @@ func HashPassword(password string) (string, error) {
 	), nil
 }
 
+// VerifyPassword reports whether password matches the Argon2id hash in encoded.
 func VerifyPassword(password, encoded string) bool {
 	spec, ok := parsePasswordHash(encoded)
 	if !ok {

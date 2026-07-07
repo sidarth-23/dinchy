@@ -13,6 +13,9 @@
 * Keep comments rare.
   * Add comments only when they explain non-obvious intent, a trap, or a constraint that is not already obvious from the code.
   * Prefer making the code clearer instead of documenting something that should be encoded in names or structure.
+  * This rule governs inline explanatory comments, not Go doc comments on the public API.
+  * Every exported symbol and every package must still carry a Go doc comment; this is enforced by `revive`'s `exported` and `package-comments` rules.
+  * Keep doc comments terse and intent-focused: begin with the symbol name, state the contract or intent, and omit mechanics already obvious from the signature.
 * Never silently discard errors.
   * If an error is intentionally ignored, make that decision explicit in code.
   * If an error is not actionable, preserve enough context for the caller or reader to understand why.

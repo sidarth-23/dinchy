@@ -19,12 +19,15 @@ import (
 
 const passwordResetMinimumDuration = 250 * time.Millisecond
 
+// VerificationPurpose identifies what a verification token authorizes.
 type VerificationPurpose string
 
+// Verification token purposes.
 const (
 	VerificationPurposePasswordReset VerificationPurpose = "password_reset"
 )
 
+// VerificationToken is a single-use token issued for a verification purpose such as a password reset.
 type VerificationToken struct {
 	ID              string
 	UserID          string
@@ -37,6 +40,7 @@ type VerificationToken struct {
 	ConsumedAtValid bool
 }
 
+// ForgotPassword issues a password reset token and emails it, returning nil for unknown addresses to avoid account enumeration.
 func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error {
 	if !s.mailer.Configured() {
 		return apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
@@ -78,6 +82,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	return nil
 }
 
+// ResetPassword validates a reset token, sets the new password, consumes the token, and revokes the user's sessions.
 func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) error {
 	tokenRow, err := s.store.FindVerificationToken(ctx, sqlcgen.FindVerificationTokenParams{TokenHash: security.HashToken(rawToken), Purpose: string(VerificationPurposePasswordReset)})
 	if err != nil {
