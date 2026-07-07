@@ -201,10 +201,13 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 	api, store := newHTTPTestAPI(t)
 	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.auth.SessionCookieName(), Value: "rawtoken"}})
 
-	store.EXPECT().
-		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
-	store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(fixedTime), UpdatedAt: sqltype.Timestamptz(fixedTime), TokenHash: security.HashToken("rawtoken")}).Return(nil)
+	gomock.InOrder(
+		store.EXPECT().
+			GetSessionByTokenHash(gomock.Any(), gomock.Any()).
+			Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil),
+		store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(fixedTime), UpdatedAt: sqltype.Timestamptz(fixedTime), TokenHash: security.HashToken("rawtoken")}).
+			Return(nil),
+	)
 
 	out, err := api.logout(ctx, &LogoutIn{})
 	require.NoError(t, err)

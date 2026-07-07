@@ -15,7 +15,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/platform/redis"
+	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -34,7 +34,7 @@ type Service struct {
 	publisher  events.Publisher
 }
 
-func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer redis.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
+func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer platformredis.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
 	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
 		return nil, err
@@ -45,28 +45,14 @@ func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, a
 			return nil, err
 		}
 	}
-	service := &Service{
-		db:         db,
-		store:      s,
-		idg:        idg,
-		clock:      clk,
-		authConfig: authConfig,
-		sso:        registry,
-		redis:      redisClient,
-		mailer:     mailer,
-		publisher:  publisher,
-	}
+	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, redis: redisClient, mailer: mailer, publisher: publisher}
 	if db != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
 			tx, err := db.Begin(ctx)
 			if err != nil {
 				return nil, err
 			}
-			return &setupTransaction{
-				queries:  sqlcgen.New(tx),
-				commit:   func() error { return tx.Commit(ctx) },
-				rollback: func() error { return tx.Rollback(ctx) },
-			}, nil
+			return &setupTransaction{queries: sqlcgen.New(tx), commit: func() error { return tx.Commit(ctx) }, rollback: func() error { return tx.Rollback(ctx) }}, nil
 		}
 	}
 	return service, nil
@@ -106,43 +92,16 @@ func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Or
 func (s *Service) Login(ctx context.Context, emailAddress, password, organisationSlug, totpCode, ip, userAgent string) (string, error) {
 	user, err := s.findUserWithPassword(ctx, emailAddress, password)
 	if err != nil {
-		auditErr := s.publishEvent(ctx, events.AuthSecurityAuthLoginFailedEvent{
-			EventType: events.AuthSecurityAuthLoginFailed,
-			Envelope:  events.Envelope{IPAddress: ip, UserAgent: userAgent},
-			Metadata:  events.NewAuthSecurityAuthLoginFailedMetadata(emailAddress, ""),
-		})
-		if auditErr != nil {
-			return "", errors.Join(err, auditErr)
-		}
 		return "", err
 	}
 	if err := s.verifyTOTPForLogin(ctx, user.ID, totpCode); err != nil {
-		auditErr := s.publishEvent(ctx, events.AuthSecurityAuthLoginFailedEvent{
-			EventType: events.AuthSecurityAuthLoginFailed,
-			Envelope:  events.Envelope{ActorUserID: user.ID, TargetType: "user", TargetID: user.ID, TargetDisplay: user.Email, IPAddress: ip, UserAgent: userAgent},
-			Metadata:  events.NewAuthSecurityAuthLoginFailedMetadata(user.Email, "totp"),
-		})
-		if auditErr != nil {
-			return "", errors.Join(err, auditErr)
-		}
 		return "", err
 	}
 	organisation, err := s.resolveLoginOrganisation(ctx, user.ID, organisationSlug)
 	if err != nil {
 		return "", err
 	}
-	token, err := s.newSession(ctx, user.ID, organisation.ID, ip, userAgent)
-	if err != nil {
-		return "", err
-	}
-	if err := s.publishEvent(ctx, events.AuthSecurityAuthLoginSucceededEvent{
-		EventType: events.AuthSecurityAuthLoginSucceeded,
-		Envelope:  events.Envelope{ActorUserID: user.ID, ActorOrganisationID: organisation.ID, TargetType: "user", TargetID: user.ID, TargetDisplay: user.Email, IPAddress: ip, UserAgent: userAgent},
-		Metadata:  events.NewAuthSecurityAuthLoginSucceededMetadata(user.Email, organisation.Slug),
-	}); err != nil {
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageLogin))
-	}
-	return token, nil
+	return s.newSession(ctx, user.ID, organisation.ID, ip, userAgent)
 }
 
 func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUser, error) {
@@ -168,15 +127,16 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return nil
 	}
-	session, sessionErr := s.Session(ctx, rawToken)
+	session, err := s.Session(ctx, rawToken)
+	if err != nil {
+		return err
+	}
 	now := s.clock.Now()
 	if err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now), TokenHash: security.HashToken(rawToken)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}
-	if sessionErr == nil && session != nil {
-		if err := s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: session.UserID, ActorOrganisationID: session.OrganisationID, TargetType: "session", TargetID: session.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(session.Email)}); err != nil {
-			return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageLogout))
-		}
+	if session != nil {
+		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: session.UserID, ActorOrganisationID: session.OrganisationID, TargetType: "session", TargetID: session.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(session.Email)})
 	}
 	return nil
 }
