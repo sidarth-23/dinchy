@@ -52,10 +52,6 @@ func SetRedactionVisible(visible bool) {
 	revealRedacted.Store(visible)
 }
 
-func redactionVisible() bool {
-	return revealRedacted.Load()
-}
-
 func CloseAll(ctx context.Context, closers ...io.Closer) error {
 	var err error
 	for _, closer := range closers {

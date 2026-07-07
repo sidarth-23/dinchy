@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
@@ -78,23 +80,18 @@ func (r *Runtime) loop(ctx context.Context) {
 func (r *Runtime) runAllWorkers(ctx context.Context) {
 	for _, worker := range r.workers {
 		if err := r.runWorker(ctx, worker); err != nil {
-			r.report(err)
+			if r.errCh != nil {
+				r.errCh <- err
+			}
 			return
 		}
 	}
 }
 
-func (r *Runtime) report(err error) {
-	if r.errCh == nil || err == nil {
-		return
-	}
-	r.errCh <- err
-}
-
 func (r *Runtime) registerWorker(ctx context.Context, worker Worker) error {
 	now := r.clock.Now()
 	if err := r.store.EnsureTask(ctx, sqlcgen.EnsureTaskParams{
-		ID:                      taskIDForName(worker.TaskName()),
+		ID:                      uuid.NewSHA1(uuid.Nil, []byte(worker.TaskName())),
 		TaskName:                worker.TaskName(),
 		ScheduleIntervalSeconds: worker.IntervalSeconds(),
 		NextRunAt:               sqltype.Timestamptz(now),

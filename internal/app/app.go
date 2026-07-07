@@ -113,11 +113,16 @@ func (a *App) Start() error {
 		)
 	}
 
-	dist, err := frontendFS(a.cfg.DevMode)
-	if err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageLoadFrontendAssets),
-		)
+	var dist fs.FS
+	if !a.cfg.DevMode {
+		distFS, err := frontend.DistFS()
+		if err != nil {
+			return apperrors.Annotate(err,
+				apperrors.WithStage(apperrors.StageFrontendDistFs),
+				apperrors.WithStage(apperrors.StageLoadFrontendAssets),
+			)
+		}
+		dist = distFS
 	}
 
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
@@ -192,17 +197,4 @@ func (a *App) Wait() error {
 			return nil
 		}
 	}
-}
-
-func frontendFS(devMode bool) (fs.FS, error) {
-	if devMode {
-		return nil, nil
-	}
-	dist, err := frontend.DistFS()
-	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageFrontendDistFs),
-		)
-	}
-	return dist, nil
 }

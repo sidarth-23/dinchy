@@ -3,7 +3,6 @@ package workers
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -17,8 +16,4 @@ type Store interface {
 	ClaimTask(ctx context.Context, arg sqlcgen.ClaimTaskParams) (pgconn.CommandTag, error)
 	FinishTask(ctx context.Context, arg sqlcgen.FinishTaskParams) error
 	DeleteEndedSessionsOlderThan(ctx context.Context, arg sqlcgen.DeleteEndedSessionsOlderThanParams) (pgconn.CommandTag, error)
-}
-
-func taskIDForName(taskName string) uuid.UUID {
-	return uuid.NewSHA1(uuid.Nil, []byte(taskName))
 }

@@ -80,20 +80,6 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	return nil
 }
 
-func verificationTokenFromFindVerificationRow(row sqlcgen.FindVerificationTokenRow) *VerificationToken {
-	return &VerificationToken{
-		ID:              row.ID.String(),
-		UserID:          row.UserID.UUID.String(),
-		UserIDValid:     row.UserID.Valid,
-		Email:           row.Email,
-		Purpose:         row.Purpose,
-		TokenHash:       row.TokenHash,
-		ExpiresAt:       sqltype.TimeValue(row.ExpiresAt),
-		ConsumedAt:      sqltype.TimeValue(row.ConsumedAt),
-		ConsumedAtValid: row.ConsumedAt.Valid,
-	}
-}
-
 func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) error {
 	tokenRow, err := s.store.FindVerificationToken(ctx, sqlcgen.FindVerificationTokenParams{TokenHash: security.HashToken(rawToken), Purpose: string(VerificationPurposePasswordReset)})
 	if err != nil {
@@ -102,7 +88,17 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 		}
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageFindVerificationToken))
 	}
-	token := verificationTokenFromFindVerificationRow(tokenRow)
+	token := &VerificationToken{
+		ID:              tokenRow.ID.String(),
+		UserID:          tokenRow.UserID.UUID.String(),
+		UserIDValid:     tokenRow.UserID.Valid,
+		Email:           tokenRow.Email,
+		Purpose:         tokenRow.Purpose,
+		TokenHash:       tokenRow.TokenHash,
+		ExpiresAt:       sqltype.TimeValue(tokenRow.ExpiresAt),
+		ConsumedAt:      sqltype.TimeValue(tokenRow.ConsumedAt),
+		ConsumedAtValid: tokenRow.ConsumedAt.Valid,
+	}
 	now := s.clock.Now()
 	if !token.UserIDValid || token.ConsumedAtValid || now.After(token.ExpiresAt) {
 		return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))

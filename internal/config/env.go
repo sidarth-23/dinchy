@@ -16,13 +16,10 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
-// applyMods walks cfg recursively and normalizes every string field carrying a
-// `mod:"..."` tag using the transform registry. Running once at load keeps all
-// value normalization in the config phase so consumers read accurate values.
-func applyMods(cfg any) error {
-	return applyModsValue(reflect.ValueOf(cfg).Elem())
-}
-
+// applyModsValue walks the config value recursively and normalizes every string
+// field carrying a `mod:"..."` tag using the transform registry. Running once at
+// load keeps all value normalization in the config phase so consumers read
+// accurate values.
 func applyModsValue(v reflect.Value) error {
 	t := v.Type()
 	for i := range t.NumField() {
@@ -57,13 +54,10 @@ func applyModsValue(v reflect.Value) error {
 	return nil
 }
 
-// loadFromEnv walks cfg recursively, reads the env tag on each field to find the
-// env var name, and overrides the field value only when the env var is non-empty.
-// Nested config structs are descended into so a single call populates the whole tree.
-func loadFromEnv(cfg any) error {
-	return loadFromEnvValue(reflect.ValueOf(cfg).Elem())
-}
-
+// loadFromEnvValue walks the config value recursively, reads the env tag on each
+// field to find the env var name, and overrides the field value only when the env
+// var is non-empty. Nested config structs are descended into so a single call
+// populates the whole tree.
 func loadFromEnvValue(v reflect.Value) error {
 	t := v.Type()
 	for i := range t.NumField() {
@@ -86,7 +80,12 @@ func loadFromEnvValue(v reflect.Value) error {
 		case reflect.String:
 			v.Field(i).SetString(raw)
 		case reflect.Bool:
-			v.Field(i).SetBool(parseBool(raw))
+			truthy := false
+			switch strings.ToLower(raw) {
+			case "1", "true", "t", "yes", "on":
+				truthy = true
+			}
+			v.Field(i).SetBool(truthy)
 		case reflect.Int:
 			var parsed int
 			if _, err := fmt.Sscanf(raw, "%d", &parsed); err != nil {
@@ -138,14 +137,6 @@ func loadFromEnvValue(v reflect.Value) error {
 	return nil
 }
 
-func parseBool(s string) bool {
-	switch strings.ToLower(s) {
-	case "1", "true", "t", "yes", "on":
-		return true
-	}
-	return false
-}
-
 func loadEnvPath(p string) error {
 	if err := godotenv.Load(p); err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithPath(apperrors.Path(p)))
@@ -167,12 +158,17 @@ func loadEnvFile() error {
 		return loadEnvPath(p)
 	}
 
-	if p, err := xdgEnvPath(); err != nil {
-		return apperrors.Annotate(err)
-	} else if p != "" {
-		if _, err := os.Stat(p); err == nil {
-			return loadEnvPath(p)
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+	if xdg == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithStage(apperrors.StageResolveXDGConfigHome))
 		}
+		xdg = filepath.Join(home, ".config")
+	}
+	xdgPath := filepath.Join(xdg, "dinchy", "dinchy.env")
+	if _, err := os.Stat(xdgPath); err == nil {
+		return loadEnvPath(xdgPath)
 	}
 
 	const systemPath = "/etc/dinchy/dinchy.env"
@@ -181,16 +177,4 @@ func loadEnvFile() error {
 	}
 
 	return nil
-}
-
-func xdgEnvPath() (string, error) {
-	xdg := os.Getenv("XDG_CONFIG_HOME")
-	if xdg == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithStage(apperrors.StageResolveXDGConfigHome))
-		}
-		xdg = filepath.Join(home, ".config")
-	}
-	return filepath.Join(xdg, "dinchy", "dinchy.env"), nil
 }

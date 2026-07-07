@@ -72,7 +72,10 @@ func Open(ctx context.Context, dsn string, opts ...Option) (*Store, error) {
 	migrationConfig := *poolConfig.ConnConfig
 	migrationDB := stdlib.OpenDB(migrationConfig)
 	if err := goose.Up(migrationDB, "migrations"); err != nil {
-		return nil, closeWithErr(migrationDB, err)
+		if closeErr := migrationDB.Close(); closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
+		return nil, err
 	}
 	if err := migrationDB.Close(); err != nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("close postgres migration handle: %w", err)))
@@ -163,11 +166,4 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCommit))
 	}
 	return nil
-}
-
-func closeWithErr(c interface{ Close() error }, cause error) error {
-	if closeErr := c.Close(); closeErr != nil {
-		return errors.Join(cause, closeErr)
-	}
-	return cause
 }

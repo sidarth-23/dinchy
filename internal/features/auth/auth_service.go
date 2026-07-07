@@ -185,8 +185,7 @@ func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, passwo
 		}
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
 	}
-	account := accountFromFindPasswordAccountRow(accountRow)
-	if account == nil || !security.VerifyPassword(password, account.PasswordHash) {
+	if !security.VerifyPassword(password, accountRow.PasswordHash.String) {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 	}
 	return user, nil
@@ -197,16 +196,6 @@ func userFromFindUserRow(row sqlcgen.FindUserByEmailRow) *User {
 		return nil
 	}
 	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName, EmailVerified: row.EmailVerifiedAt.Valid}
-}
-
-func accountFromFindPasswordAccountRow(row sqlcgen.FindPasswordAccountByUserIDRow) *Account {
-	return &Account{
-		ID:                row.ID.String(),
-		UserID:            row.UserID.String(),
-		Provider:          row.Provider,
-		ProviderAccountID: row.ProviderAccountID,
-		PasswordHash:      row.PasswordHash.String,
-	}
 }
 
 func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, slug string) (*Organisation, error) {

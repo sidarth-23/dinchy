@@ -4,6 +4,8 @@
 package config
 
 import (
+	"reflect"
+
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/validation"
@@ -45,9 +47,15 @@ type Config struct {
 	SSOProviders []SSOProviderConfig
 }
 
-// defaultConfig returns a Config pre-populated with sensible defaults.
-func defaultConfig() Config {
-	return Config{
+// Load reads configuration from an env file (if present) and environment variables,
+// then validates the result. It returns an error if the env file cannot be loaded
+// or any required field fails validation.
+func Load() (Config, error) {
+	if err := loadEnvFile(); err != nil {
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
+	}
+
+	cfg := Config{
 		Addr:         ":8080",
 		InternalAddr: ":9090",
 		DevProxyURL:  "http://127.0.0.1:5173",
@@ -58,21 +66,10 @@ func defaultConfig() Config {
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),
 	}
-}
-
-// Load reads configuration from an env file (if present) and environment variables,
-// then validates the result. It returns an error if the env file cannot be loaded
-// or any required field fails validation.
-func Load() (Config, error) {
-	if err := loadEnvFile(); err != nil {
-		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
-	}
-
-	cfg := defaultConfig()
-	if err := loadFromEnv(&cfg); err != nil {
+	if err := loadFromEnvValue(reflect.ValueOf(&cfg).Elem()); err != nil {
 		return Config{}, err
 	}
-	if err := applyMods(&cfg); err != nil {
+	if err := applyModsValue(reflect.ValueOf(&cfg).Elem()); err != nil {
 		return Config{}, err
 	}
 	cfg.SSOProviders = configuredSSOProviders(cfg)

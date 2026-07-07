@@ -125,7 +125,9 @@ func validateErrorNode(node ErrorNode, path []string, seenSiblings, seenTypes, s
 	seenOptionNames[optionName] = struct{}{}
 
 	goType := ErrorGoType(node.Type)
-	if !supportedErrorGoType(goType) {
+	switch goType {
+	case "string", "bool", "int", "int64", "float64":
+	default:
 		return fmt.Errorf("node %q has unsupported type %q", DisplayPath(currentPath), node.Type)
 	}
 	if node.FromReflect && goType != "string" {
@@ -177,15 +179,6 @@ func ErrorGoType(goType string) string {
 	return goType
 }
 
-func supportedErrorGoType(goType string) bool {
-	switch goType {
-	case "string", "bool", "int", "int64", "float64":
-		return true
-	default:
-		return false
-	}
-}
-
 func validateAndRenderErrorValue(goType string, value any) (string, string, error) {
 	switch goType {
 	case "string":
@@ -196,7 +189,11 @@ func validateAndRenderErrorValue(goType string, value any) (string, string, erro
 		if text == "" {
 			return "", "", fmt.Errorf("string value cannot be empty")
 		}
-		return strconv.Quote(text), goValueNameForString(text), nil
+		valueName := GoName(text)
+		if valueName == "" {
+			valueName = "Value"
+		}
+		return strconv.Quote(text), valueName, nil
 	case "bool":
 		flag, ok := value.(bool)
 		if !ok {
@@ -211,7 +208,24 @@ func validateAndRenderErrorValue(goType string, value any) (string, string, erro
 	case "int64":
 		return renderIntegerValue(value, 64)
 	case "float64":
-		return renderFloatValue(value)
+		number, ok := value.(json.Number)
+		if !ok {
+			return "", "", fmt.Errorf("expected JSON number, got %T", value)
+		}
+		text := number.String()
+		if _, err := strconv.ParseFloat(text, 64); err != nil {
+			return "", "", fmt.Errorf("invalid float literal %q", text)
+		}
+		valueName := strings.NewReplacer("-", "Neg", ".", "Point", "+", "", "e", "E").Replace(text)
+		switch {
+		case valueName == "":
+			valueName = "Value"
+		case valueName[0] >= '0' && valueName[0] <= '9':
+			valueName = "Value" + valueName
+		default:
+			valueName = GoName(valueName)
+		}
+		return text, valueName, nil
 	default:
 		return "", "", fmt.Errorf("unsupported go type %q", goType)
 	}
@@ -230,43 +244,10 @@ func renderIntegerValue(value any, bitSize int) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("invalid integer literal %q", text)
 	}
-	return strconv.FormatInt(parsed, 10), goValueNameForNumber(parsed), nil
-}
-
-func renderFloatValue(value any) (string, string, error) {
-	number, ok := value.(json.Number)
-	if !ok {
-		return "", "", fmt.Errorf("expected JSON number, got %T", value)
+	literal := strconv.FormatInt(parsed, 10)
+	valueName := literal
+	if parsed < 0 {
+		valueName = "Neg" + strconv.FormatInt(-parsed, 10)
 	}
-	text := number.String()
-	if _, err := strconv.ParseFloat(text, 64); err != nil {
-		return "", "", fmt.Errorf("invalid float literal %q", text)
-	}
-	return text, goValueNameForFloat(text), nil
-}
-
-func goValueNameForString(value string) string {
-	name := GoName(value)
-	if name == "" {
-		return "Value"
-	}
-	return name
-}
-
-func goValueNameForNumber(value int64) string {
-	if value < 0 {
-		return "Neg" + strconv.FormatInt(-value, 10)
-	}
-	return strconv.FormatInt(value, 10)
-}
-
-func goValueNameForFloat(value string) string {
-	name := strings.NewReplacer("-", "Neg", ".", "Point", "+", "", "e", "E").Replace(value)
-	if name == "" {
-		return "Value"
-	}
-	if name[0] >= '0' && name[0] <= '9' {
-		return "Value" + name
-	}
-	return GoName(name)
+	return literal, valueName, nil
 }

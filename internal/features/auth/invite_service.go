@@ -44,20 +44,6 @@ func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *In
 	return invitation
 }
 
-func invitationFromPendingRow(row sqlcgen.FindPendingOrganisationInvitationByEmailRow) *Invitation {
-	return invitationFromFindRow(sqlcgen.FindOrganisationInvitationByTokenRow(row))
-}
-
-func parseInvitationRole(role string) (Role, error) {
-	role = strings.ToLower(transform.Trim(role))
-	switch role {
-	case invitationRoleMember, invitationRoleAdmin:
-		return Role(role), nil
-	default:
-		return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationRoleInvalid))
-	}
-}
-
 func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser, emailAddress, role, ip, userAgent string) (*Invitation, error) {
 	if !s.mailer.Configured() {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
@@ -68,9 +54,13 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 	if inviter.Role != RoleOwner && inviter.Role != RoleAdmin {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
 	}
-	invitationRole, err := parseInvitationRole(role)
-	if err != nil {
-		return nil, err
+	normalizedRole := strings.ToLower(transform.Trim(role))
+	var invitationRole Role
+	switch normalizedRole {
+	case invitationRoleMember, invitationRoleAdmin:
+		invitationRole = Role(normalizedRole)
+	default:
+		return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationRoleInvalid))
 	}
 	emailAddress = transform.Email(emailAddress)
 	now := s.clock.Now().UTC()
@@ -95,7 +85,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser
 		OrganisationID: organisationID,
 		Email:          emailAddress,
 	}); err == nil {
-		if invitationFromPendingRow(pendingInvitation) != nil {
+		if invitationFromFindRow(sqlcgen.FindOrganisationInvitationByTokenRow(pendingInvitation)) != nil {
 			return nil, apperrors.Conflict(i18n.Msg(i18n.CodeAuthInvitationExists))
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {

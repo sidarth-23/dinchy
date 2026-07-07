@@ -26,19 +26,6 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 	sum := argon2.IDKey([]byte(password), salt, params.Time, params.Memory, params.Threads, params.KeyLen)
-	return formatPasswordHash(salt, sum, params), nil
-}
-
-func VerifyPassword(password, encoded string) bool {
-	spec, ok := parsePasswordHash(encoded)
-	if !ok {
-		return false
-	}
-	sum := argon2.IDKey([]byte(password), spec.salt, spec.params.Time, spec.params.Memory, spec.params.Threads, spec.params.KeyLen)
-	return subtle.ConstantTimeCompare(sum, spec.hash) == 1
-}
-
-func formatPasswordHash(salt, hash []byte, params config.PasswordHashParams) string {
 	return fmt.Sprintf(
 		"%s$%s$%s=%d,%s=%d,%s=%d$%s$%s",
 		config.PasswordHashVersionV1,
@@ -50,8 +37,17 @@ func formatPasswordHash(salt, hash []byte, params config.PasswordHashParams) str
 		config.PasswordHashParamThreads,
 		params.Threads,
 		base64.RawStdEncoding.EncodeToString(salt),
-		base64.RawStdEncoding.EncodeToString(hash),
-	)
+		base64.RawStdEncoding.EncodeToString(sum),
+	), nil
+}
+
+func VerifyPassword(password, encoded string) bool {
+	spec, ok := parsePasswordHash(encoded)
+	if !ok {
+		return false
+	}
+	sum := argon2.IDKey([]byte(password), spec.salt, spec.params.Time, spec.params.Memory, spec.params.Threads, spec.params.KeyLen)
+	return subtle.ConstantTimeCompare(sum, spec.hash) == 1
 }
 
 func parsePasswordHash(encoded string) (parsedPasswordHash, bool) {

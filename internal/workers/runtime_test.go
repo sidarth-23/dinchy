@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +77,7 @@ func TestRuntime_RegisterWorker_EnsuresTask(t *testing.T) {
 	worker := newStubWorker()
 
 	store.EXPECT().EnsureTask(gomock.Any(), sqlcgen.EnsureTaskParams{
-		ID:                      taskIDForName(worker.name),
+		ID:                      uuid.NewSHA1(uuid.Nil, []byte(worker.name)),
 		TaskName:                worker.name,
 		ScheduleIntervalSeconds: worker.interval,
 		NextRunAt:               sqltype.Timestamptz(fixedTime),

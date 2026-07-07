@@ -35,14 +35,6 @@ type User struct {
 	Disabled      bool
 }
 
-type Account struct {
-	ID                string
-	UserID            string
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      string
-}
-
 type Organisation struct {
 	ID   string
 	Name string

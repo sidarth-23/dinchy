@@ -115,7 +115,9 @@ func validateTypedFields(eventType, field string, fields []Field) error {
 		if _, ok := seenKeys[fieldValue.Name]; ok {
 			return fmt.Errorf("event %q has duplicate %s key %q", eventType, field, fieldValue.Name)
 		}
-		if !supportedEventTypedFieldType(fieldValue.Type) {
+		switch fieldValue.Type {
+		case "string", "bool", "int", "int64", "float64", "time.Time":
+		default:
 			return fmt.Errorf("event %q has unsupported %s type %q for %q", eventType, field, fieldValue.Type, fieldValue.Name)
 		}
 		seenKeys[fieldValue.Name] = struct{}{}
@@ -137,15 +139,6 @@ func EventConstantName(modulePath []string, eventID string) string {
 	return name.String()
 }
 
-func supportedEventTypedFieldType(value string) bool {
-	switch value {
-	case "string", "bool", "int", "int64", "float64", "time.Time":
-		return true
-	default:
-		return false
-	}
-}
-
 func decodeStrict(raw []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -153,13 +146,6 @@ func decodeStrict(raw []byte, target any) error {
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
-	if err := ensureEOF(decoder); err != nil {
-		return err
-	}
-	return nil
-}
-
-func ensureEOF(decoder *json.Decoder) error {
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		if err == nil {
 			return fmt.Errorf("unexpected trailing data after JSON document")

@@ -62,10 +62,20 @@ type Catalog struct {
 	matcher language.Matcher
 }
 
-// New creates a catalog from locale data.
+// New creates a catalog from locale data. The locale maps are deep-copied so the
+// catalog owns its data, and the tags are sorted for a stable default locale.
 func New(locales map[language.Tag]map[Code]string) *Catalog {
-	cloned := cloneLocales(locales)
-	tags := sortedTags(cloned)
+	cloned := make(map[language.Tag]map[Code]string, len(locales))
+	for tag, messages := range locales {
+		clonedMessages := make(map[Code]string, len(messages))
+		maps.Copy(clonedMessages, messages)
+		cloned[tag] = clonedMessages
+	}
+	tags := make([]language.Tag, 0, len(cloned))
+	for tag := range cloned {
+		tags = append(tags, tag)
+	}
+	sort.Slice(tags, func(i, j int) bool { return tags[i].String() < tags[j].String() })
 	return &Catalog{locales: cloned, tags: tags, matcher: language.NewMatcher(tags)}
 }
 
@@ -90,47 +100,15 @@ func (c *Catalog) Resolve(tag language.Tag, msg Message) string {
 	if msg.Code() == "" {
 		return ""
 	}
-	if locale, ok := c.locales[tag]; ok {
-		return render(locale[msg.Code()], msg.Meta())
+	locale, ok := c.locales[tag]
+	if !ok {
+		return ""
 	}
-	return ""
-}
-
-func cloneLocales(locales map[language.Tag]map[Code]string) map[language.Tag]map[Code]string {
-	if len(locales) == 0 {
-		return map[language.Tag]map[Code]string{}
-	}
-	out := make(map[language.Tag]map[Code]string, len(locales))
-	for tag, messages := range locales {
-		cloned := make(map[Code]string, len(messages))
-		maps.Copy(cloned, messages)
-		out[tag] = cloned
-	}
-	return out
-}
-
-func cloneMeta(meta map[string]any) map[string]any {
-	if len(meta) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(meta))
-	maps.Copy(out, meta)
-	return out
-}
-
-func sortedTags(locales map[language.Tag]map[Code]string) []language.Tag {
-	tags := make([]language.Tag, 0, len(locales))
-	for tag := range locales {
-		tags = append(tags, tag)
-	}
-	sort.Slice(tags, func(i, j int) bool { return tags[i].String() < tags[j].String() })
-	return tags
-}
-
-func render(tpl string, meta map[string]any) string {
+	tpl := locale[msg.Code()]
 	if tpl == "" {
 		return ""
 	}
+	meta := msg.Meta()
 	if len(meta) == 0 {
 		return tpl
 	}
@@ -143,6 +121,15 @@ func render(tpl string, meta map[string]any) string {
 		return ""
 	}
 	return b.String()
+}
+
+func cloneMeta(meta map[string]any) map[string]any {
+	if len(meta) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(meta))
+	maps.Copy(out, meta)
+	return out
 }
 
 // Default is the package-level catalog pre-loaded with generated translations.

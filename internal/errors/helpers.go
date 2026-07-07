@@ -3,7 +3,6 @@ package errors
 import (
 	stdErrors "errors"
 	"maps"
-	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/text/language"
@@ -33,18 +32,6 @@ func appErrorFrom(err error) (*AppError, bool) {
 	return appErr, true
 }
 
-func firstAppError(errs ...error) *AppError {
-	for _, err := range errs {
-		if err == nil {
-			continue
-		}
-		if appErr, ok := appErrorFrom(err); ok {
-			return appErr
-		}
-	}
-	return nil
-}
-
 func mergeMeta(base, extra map[string]any) map[string]any {
 	if len(base) == 0 && len(extra) == 0 {
 		return nil
@@ -62,21 +49,6 @@ func localizedResponse(tag language.Tag, catalog *i18n.Catalog, err *AppError) *
 		Payload: ResponsePayload{
 			Code:    string(err.Code()),
 			Message: catalog.Resolve(tag, err.Message()),
-			Meta:    meta,
-		},
-	}
-}
-
-func validationResponse(tag language.Tag, catalog *i18n.Catalog, errs ...error) *ErrorResponse {
-	meta := map[string]any{}
-	if fields := validationDetails(errs...); len(fields) > 0 {
-		meta["fields"] = fields
-	}
-	return &ErrorResponse{
-		status: http.StatusUnprocessableEntity,
-		Payload: ResponsePayload{
-			Code:    string(i18n.CodeRequestValidationFailed),
-			Message: catalog.Resolve(tag, i18n.Msg(i18n.CodeRequestValidationFailed)),
 			Meta:    meta,
 		},
 	}

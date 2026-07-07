@@ -160,22 +160,14 @@ func sanitizeMap(in map[string]any) map[string]any {
 	}
 	out := make(map[string]any, len(in))
 	for key, value := range in {
-		if isSensitive(key) {
+		switch key {
+		case "password", "token", "secret", "client_secret", "cookie", "session", "totp_secret", "smtp_password":
 			out[key] = map[string]any{"redacted": true}
-			continue
+		default:
+			out[key] = value
 		}
-		out[key] = value
 	}
 	return out
-}
-
-func isSensitive(key string) bool {
-	switch key {
-	case "password", "token", "secret", "client_secret", "cookie", "session", "totp_secret", "smtp_password":
-		return true
-	default:
-		return false
-	}
 }
 
 func newWireEvent(event events.Event, definition events.Definition) Event {

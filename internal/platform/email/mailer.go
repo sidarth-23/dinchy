@@ -3,7 +3,12 @@ package email
 import (
 	"context"
 	"fmt"
+	htmltemplate "html/template"
 	"net/url"
+	"strings"
+	texttemplate "text/template"
+
+	"github.com/sidarth-23/dinchy/internal/i18n"
 )
 
 const (
@@ -15,9 +20,10 @@ const (
 // Sender. It is the single typed entrypoint consumers use; they never assemble
 // a raw Message.
 type Mailer struct {
-	sender   Sender
-	renderer *renderer
-	baseURL  *url.URL
+	sender  Sender
+	html    *htmltemplate.Template
+	text    *texttemplate.Template
+	baseURL *url.URL
 }
 
 // InvitationEmail is the typed input for an organisation invitation email.
@@ -41,11 +47,15 @@ func NewMailer(sender Sender, publicBaseURL string) (*Mailer, error) {
 	if sender == nil {
 		sender = NoopSender{}
 	}
-	renderer, err := newRenderer()
+	html, err := htmltemplate.ParseFS(templateFS, "templates/"+htmlLayoutName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse HTML email layout: %w", err)
 	}
-	m := &Mailer{sender: sender, renderer: renderer}
+	text, err := texttemplate.ParseFS(templateFS, "templates/"+textLayoutName)
+	if err != nil {
+		return nil, fmt.Errorf("parse text email layout: %w", err)
+	}
+	m := &Mailer{sender: sender, html: html, text: text}
 	if publicBaseURL != "" {
 		base, err := url.Parse(publicBaseURL)
 		if err != nil {
@@ -65,20 +75,39 @@ func (m *Mailer) Configured() bool {
 
 // SendInvitation renders and sends an organisation invitation email.
 func (m *Mailer) SendInvitation(ctx context.Context, data InvitationEmail) error {
-	return m.send(ctx, data.To, invitationContent(data, m.actionURL(pathAcceptInvitation, data.Token)))
+	organisation := i18n.P("organisation", data.OrganisationName)
+	return m.send(ctx, data.To, presentation{
+		Subject:  resolve(i18n.Msg(i18n.CodeEmailInvitationSubject, organisation)),
+		Heading:  resolve(i18n.Msg(i18n.CodeEmailInvitationHeading, organisation)),
+		Body:     resolve(i18n.Msg(i18n.CodeEmailInvitationBody, organisation, i18n.P("role", data.Role))),
+		CTALabel: resolve(i18n.Msg(i18n.CodeEmailInvitationCta)),
+		CTAURL:   m.actionURL(pathAcceptInvitation, data.Token),
+		Footer:   resolve(i18n.Msg(i18n.CodeEmailFooter)),
+	})
 }
 
 // SendPasswordReset renders and sends a password reset email.
 func (m *Mailer) SendPasswordReset(ctx context.Context, data PasswordResetEmail) error {
-	return m.send(ctx, data.To, passwordResetContent(m.actionURL(pathResetPassword, data.Token)))
+	return m.send(ctx, data.To, presentation{
+		Subject:  resolve(i18n.Msg(i18n.CodeEmailPasswordResetSubject)),
+		Heading:  resolve(i18n.Msg(i18n.CodeEmailPasswordResetHeading)),
+		Body:     resolve(i18n.Msg(i18n.CodeEmailPasswordResetBody)),
+		CTALabel: resolve(i18n.Msg(i18n.CodeEmailPasswordResetCta)),
+		CTAURL:   m.actionURL(pathResetPassword, data.Token),
+		Footer:   resolve(i18n.Msg(i18n.CodeEmailFooter)),
+	})
 }
 
 func (m *Mailer) send(ctx context.Context, to string, content presentation) error {
-	text, html, err := m.renderer.render(content)
-	if err != nil {
-		return err
+	var textBuilder strings.Builder
+	if err := m.text.ExecuteTemplate(&textBuilder, textLayoutName, content); err != nil {
+		return fmt.Errorf("render text body for subject %q: %w", content.Subject, err)
 	}
-	if err := m.sender.Send(ctx, Message{To: to, Subject: content.Subject, Text: text, HTML: html}); err != nil {
+	var htmlBuilder strings.Builder
+	if err := m.html.ExecuteTemplate(&htmlBuilder, htmlLayoutName, content); err != nil {
+		return fmt.Errorf("render HTML body for subject %q: %w", content.Subject, err)
+	}
+	if err := m.sender.Send(ctx, Message{To: to, Subject: content.Subject, Text: textBuilder.String(), HTML: htmlBuilder.String()}); err != nil {
 		return fmt.Errorf("deliver email to %q: %w", to, err)
 	}
 	return nil

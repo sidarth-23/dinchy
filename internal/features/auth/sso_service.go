@@ -22,10 +22,10 @@ import (
 )
 
 func (s *Service) listSSOProviders(_ context.Context) ([]SSOProviderOut, error) {
-	configs := s.effectiveSSOProviderConfigs()
-	out := make([]SSOProviderOut, 0, len(configs))
-	for _, providerConfig := range configs {
-		if !providerConfig.Enabled {
+	out := make([]SSOProviderOut, 0, len(s.sso.envProviders))
+	for _, provider := range config.SupportedSSOProviders() {
+		providerConfig, ok := s.sso.envProviders[string(provider.ID)]
+		if !ok || !providerConfig.Enabled {
 			continue
 		}
 		out = append(out, SSOProviderOut{ID: string(providerConfig.ID), Name: providerConfig.Name})
@@ -38,17 +38,6 @@ func (s *Service) listSSOProviders(_ context.Context) ([]SSOProviderOut, error) 
 func (s *Service) effectiveSSOProviderConfig(providerID string) (config.SSOProviderConfig, bool) {
 	providerConfig, ok := s.sso.envProviders[providerID]
 	return providerConfig, ok
-}
-
-// effectiveSSOProviderConfigs lists env-configured providers in a stable supported order.
-func (s *Service) effectiveSSOProviderConfigs() []config.SSOProviderConfig {
-	out := make([]config.SSOProviderConfig, 0, len(s.sso.envProviders))
-	for _, provider := range config.SupportedSSOProviders() {
-		if providerConfig, ok := s.sso.envProviders[string(provider.ID)]; ok {
-			out = append(out, providerConfig)
-		}
-	}
-	return out
 }
 
 func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisationSlug string) (string, []http.Cookie, error) {
@@ -139,7 +128,10 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
 		}
 	}
-	user := userFromProviderAccountRow(userRow)
+	var user *User
+	if userRow.ID != uuid.Nil {
+		user = &User{ID: userRow.ID.String(), Email: userRow.Email, DisplayName: userRow.DisplayName, EmailVerified: userRow.EmailVerifiedAt.Valid}
+	}
 	if user == nil && gothUser.Email != "" {
 		emailRow, emailErr := s.store.FindUserByEmail(ctx, transform.Email(gothUser.Email))
 		if emailErr != nil {
@@ -178,11 +170,4 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
 	return cached.ReturnTo, token, s.clearSSOCookies(), nil
-}
-
-func userFromProviderAccountRow(row sqlcgen.FindUserByProviderAccountRow) *User {
-	if row.ID == uuid.Nil {
-		return nil
-	}
-	return &User{ID: row.ID.String(), Email: row.Email, DisplayName: row.DisplayName, EmailVerified: row.EmailVerifiedAt.Valid}
 }
