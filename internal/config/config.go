@@ -72,30 +72,6 @@ func Load() (Config, error) {
 	if err := loadFromEnv(&cfg); err != nil {
 		return Config{}, err
 	}
-	if err := loadFromEnv(&cfg.Database); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Auth); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.SSO); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.SMTP); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Cache); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.EventBus); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Logging); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Telemetry); err != nil {
-		return Config{}, err
-	}
 	if err := applyMods(&cfg); err != nil {
 		return Config{}, err
 	}

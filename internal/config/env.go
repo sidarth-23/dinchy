@@ -57,14 +57,23 @@ func applyModsValue(v reflect.Value) error {
 	return nil
 }
 
-// loadFromEnv iterates Config fields, reads the env tag to find the env var name,
-// and overrides the field value only when the env var is non-empty.
+// loadFromEnv walks cfg recursively, reads the env tag on each field to find the
+// env var name, and overrides the field value only when the env var is non-empty.
+// Nested config structs are descended into so a single call populates the whole tree.
 func loadFromEnv(cfg any) error {
-	v := reflect.ValueOf(cfg).Elem()
-	t := v.Type()
+	return loadFromEnvValue(reflect.ValueOf(cfg).Elem())
+}
 
+func loadFromEnvValue(v reflect.Value) error {
+	t := v.Type()
 	for i := range t.NumField() {
 		field := t.Field(i)
+		if field.Type.Kind() == reflect.Struct {
+			if err := loadFromEnvValue(v.Field(i)); err != nil {
+				return err
+			}
+			continue
+		}
 		envKey := field.Tag.Get("env")
 		if envKey == "" {
 			continue
