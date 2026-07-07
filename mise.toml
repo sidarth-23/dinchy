@@ -5,6 +5,8 @@ node = "24.15.0"
 "github:sqlc-dev/sqlc" = "1.31.1"
 "github:pressly/goose" = "3.27.1"
 "github:golangci/golangci-lint" = "2.12.2"
+"github:evilmartians/lefthook" = "2.1.9"
+lefthook = "latest"
 
 [tasks]
 dev = "go run ./cmd/dinchy"
@@ -22,7 +24,8 @@ generate = "go generate ./internal/errors ./internal/i18n ./internal/events && s
 "db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }
 "web:dev" = { dir = "web", run = "bun run dev" }
-"web:install" = { dir = "web", run = "bun install" }
+"web:install" = { dir = "web", run = "bun run install" }
+"hooks:install" = "lefthook install"
 
 [settings]
 experimental = true
