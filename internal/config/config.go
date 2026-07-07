@@ -59,6 +59,7 @@ func Load() (Config, error) {
 		Addr:         ":8080",
 		InternalAddr: ":9090",
 		DevProxyURL:  "http://127.0.0.1:5173",
+		Database:     DefaultDatabase(),
 		Auth:         DefaultAuth(),
 		SMTP:         DefaultSMTP(),
 		Redis:        DefaultRedis(),
