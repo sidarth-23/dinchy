@@ -35,8 +35,8 @@ type Config struct {
 	SSO SSOEnvConfig
 	// SMTP contains outbound email settings for password reset and invitation flows.
 	SMTP SMTPConfig
-	// Cache contains optional cache store settings for ephemeral state.
-	Cache CacheConfig
+	// Redis contains the shared Redis backend settings for ephemeral state and durable event streams.
+	Redis RedisConfig
 	// EventBus contains the Redis stream settings for durable in-app events.
 	EventBus EventBusConfig
 	// Logging controls application log formatting and level.
@@ -61,7 +61,7 @@ func Load() (Config, error) {
 		DevProxyURL:  "http://127.0.0.1:5173",
 		Auth:         DefaultAuth(),
 		SMTP:         DefaultSMTP(),
-		Cache:        DefaultCache(),
+		Redis:        DefaultRedis(),
 		EventBus:     DefaultEventBus(),
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),

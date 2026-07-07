@@ -1,13 +1,14 @@
 package auth
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
@@ -56,7 +57,7 @@ type ssoRegistry struct {
 	stateCookieName string
 	stateLifetime   time.Duration
 	envProviders    map[string]config.SSOProviderConfig
-	cacheKeyer      cachecore.Keyer
+	cacheKeyer      redis.Keyer
 }
 
 type ssoCacheState struct {
@@ -66,3 +67,7 @@ type ssoCacheState struct {
 	State            string `json:"state"`
 	Session          string `json:"session"`
 }
+
+func (s ssoCacheState) MarshalBinary() ([]byte, error) { return json.Marshal(s) }
+
+func (s *ssoCacheState) UnmarshalBinary(data []byte) error { return json.Unmarshal(data, s) }

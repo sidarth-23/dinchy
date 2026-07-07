@@ -13,7 +13,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store"
 )
 
-const postgresImage = "postgres:16-alpine"
+const postgresImage = "docker.io/library/postgres:16-alpine"
 
 // OpenPostgresStore starts a temporary Postgres container and returns a migrated store.
 func OpenPostgresStore(t testing.TB) *store.Store {

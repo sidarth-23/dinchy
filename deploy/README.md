@@ -102,6 +102,6 @@ curl -fsS http://127.0.0.1:8080/auth/sso/providers  # enabled SSO providers (env
   `dinchy.service` in `/etc/systemd/system/` (with `User=dinchy`), swap
   `systemctl --user` for `systemctl`, and set `WantedBy=multi-user.target`.
 - **Redis** runs unauthenticated on loopback. If you expose it or want auth, add a
-  password via the container command and set `DINCHY_CACHE_PASSWORD`.
+  password via the container command and set `DINCHY_REDIS_PASSWORD`.
 
 [Quadlet]: https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html

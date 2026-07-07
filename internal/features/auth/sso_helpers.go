@@ -12,11 +12,11 @@ import (
 	"github.com/markbates/goth/providers/google"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
-func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig, cacheKeyer cachecore.Keyer) (*ssoRegistry, error) {
+func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig, cacheKeyer redis.Keyer) (*ssoRegistry, error) {
 	registry := &ssoRegistry{
 		stateCookieName: authConfig.SSOStateCookieName,
 		stateLifetime:   authConfig.SSOStateLifetime,

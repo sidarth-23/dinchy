@@ -1,8 +1,8 @@
-package eventbus
+package events
 
 import "time"
 
-type Event struct {
+type Record struct {
 	ID                  string         `json:"id"`
 	EventType           string         `json:"event_type"`
 	Category            string         `json:"category"`
@@ -17,8 +17,8 @@ type Event struct {
 	RequestID           string         `json:"request_id,omitempty"`
 	TraceID             string         `json:"trace_id,omitempty"`
 	SpanID              string         `json:"span_id,omitempty"`
-	IPAddress           string         `json:"ip_address"`
-	UserAgent           string         `json:"user_agent"`
+	IPAddress           string         `json:"ip_address,omitempty"`
+	UserAgent           string         `json:"user_agent,omitempty"`
 	Metadata            map[string]any `json:"metadata,omitempty"`
 	Changes             map[string]any `json:"changes,omitempty"`
 	CreatedAt           time.Time      `json:"created_at"`

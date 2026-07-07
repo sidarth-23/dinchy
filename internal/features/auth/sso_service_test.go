@@ -21,8 +21,8 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -129,7 +129,7 @@ func newSSOTestService(t *testing.T) (*Service, *MockStore) {
 				Enabled:     true,
 			},
 		},
-		cacheKeyer: cachecore.NewKeyer("test"),
+		cacheKeyer: platformredis.NewKeyer("test"),
 	}
 	originalProviderFactory := newGothProviderForSSO
 	newGothProviderForSSO = func(cfg config.SSOProviderConfig) (goth.Provider, error) {
@@ -160,7 +160,7 @@ func TestStartSSO_ReturnsMetadataAndTransactionCookie(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	assert.Equal(t, "github", cached.ProviderID)
 	assert.Equal(t, "/projects/123?tab=activity", cached.ReturnTo)
 	assert.Equal(t, "default", cached.OrganisationSlug)
@@ -177,7 +177,7 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
 	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
 
@@ -229,7 +229,7 @@ func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
 	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
 

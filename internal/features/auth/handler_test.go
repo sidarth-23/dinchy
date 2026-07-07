@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -232,7 +231,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	require.NoError(t, err)
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, cachecore.GetJSON(testCtx, api.auth.cache, api.auth.sso.cacheKey(transactionID), &cached))
+	require.NoError(t, api.auth.redis.Get(testCtx, api.auth.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
 	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
 	parsedAuthURL, err := url.Parse(session.AuthURL)

@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -19,6 +19,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -42,7 +43,7 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	clk := clock.Fixed(fixedTime)
 	noopMailer, err := email.NewMailer(email.NoopSender{}, "")
 	require.NoError(t, err)
-	svc, err := NewService(nil, store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), noopMailer, nil)
+	svc, err := NewService(nil, store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestRedis(t), platformredis.NewKeyer("test"), noopMailer, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
@@ -54,34 +55,14 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	return svc, store
 }
 
-type testCache struct {
-	values map[string][]byte
-}
-
-func newTestCache() *testCache {
-	return &testCache{values: map[string][]byte{}}
-}
-
-func (c *testCache) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
-	c.values[key] = append([]byte(nil), value...)
-	return nil
-}
-
-func (c *testCache) Get(_ context.Context, key string) ([]byte, error) {
-	value, ok := c.values[key]
-	if !ok {
-		return nil, fmt.Errorf("cache key %q not found", key)
-	}
-	return append([]byte(nil), value...), nil
-}
-
-func (c *testCache) Delete(_ context.Context, key string) error {
-	delete(c.values, key)
-	return nil
-}
-
-func (c *testCache) Ping(context.Context) error {
-	return nil
+func newTestRedis(t *testing.T) *goredis.Client {
+	t.Helper()
+	mr := miniredis.RunT(t)
+	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+	return client
 }
 
 func HashPasswordForTest(t *testing.T, password string) string {

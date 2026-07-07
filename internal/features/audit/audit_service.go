@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
-	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -33,7 +33,7 @@ func (s *Service) Name() string {
 	return "audit"
 }
 
-func (s *Service) Handle(ctx context.Context, event eventbus.Event) error {
+func (s *Service) Handle(ctx context.Context, event events.Record) error {
 	if event.ID == "" {
 		event.ID = s.idg.New()
 	}
@@ -50,9 +50,9 @@ func (s *Service) Handle(ctx context.Context, event eventbus.Event) error {
 	return nil
 }
 
-var _ eventbus.Subscriber = (*Service)(nil)
+var _ events.Subscriber = (*Service)(nil)
 
-func (s *Service) List(ctx context.Context, in ListInput) ([]eventbus.Event, error) {
+func (s *Service) List(ctx context.Context, in ListInput) ([]events.Record, error) {
 	rows, err := s.store.ListAuditLogs(ctx, sqlcgen.ListAuditLogsParams{
 		CategoryFilter:    in.Category,
 		Category:          in.Category,
@@ -74,7 +74,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]eventbus.Event, err
 	if err != nil {
 		return nil, err
 	}
-	out := make([]eventbus.Event, 0, len(rows))
+	out := make([]events.Record, 0, len(rows))
 	for _, row := range rows {
 		log, err := logFromRow(row)
 		if err != nil {
@@ -85,7 +85,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]eventbus.Event, err
 	return out, nil
 }
 
-func insertParams(event eventbus.Event) (sqlcgen.InsertAuditLogParams, error) {
+func insertParams(event events.Record) (sqlcgen.InsertAuditLogParams, error) {
 	metadataJSON, err := marshalMap("audit metadata", event.EventType, event.Metadata)
 	if err != nil {
 		return sqlcgen.InsertAuditLogParams{}, err
@@ -117,16 +117,16 @@ func insertParams(event eventbus.Event) (sqlcgen.InsertAuditLogParams, error) {
 	}, nil
 }
 
-func logFromRow(row sqlcgen.AppAuditLog) (eventbus.Event, error) {
+func logFromRow(row sqlcgen.AppAuditLog) (events.Record, error) {
 	metadata, err := unmarshalMap("audit metadata", row.EventType, row.MetadataJson)
 	if err != nil {
-		return eventbus.Event{}, err
+		return events.Record{}, err
 	}
 	changes, err := unmarshalMap("audit changes", row.EventType, row.ChangesJson)
 	if err != nil {
-		return eventbus.Event{}, err
+		return events.Record{}, err
 	}
-	return eventbus.Event{
+	return events.Record{
 		ID: row.ID.String(), Category: row.Category, Subcategory: row.Subcategory, EventType: row.EventType,
 		Action: row.Action, Outcome: row.Outcome, ActorUserID: id.NullUUIDString(row.ActorUserID),
 		ActorOrganisationID: id.NullUUIDString(row.ActorOrganisationID),

@@ -33,43 +33,17 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationBeginTx))
 	}
-	user, err := createFirstUser(ctx, tx.queries, CreateUserInput{
-		ID:                   s.idg.New(),
-		AccountID:            s.idg.New(),
-		OrganisationID:       organisationID,
-		OrganisationMemberID: s.idg.New(),
-		Email:                emailAddress,
-		PasswordHash:         hash,
-		DisplayName:          displayName,
-		OrganisationName:     s.authConfig.DefaultOrganisationName,
-		OrganisationSlug:     s.authConfig.DefaultOrganisationSlug,
-		Now:                  now,
-	})
+	user, err := createFirstUser(ctx, tx.queries, CreateUserInput{ID: s.idg.New(), AccountID: s.idg.New(), OrganisationID: organisationID, OrganisationMemberID: s.idg.New(), Email: emailAddress, PasswordHash: hash, DisplayName: displayName, OrganisationName: s.authConfig.DefaultOrganisationName, OrganisationSlug: s.authConfig.DefaultOrganisationSlug, Now: now})
 	if err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
-			return "", errors.Join(
-				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationRollback)),
-			)
+			return "", errors.Join(apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser)), apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationRollback)))
 		}
 		return "", err
 	}
 	if err := tx.commit(); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationCommit))
 	}
-	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{
-		EventType: events.AuthSecurityAuthSetupCompleted,
-		Envelope: events.Envelope{
-			ActorUserID:         user.ID,
-			ActorOrganisationID: organisationID,
-			TargetType:          "user",
-			TargetID:            user.ID,
-			TargetDisplay:       user.Email,
-			IPAddress:           ip,
-			UserAgent:           userAgent,
-		},
-		Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName),
-	}); err != nil {
+	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{EventType: events.AuthSecurityAuthSetupCompleted, Envelope: events.Envelope{ActorUserID: user.ID, ActorOrganisationID: organisationID, TargetType: "user", TargetID: user.ID, TargetDisplay: user.Email, IPAddress: ip, UserAgent: userAgent}, Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName)}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
 	return s.newSession(ctx, user.ID, organisationID, ip, userAgent)
@@ -84,45 +58,16 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 		return User{}, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", int(count))))
 	}
 	now := in.Now.UTC()
-	if err := q.InsertUser(ctx, sqlcgen.InsertUserParams{
-		ID:              id.MustParse(in.ID),
-		Email:           in.Email,
-		DisplayName:     in.DisplayName,
-		EmailVerifiedAt: sqltype.Timestamptz(now),
-		CreatedAt:       sqltype.Timestamptz(now),
-		UpdatedAt:       sqltype.Timestamptz(now),
-	}); err != nil {
+	if err := q.InsertUser(ctx, sqlcgen.InsertUserParams{ID: id.MustParse(in.ID), Email: in.Email, DisplayName: in.DisplayName, EmailVerifiedAt: sqltype.Timestamptz(now), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertUser))
 	}
-	if err := q.InsertAccount(ctx, sqlcgen.InsertAccountParams{
-		ID:                id.MustParse(in.AccountID),
-		UserID:            id.MustParse(in.ID),
-		Provider:          string(AccountProviderPassword),
-		ProviderAccountID: in.Email,
-		PasswordHash:      sqltype.Text(in.PasswordHash),
-		CreatedAt:         sqltype.Timestamptz(now),
-		UpdatedAt:         sqltype.Timestamptz(now),
-	}); err != nil {
+	if err := q.InsertAccount(ctx, sqlcgen.InsertAccountParams{ID: id.MustParse(in.AccountID), UserID: id.MustParse(in.ID), Provider: string(AccountProviderPassword), ProviderAccountID: in.Email, PasswordHash: sqltype.Text(in.PasswordHash), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertAccount))
 	}
-	if err := q.InsertOrganisation(ctx, sqlcgen.InsertOrganisationParams{
-		ID:        id.MustParse(in.OrganisationID),
-		Name:      in.OrganisationName,
-		Slug:      in.OrganisationSlug,
-		Logo:      sqltype.Text(""),
-		CreatedAt: sqltype.Timestamptz(now),
-		UpdatedAt: sqltype.Timestamptz(now),
-	}); err != nil {
+	if err := q.InsertOrganisation(ctx, sqlcgen.InsertOrganisationParams{ID: id.MustParse(in.OrganisationID), Name: in.OrganisationName, Slug: in.OrganisationSlug, Logo: sqltype.Text(""), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisation))
 	}
-	if err := q.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{
-		ID:             id.MustParse(in.OrganisationMemberID),
-		OrganisationID: id.MustParse(in.OrganisationID),
-		UserID:         id.MustParse(in.ID),
-		Role:           string(RoleOwner),
-		CreatedAt:      sqltype.Timestamptz(now),
-		UpdatedAt:      sqltype.Timestamptz(now),
-	}); err != nil {
+	if err := q.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{ID: id.MustParse(in.OrganisationMemberID), OrganisationID: id.MustParse(in.OrganisationID), UserID: id.MustParse(in.ID), Role: string(RoleOwner), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisationMember))
 	}
 	return User{ID: in.ID, Email: in.Email, DisplayName: in.DisplayName, EmailVerified: true}, nil

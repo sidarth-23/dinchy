@@ -27,9 +27,9 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 7*24*time.Hour, cfg.Auth.SessionMaxLifetime)
 	assert.Equal(t, time.Hour, cfg.Auth.PasswordResetLifetime)
 	assert.Equal(t, 7*24*time.Hour, cfg.Auth.InviteLifetime)
-	assert.Equal(t, "127.0.0.1:6379", cfg.Cache.Addr)
-	assert.Equal(t, 0, cfg.Cache.Database)
-	assert.Equal(t, "dinchy", cfg.Cache.KeyPrefix)
+	assert.Equal(t, "127.0.0.1:6379", cfg.Redis.Addr)
+	assert.Equal(t, 0, cfg.Redis.Database)
+	assert.Equal(t, "dinchy", cfg.Redis.KeyPrefix)
 	assert.Equal(t, "app.events", cfg.EventBus.StreamName)
 	assert.Equal(t, "app", cfg.EventBus.ConsumerGroupPrefix)
 	assert.Equal(t, "local", cfg.EventBus.ConsumerName)
@@ -57,9 +57,9 @@ func TestLoad_AllOverrides(t *testing.T) {
 	t.Setenv("DINCHY_AUTH_SESSION_COOKIE_NAME", "custom_session")
 	t.Setenv("DINCHY_AUTH_SESSION_IDLE_TIMEOUT", "45m")
 	t.Setenv("DINCHY_AUTH_INVITE_LIFETIME", "72h")
-	t.Setenv("DINCHY_CACHE_ADDR", "127.0.0.1:6379")
-	t.Setenv("DINCHY_CACHE_DATABASE", "2")
-	t.Setenv("DINCHY_CACHE_KEY_PREFIX", "dinchy-test")
+	t.Setenv("DINCHY_REDIS_ADDR", "127.0.0.1:6379")
+	t.Setenv("DINCHY_REDIS_DATABASE", "2")
+	t.Setenv("DINCHY_REDIS_KEY_PREFIX", "dinchy-test")
 	t.Setenv("DINCHY_EVENT_BUS_STREAM_NAME", "audit.events")
 	t.Setenv("DINCHY_EVENT_BUS_CONSUMER_GROUP_PREFIX", "audit")
 	t.Setenv("DINCHY_EVENT_BUS_CONSUMER_NAME", "worker-a")
@@ -84,9 +84,9 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, "custom_session", cfg.Auth.SessionCookieName)
 	assert.Equal(t, 45*time.Minute, cfg.Auth.SessionIdleTimeout)
 	assert.Equal(t, 72*time.Hour, cfg.Auth.InviteLifetime)
-	assert.Equal(t, "127.0.0.1:6379", cfg.Cache.Addr)
-	assert.Equal(t, 2, cfg.Cache.Database)
-	assert.Equal(t, "dinchy-test", cfg.Cache.KeyPrefix)
+	assert.Equal(t, "127.0.0.1:6379", cfg.Redis.Addr)
+	assert.Equal(t, 2, cfg.Redis.Database)
+	assert.Equal(t, "dinchy-test", cfg.Redis.KeyPrefix)
 	assert.Equal(t, "audit.events", cfg.EventBus.StreamName)
 	assert.Equal(t, "audit", cfg.EventBus.ConsumerGroupPrefix)
 	assert.Equal(t, "worker-a", cfg.EventBus.ConsumerName)
@@ -220,8 +220,8 @@ func clearDinchyEnv(t *testing.T) {
 		"DINCHY_EVENT_BUS_CONSUMER_NAME", "DINCHY_EVENT_BUS_BATCH_SIZE",
 		"DINCHY_EVENT_BUS_RETENTION_WINDOW", "DINCHY_EVENT_BUS_CLAIM_MIN_IDLE",
 		"DINCHY_EVENT_BUS_READ_BLOCK", "DINCHY_EVENT_BUS_WORKER_INTERVAL",
-		"DINCHY_CACHE_ADDR", "DINCHY_CACHE_USERNAME",
-		"DINCHY_CACHE_PASSWORD", "DINCHY_CACHE_DATABASE", "DINCHY_CACHE_KEY_PREFIX",
+		"DINCHY_REDIS_ADDR", "DINCHY_REDIS_USERNAME",
+		"DINCHY_REDIS_PASSWORD", "DINCHY_REDIS_DATABASE", "DINCHY_REDIS_KEY_PREFIX",
 		"DINCHY_SMTP_HOST", "DINCHY_SMTP_PORT", "DINCHY_SMTP_USERNAME", "DINCHY_SMTP_PASSWORD", "DINCHY_SMTP_FROM",
 		"DINCHY_ENV_FILE",
 	} {

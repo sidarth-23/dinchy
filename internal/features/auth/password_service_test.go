@@ -14,10 +14,10 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
@@ -40,7 +40,7 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	store := NewMockStore(ctrl)
 	mailer, err := email.NewMailer(sender, "https://app.test")
 	require.NoError(t, err)
-	svc, err := NewService(nil, store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), mailer, nil)
+	svc, err := NewService(nil, store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, newTestRedis(t), platformredis.NewKeyer("test"), mailer, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
