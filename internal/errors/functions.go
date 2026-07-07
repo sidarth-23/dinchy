@@ -60,6 +60,11 @@ func Conflict(msg i18n.Message, opts ...Option) *AppError {
 	return New(http.StatusConflict, msg, opts...)
 }
 
+// TooManyRequests creates a 429 AppError.
+func TooManyRequests(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusTooManyRequests, msg, opts...)
+}
+
 // UnprocessableEntity creates a 422 AppError.
 func UnprocessableEntity(msg i18n.Message, opts ...Option) *AppError {
 	return New(http.StatusUnprocessableEntity, msg, opts...)
@@ -89,12 +94,28 @@ func Annotate(err error, opts ...Option) error {
 // If the error already is an AppError, the code and metadata are preserved.
 // Otherwise a generic internal error is returned.
 func ResponseFor(tag language.Tag, catalog *i18n.Catalog, status int, errs ...error) *ErrorResponse {
-	if appErr := firstAppError(errs...); appErr != nil {
-		return localizedResponse(tag, catalog, appErr)
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		if appErr, ok := appErrorFrom(err); ok {
+			return localizedResponse(tag, catalog, appErr)
+		}
 	}
 
 	if status == http.StatusUnprocessableEntity {
-		return validationResponse(tag, catalog, errs...)
+		meta := map[string]any{}
+		if fields := validationDetails(errs...); len(fields) > 0 {
+			meta["fields"] = fields
+		}
+		return &ErrorResponse{
+			status: http.StatusUnprocessableEntity,
+			Payload: ResponsePayload{
+				Code:    string(i18n.CodeRequestValidationFailed),
+				Message: catalog.Resolve(tag, i18n.Msg(i18n.CodeRequestValidationFailed)),
+				Meta:    meta,
+			},
+		}
 	}
 
 	return &ErrorResponse{

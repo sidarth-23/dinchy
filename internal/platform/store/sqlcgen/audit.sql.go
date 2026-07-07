@@ -7,10 +7,9 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const insertAuditLog = `-- name: InsertAuditLog :exec
@@ -24,29 +23,29 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $
 `
 
 type InsertAuditLogParams struct {
-	ID                  uuid.UUID
-	Category            string
-	Subcategory         string
-	EventType           string
-	Action              string
-	Outcome             string
-	ActorUserID         uuid.NullUUID
-	ActorOrganisationID uuid.NullUUID
-	TargetType          sql.NullString
-	TargetID            sql.NullString
-	TargetDisplay       sql.NullString
-	RequestID           sql.NullString
-	TraceID             sql.NullString
-	SpanID              sql.NullString
-	IpAddress           string
-	UserAgent           string
-	MetadataJson        string
-	ChangesJson         string
-	CreatedAt           time.Time
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	Category            string             `db:"category" json:"category"`
+	Subcategory         string             `db:"subcategory" json:"subcategory"`
+	EventType           string             `db:"event_type" json:"event_type"`
+	Action              string             `db:"action" json:"action"`
+	Outcome             string             `db:"outcome" json:"outcome"`
+	ActorUserID         uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
+	ActorOrganisationID uuid.NullUUID      `db:"actor_organisation_id" json:"actor_organisation_id"`
+	TargetType          pgtype.Text        `db:"target_type" json:"target_type"`
+	TargetID            pgtype.Text        `db:"target_id" json:"target_id"`
+	TargetDisplay       pgtype.Text        `db:"target_display" json:"target_display"`
+	RequestID           pgtype.Text        `db:"request_id" json:"request_id"`
+	TraceID             pgtype.Text        `db:"trace_id" json:"trace_id"`
+	SpanID              pgtype.Text        `db:"span_id" json:"span_id"`
+	IpAddress           string             `db:"ip_address" json:"ip_address"`
+	UserAgent           string             `db:"user_agent" json:"user_agent"`
+	MetadataJson        string             `db:"metadata_json" json:"metadata_json"`
+	ChangesJson         string             `db:"changes_json" json:"changes_json"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error {
-	_, err := q.db.ExecContext(ctx, insertAuditLog,
+	_, err := q.db.Exec(ctx, insertAuditLog,
 		arg.ID,
 		arg.Category,
 		arg.Subcategory,
@@ -77,55 +76,55 @@ SELECT
   request_id, trace_id, span_id, ip_address, user_agent,
   metadata_json, changes_json, created_at
 FROM app_audit_logs
-WHERE ($1 = '' OR category = $2)
-  AND ($3 = '' OR subcategory = $4)
-  AND ($5 = '' OR event_type = $6)
-  AND ($7 = '' OR actor_user_id = $8)
-  AND ($9 = '' OR target_type = $10)
-  AND ($11 = '' OR target_id = $12)
-  AND ($13 = '' OR outcome = $14)
-  AND ($16::timestamptz IS NULL OR created_at <= $16)
+WHERE ($1::text = '' OR category = $2)
+  AND ($3::text = '' OR subcategory = $4)
+  AND ($5::text = '' OR event_type = $6)
+  AND ($7::text = '' OR actor_user_id = $8)
+  AND ($9::text = '' OR target_type = $10)
+  AND ($11::text = '' OR target_id = $12)
+  AND ($13::text = '' OR outcome = $14)
+  AND ($15::timestamptz IS NULL OR created_at <= $15)
 ORDER BY created_at DESC, id DESC
-LIMIT $15
+LIMIT $16
 `
 
 type ListAuditLogsParams struct {
-	Column1     interface{}
-	Category    string
-	Column3     interface{}
-	Subcategory string
-	Column5     interface{}
-	EventType   string
-	Column7     interface{}
-	ActorUserID uuid.NullUUID
-	Column9     interface{}
-	TargetType  sql.NullString
-	Column11    interface{}
-	TargetID    sql.NullString
-	Column13    interface{}
-	Outcome     string
-	Limit       int32
-	Before      sql.NullTime
+	CategoryFilter    string             `db:"category_filter" json:"category_filter"`
+	Category          string             `db:"category" json:"category"`
+	SubcategoryFilter string             `db:"subcategory_filter" json:"subcategory_filter"`
+	Subcategory       string             `db:"subcategory" json:"subcategory"`
+	EventTypeFilter   string             `db:"event_type_filter" json:"event_type_filter"`
+	EventType         string             `db:"event_type" json:"event_type"`
+	ActorUserIDFilter string             `db:"actor_user_id_filter" json:"actor_user_id_filter"`
+	ActorUserID       uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
+	TargetTypeFilter  string             `db:"target_type_filter" json:"target_type_filter"`
+	TargetType        pgtype.Text        `db:"target_type" json:"target_type"`
+	TargetIDFilter    string             `db:"target_id_filter" json:"target_id_filter"`
+	TargetID          pgtype.Text        `db:"target_id" json:"target_id"`
+	OutcomeFilter     string             `db:"outcome_filter" json:"outcome_filter"`
+	Outcome           string             `db:"outcome" json:"outcome"`
+	Before            pgtype.Timestamptz `db:"before" json:"before"`
+	Limit             int32              `db:"limit" json:"limit"`
 }
 
 func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AppAuditLog, error) {
-	rows, err := q.db.QueryContext(ctx, listAuditLogs,
-		arg.Column1,
+	rows, err := q.db.Query(ctx, listAuditLogs,
+		arg.CategoryFilter,
 		arg.Category,
-		arg.Column3,
+		arg.SubcategoryFilter,
 		arg.Subcategory,
-		arg.Column5,
+		arg.EventTypeFilter,
 		arg.EventType,
-		arg.Column7,
+		arg.ActorUserIDFilter,
 		arg.ActorUserID,
-		arg.Column9,
+		arg.TargetTypeFilter,
 		arg.TargetType,
-		arg.Column11,
+		arg.TargetIDFilter,
 		arg.TargetID,
-		arg.Column13,
+		arg.OutcomeFilter,
 		arg.Outcome,
-		arg.Limit,
 		arg.Before,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
@@ -158,9 +157,6 @@ func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

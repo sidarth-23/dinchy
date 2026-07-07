@@ -2,13 +2,15 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 //go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
@@ -27,25 +29,12 @@ const (
 	AccountProviderPassword AccountProvider = "password"
 )
 
-type VerificationPurpose string
-
-const (
-	VerificationPurposePasswordReset VerificationPurpose = "password_reset"
-)
-
 type User struct {
-	ID          string
-	Email       string
-	DisplayName string
-	Disabled    bool
-}
-
-type Account struct {
-	ID                string
-	UserID            string
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      string
+	ID            string
+	Email         string
+	DisplayName   string
+	EmailVerified bool
+	Disabled      bool
 }
 
 type Organisation struct {
@@ -53,6 +42,27 @@ type Organisation struct {
 	Name string
 	Slug string
 	Role Role
+}
+
+type InvitationStatus string
+
+const (
+	InvitationStatusPending  InvitationStatus = "pending"
+	InvitationStatusAccepted InvitationStatus = "accepted"
+	InvitationStatusRejected InvitationStatus = "rejected"
+	InvitationStatusCanceled InvitationStatus = "canceled"
+)
+
+type Invitation struct {
+	ID              string
+	OrganisationID  string
+	Email           string
+	Role            Role
+	Status          InvitationStatus
+	ExpiresAt       time.Time
+	InvitedByUserID string
+	AcceptedAt      time.Time
+	AcceptedAtValid bool
 }
 
 type TwoFactor struct {
@@ -65,18 +75,6 @@ type TwoFactor struct {
 	FailedVerificationCount int64
 	LockedUntil             time.Time
 	LockedUntilValid        bool
-}
-
-type VerificationToken struct {
-	ID              string
-	UserID          string
-	UserIDValid     bool
-	Email           string
-	Purpose         string
-	TokenHash       string
-	ExpiresAt       time.Time
-	ConsumedAt      time.Time
-	ConsumedAtValid bool
 }
 
 type CreateUserInput struct {
@@ -107,230 +105,7 @@ type SessionWithUser struct {
 	Role             Role
 	IdleExpiresAt    time.Time
 	ExpiresAt        time.Time
-	RevokedAt        sql.NullTime
-}
-
-type CreateSessionInput struct {
-	ID             string
-	UserID         string
-	OrganisationID string
-	TokenHash      string
-	IP             string
-	UserAgent      string
-	Now            time.Time
-	IdleExpiresAt  time.Time
-	ExpiresAt      time.Time
-}
-
-type UpdateUserPasswordHashInput struct {
-	UserID       string
-	PasswordHash string
-	Now          time.Time
-}
-
-type UserRow struct {
-	ID          string
-	Email       string
-	DisplayName string
-}
-
-type AccountRow struct {
-	ID                string
-	UserID            string
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      string
-}
-
-type OrganisationRow struct {
-	ID   string
-	Name string
-	Slug string
-	Role string
-}
-
-type VerificationTokenRow struct {
-	ID              string
-	UserID          string
-	UserIDValid     bool
-	Email           string
-	Purpose         string
-	TokenHash       string
-	ExpiresAt       time.Time
-	ConsumedAt      time.Time
-	ConsumedAtValid bool
-}
-
-type SSOProviderSettingRow struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
-type TaskParams struct {
-	ID                      string
-	TaskName                string
-	ScheduleIntervalSeconds int64
-	NextRunAt               time.Time
-	UpdatedAt               time.Time
-}
-
-type ClaimTaskParams struct {
-	LeaseOwner      string
-	LeaseExpiresAt  time.Time
-	LastRunAt       time.Time
-	UpdatedAt       time.Time
-	TaskName        string
-	LeaseExpiresAt2 time.Time
-	NextRunAt       time.Time
-}
-
-type FinishTaskParams struct {
-	LastFinishedAt   time.Time
-	NextRunAt        time.Time
-	LastStatus       string
-	LastErrorCode    string
-	LastErrorMessage string
-	UpdatedAt        time.Time
-	TaskName         string
-}
-
-type UpdateUserPasswordHashParams struct {
-	UserID       string
-	PasswordHash string
-	UpdatedAt    time.Time
-}
-
-type InsertUserParams struct {
-	ID              string
-	Email           string
-	DisplayName     string
-	EmailVerifiedAt time.Time
-	EmailVerified   bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
-
-type InsertAccountParams struct {
-	ID                string
-	UserID            string
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-}
-
-type InsertOrganisationParams struct {
-	ID        string
-	Name      string
-	Slug      string
-	Logo      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type InsertOrganisationMemberParams struct {
-	ID             string
-	OrganisationID string
-	UserID         string
-	Role           string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
-type InsertVerificationTokenParams struct {
-	ID          string
-	UserID      string
-	UserIDValid bool
-	Email       string
-	Purpose     string
-	TokenHash   string
-	ExpiresAt   time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type ConsumeVerificationTokenParams struct {
-	ID         string
-	ConsumedAt time.Time
-	UpdatedAt  time.Time
-}
-
-type SaveTwoFactorParams struct {
-	ID        string
-	UserID    string
-	Secret    string
-	Verified  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type UseTwoFactorParams struct {
-	UserID       string
-	LastUsedStep int64
-	UpdatedAt    time.Time
-}
-
-type UpsertSSOProviderSettingParams struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
-type InsertSessionParams struct {
-	ID                   string
-	UserID               string
-	ActiveOrganisationID string
-	TokenHash            string
-	IPAddress            string
-	UserAgent            string
-	LastSeenAt           time.Time
-	IdleExpiresAt        time.Time
-	ExpiresAt            time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-}
-
-type SessionRow struct {
-	ID                   string
-	UserID               string
-	Email                string
-	DisplayName          string
-	ActiveOrganisationID string
-	OrganisationName     string
-	OrganisationSlug     string
-	Role                 string
-	IdleExpiresAt        time.Time
-	ExpiresAt            time.Time
-	RevokedAt            time.Time
-	RevokedAtValid       bool
-}
-
-type RevokeSessionParams struct {
-	RevokedAt time.Time
-	UpdatedAt time.Time
-	TokenHash string
-}
-
-type RevokeSessionsForUserParams struct {
-	RevokedAt time.Time
-	UpdatedAt time.Time
-	UserID    string
+	RevokedAt        pgtype.Timestamptz
 }
 
 type Store interface {
@@ -340,6 +115,7 @@ type Store interface {
 	InsertOrganisation(ctx context.Context, arg sqlcgen.InsertOrganisationParams) error
 	InsertOrganisationMember(ctx context.Context, arg sqlcgen.InsertOrganisationMemberParams) error
 	FindUserByEmail(ctx context.Context, email string) (sqlcgen.FindUserByEmailRow, error)
+	UpdateUserEmailVerifiedAt(ctx context.Context, arg sqlcgen.UpdateUserEmailVerifiedAtParams) error
 	FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindPasswordAccountByUserIDRow, error)
 	FindUserByProviderAccount(ctx context.Context, arg sqlcgen.FindUserByProviderAccountParams) (sqlcgen.FindUserByProviderAccountRow, error)
 	ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganisationsForUserRow, error)
@@ -349,41 +125,21 @@ type Store interface {
 	InsertVerificationToken(ctx context.Context, arg sqlcgen.InsertVerificationTokenParams) error
 	FindVerificationToken(ctx context.Context, arg sqlcgen.FindVerificationTokenParams) (sqlcgen.FindVerificationTokenRow, error)
 	ConsumeVerificationToken(ctx context.Context, arg sqlcgen.ConsumeVerificationTokenParams) error
+	InsertOrganisationInvitation(ctx context.Context, arg sqlcgen.InsertOrganisationInvitationParams) error
+	FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganisationInvitationByTokenRow, error)
+	FindPendingOrganisationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganisationInvitationByEmailParams) (sqlcgen.FindPendingOrganisationInvitationByEmailRow, error)
+	ConsumeOrganisationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganisationInvitationParams) error
 	InsertOrReplaceTwoFactor(ctx context.Context, arg sqlcgen.InsertOrReplaceTwoFactorParams) error
 	FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error)
 	ConfirmTwoFactor(ctx context.Context, arg sqlcgen.ConfirmTwoFactorParams) error
 	MarkTwoFactorUsed(ctx context.Context, arg sqlcgen.MarkTwoFactorUsedParams) error
+	RegisterTwoFactorFailure(ctx context.Context, arg sqlcgen.RegisterTwoFactorFailureParams) error
 	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
-	ListSSOProviderSettings(ctx context.Context) ([]sqlcgen.SsoProviderSetting, error)
-	UpsertSSOProviderSetting(ctx context.Context, arg sqlcgen.UpsertSSOProviderSettingParams) error
 	InsertSession(ctx context.Context, arg sqlcgen.InsertSessionParams) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (sqlcgen.GetSessionByTokenHashRow, error)
 	RevokeSessionByTokenHash(ctx context.Context, arg sqlcgen.RevokeSessionByTokenHashParams) error
 	RevokeSessionsForUser(ctx context.Context, arg sqlcgen.RevokeSessionsForUserParams) error
 	GetInstanceName(ctx context.Context) (string, error)
-}
-
-type SSOProviderSetting struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-}
-
-type UpsertSSOProviderSettingInput struct {
-	ProviderID    string
-	ClientID      string
-	ClientIDValid bool
-	Secret        string
-	SecretValid   bool
-	CallbackURL   string
-	CallbackValid bool
-	Enabled       bool
-	Now           time.Time
 }
 
 type BootstrapState struct {
@@ -403,10 +159,10 @@ type ViewerOut struct {
 }
 
 type OrganisationOut struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
-	Role string `json:"role"`
+	ID   string `json:"id" doc:"Organisation identifier"`
+	Name string `json:"name" doc:"Organisation display name"`
+	Slug string `json:"slug" doc:"Organisation slug"`
+	Role string `json:"role" doc:"Viewer's role in this organisation"`
 }
 
 // AppOut contains application-level metadata returned in every API response body.
@@ -431,10 +187,19 @@ type BootstrapOut struct {
 
 // LoginBody contains the credentials required to authenticate.
 type LoginBody struct {
-	Email            string `json:"email" format:"email" minLength:"3" maxLength:"254" doc:"User email address"`
-	Password         string `json:"password" minLength:"1" maxLength:"128" doc:"User password"`
-	OrganisationSlug string `json:"organisation_slug,omitempty" doc:"Organisation slug when the user has multiple memberships"`
-	TOTPCode         string `json:"totp_code,omitempty" doc:"TOTP code when two-factor authentication is enabled"`
+	Email            string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"User email address"`
+	Password         string `json:"password" minLength:"1" maxLength:"128" example:"correct horse battery staple" doc:"User password"`
+	OrganisationSlug string `json:"organisation_slug,omitempty" maxLength:"64" example:"acme" doc:"Organisation slug when the user has multiple memberships"`
+	TOTPCode         string `json:"totp_code,omitempty" maxLength:"8" example:"123456" doc:"TOTP code when two-factor authentication is enabled"`
+}
+
+// Resolve normalizes the login credentials before validation errors are returned
+// so downstream services receive canonical values.
+func (b *LoginBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+	transform.ApplyTo(transform.SpecTrim, &b.TOTPCode)
+	return nil
 }
 
 // LoginIn is the huma input type for the login endpoint.
@@ -449,7 +214,13 @@ type LoginOut struct {
 }
 
 type SelectOrganisationBody struct {
-	OrganisationSlug string `json:"organisation_slug" minLength:"1"`
+	OrganisationSlug string `json:"organisation_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organisation to make active"`
+}
+
+// Resolve trims the organisation slug before it reaches the service.
+func (b *SelectOrganisationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+	return nil
 }
 
 type SelectOrganisationIn struct {
@@ -462,7 +233,13 @@ type SelectOrganisationOut struct {
 }
 
 type ForgotPasswordBody struct {
-	Email string `json:"email" format:"email" minLength:"3" maxLength:"254"`
+	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to send the reset link to"`
+}
+
+// Resolve normalizes the email before the reset request is processed.
+func (b *ForgotPasswordBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	return nil
 }
 
 type ForgotPasswordIn struct {
@@ -475,9 +252,51 @@ type ForgotPasswordOut struct {
 	}
 }
 
+type CreateInvitationBody struct {
+	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to invite"`
+	Role  Role   `json:"role" enum:"member,admin" example:"member" doc:"Role granted to the invited member"`
+}
+
+// Resolve normalizes the invitee email; the role is validated by its enum.
+func (b *CreateInvitationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	return nil
+}
+
+type CreateInvitationIn struct {
+	Body CreateInvitationBody
+}
+
+type CreateInvitationOut struct {
+	Body struct {
+		Created bool `json:"created"`
+	}
+}
+
+type AcceptInvitationBody struct {
+	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" example:"Ada Lovelace" doc:"Display name for the new member"`
+	Password    string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"Password (minimum 8 characters)"`
+}
+
+// Resolve trims the display name before the invitation is accepted.
+func (b *AcceptInvitationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.DisplayName)
+	return nil
+}
+
+type AcceptInvitationIn struct {
+	Token string `path:"token" minLength:"1" doc:"Invitation token from the invite link"`
+	Body  AcceptInvitationBody
+}
+
+type AcceptInvitationOut struct {
+	SetCookie []http.Cookie `header:"Set-Cookie"`
+	Body      BootstrapBody
+}
+
 type ResetPasswordBody struct {
-	Token    string `json:"token" minLength:"1"`
-	Password string `json:"password" minLength:"8" maxLength:"128"`
+	Token    string `json:"token" minLength:"1" doc:"Reset token from the password reset email"`
+	Password string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"New password (minimum 8 characters)"`
 }
 
 type ResetPasswordIn struct {
@@ -498,7 +317,13 @@ type TOTPEnrollOut struct {
 }
 
 type TOTPConfirmBody struct {
-	Code string `json:"code" minLength:"6" maxLength:"8"`
+	Code string `json:"code" minLength:"6" maxLength:"8" example:"123456" doc:"TOTP code from the authenticator app"`
+}
+
+// Resolve trims the confirmation code before it is verified.
+func (b *TOTPConfirmBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.Code)
+	return nil
 }
 
 type TOTPConfirmIn struct {
@@ -525,9 +350,16 @@ type SessionOut struct {
 
 // SetupBody contains the fields required to create the first admin user.
 type SetupBody struct {
-	Email       string `json:"email" format:"email" minLength:"3" maxLength:"254" doc:"Admin email address"`
-	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" doc:"Display name for the admin user"`
-	Password    string `json:"password" minLength:"8" maxLength:"128" doc:"Password (minimum 8 characters)"`
+	Email       string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"admin@example.com" doc:"Admin email address"`
+	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" example:"Ada Lovelace" doc:"Display name for the admin user"`
+	Password    string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"Password (minimum 8 characters)"`
+}
+
+// Resolve normalizes the admin email and display name during first-user setup.
+func (b *SetupBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecEmail, &b.Email)
+	transform.ApplyTo(transform.SpecTrim, &b.DisplayName)
+	return nil
 }
 
 // SetupIn is the huma input type for the first-user setup endpoint.

@@ -91,36 +91,6 @@
                   "outcome": "succeeded"
                 }
               ]
-            },
-            {
-              "id": "sso_settings",
-              "description": "Single sign-on configuration events",
-              "events": [
-                {
-                  "id": "updated",
-                  "description": "SSO settings were updated",
-                  "action": "update_sso_settings",
-                  "outcome": "succeeded",
-                  "change_keys": [
-                    {
-                      "name": "client_id",
-                      "type": "bool"
-                    },
-                    {
-                      "name": "client_secret",
-                      "type": "bool"
-                    },
-                    {
-                      "name": "callback_url",
-                      "type": "bool"
-                    },
-                    {
-                      "name": "enabled",
-                      "type": "bool"
-                    }
-                  ]
-                }
-              ]
             }
           ]
         }

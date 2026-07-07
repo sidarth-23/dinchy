@@ -2,10 +2,11 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -14,9 +15,11 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 type fakeSender struct {
@@ -35,7 +38,9 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
-	svc, err := NewService(nil, store, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), sender, nil)
+	mailer, err := email.NewMailer(sender, "https://app.test")
+	require.NoError(t, err)
+	svc, err := NewService(nil, store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), mailer, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
@@ -45,6 +50,22 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 		}, nil
 	}
 	return svc, store
+}
+
+func verificationTokenRow(rowID, userID, email, purpose, tokenHash string, expiresAt, consumedAt time.Time, consumedAtValid bool) sqlcgen.FindVerificationTokenRow {
+	nullUserID := uuid.NullUUID{}
+	if userID != "" {
+		nullUserID = uuid.NullUUID{UUID: id.MustParse(userID), Valid: true}
+	}
+	return sqlcgen.FindVerificationTokenRow{
+		ID:         id.MustParse(rowID),
+		UserID:     nullUserID,
+		Email:      email,
+		Purpose:    purpose,
+		TokenHash:  tokenHash,
+		ExpiresAt:  sqltype.Timestamptz(expiresAt),
+		ConsumedAt: sqltype.OptionalTimestamptz(consumedAt, consumedAtValid),
+	}
 }
 
 func TestForgotPassword_EmailNotConfigured(t *testing.T) {
@@ -60,7 +81,7 @@ func TestForgotPassword_UnknownUserIsSilent(t *testing.T) {
 	sender := &fakeSender{configured: true}
 	svc, store := newServiceWithSender(t, sender)
 
-	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").Return(sqlcgen.FindUserByEmailRow{}, sql.ErrNoRows)
+	store.EXPECT().FindUserByEmail(gomock.Any(), "user@example.com").Return(sqlcgen.FindUserByEmailRow{}, pgx.ErrNoRows)
 	// No token created and no mail sent for an unknown address (no user enumeration).
 
 	require.NoError(t, svc.ForgotPassword(testCtx, "user@example.com"))
@@ -80,12 +101,13 @@ func TestForgotPassword_CreatesTokenAndSends(t *testing.T) {
 			assert.True(t, token.UserID.Valid)
 			assert.Equal(t, string(VerificationPurposePasswordReset), token.Purpose)
 			assert.NotEmpty(t, token.TokenHash)
-			assert.True(t, token.ExpiresAt.After(fixedTime), "token must expire in the future")
+			assert.True(t, sqltype.TimeValue(token.ExpiresAt).After(fixedTime), "token must expire in the future")
 			return nil
 		})
 
-	// Leading/trailing whitespace and case must be normalized before lookup.
-	require.NoError(t, svc.ForgotPassword(testCtx, "  USER@EXAMPLE.COM  "))
+	// Email normalization happens at the transport boundary (ForgotPasswordBody.Resolve),
+	// so the service receives an already-canonical address.
+	require.NoError(t, svc.ForgotPassword(testCtx, "user@example.com"))
 	require.Len(t, sender.sent, 1)
 	assert.Equal(t, "user@example.com", sender.sent[0].To)
 	assert.NotEmpty(t, sender.sent[0].Text)

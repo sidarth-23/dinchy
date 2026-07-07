@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"net/http"
+
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 func (s *Service) SessionCookieName() string {
@@ -14,11 +16,11 @@ func (s *Service) SSOStateCookieName() string {
 }
 
 func (s *Service) SessionCookie(token string, secure bool) *http.Cookie {
-	return valueCookie(s.authConfig.SessionCookieName, token, secure)
+	return support.ValueCookie(s.authConfig.SessionCookieName, token, secure)
 }
 
 func (s *Service) ClearSessionCookie(secure bool) *http.Cookie {
-	return clearCookie(s.authConfig.SessionCookieName, secure)
+	return support.ClearCookie(s.authConfig.SessionCookieName, secure)
 }
 
 // WithSession attaches a validated session to the request context.

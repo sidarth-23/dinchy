@@ -7,7 +7,8 @@ package sqlcgen
 
 import (
 	"context"
-	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const ensureDefaultSettings = `-- name: EnsureDefaultSettings :exec
@@ -25,12 +26,12 @@ ON CONFLICT(id) DO NOTHING
 `
 
 type EnsureDefaultSettingsParams struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) EnsureDefaultSettings(ctx context.Context, arg EnsureDefaultSettingsParams) error {
-	_, err := q.db.ExecContext(ctx, ensureDefaultSettings, arg.CreatedAt, arg.UpdatedAt)
+	_, err := q.db.Exec(ctx, ensureDefaultSettings, arg.CreatedAt, arg.UpdatedAt)
 	return err
 }
 
@@ -39,7 +40,7 @@ SELECT instance_name FROM app_settings WHERE id = 'app_settings'
 `
 
 func (q *Queries) GetInstanceName(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getInstanceName)
+	row := q.db.QueryRow(ctx, getInstanceName)
 	var instance_name string
 	err := row.Scan(&instance_name)
 	return instance_name, err

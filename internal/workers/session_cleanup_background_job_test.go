@@ -2,17 +2,19 @@ package workers
 
 import (
 	"context"
-	"database/sql/driver"
 	stderrors "errors"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 func TestSessionCleanupWorker_Execute_UsesRetentionWindow(t *testing.T) {
@@ -22,12 +24,12 @@ func TestSessionCleanupWorker_Execute_UsesRetentionWindow(t *testing.T) {
 
 	store.EXPECT().
 		DeleteEndedSessionsOlderThan(gomock.Any(), sqlcgen.DeleteEndedSessionsOlderThanParams{
-			ExpiresAt: fixedTime.Add(-sessionCleanupRetentionDuration).UTC(),
-			UpdatedAt: fixedTime.UTC(),
+			ExpiresAt: sqltype.Timestamptz(fixedTime.Add(-sessionCleanupRetentionDuration)),
+			UpdatedAt: sqltype.Timestamptz(fixedTime),
 		}).
-		Return(driver.RowsAffected(7), nil)
+		Return(pgconn.NewCommandTag("DELETE 7"), nil)
 
-	worker := NewSessionCleanupWorker(store, fakeClock{now: fixedTime})
+	worker := NewSessionCleanupWorker(store, clock.Fixed(fixedTime))
 	outcome, err := worker.Execute(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int64(7), outcome.DeletedCount)
@@ -41,12 +43,12 @@ func TestSessionCleanupWorker_Execute_PropagatesError(t *testing.T) {
 
 	store.EXPECT().
 		DeleteEndedSessionsOlderThan(gomock.Any(), sqlcgen.DeleteEndedSessionsOlderThanParams{
-			ExpiresAt: fixedTime.Add(-sessionCleanupRetentionDuration).UTC(),
-			UpdatedAt: fixedTime.UTC(),
+			ExpiresAt: sqltype.Timestamptz(fixedTime.Add(-sessionCleanupRetentionDuration)),
+			UpdatedAt: sqltype.Timestamptz(fixedTime),
 		}).
-		Return(driver.RowsAffected(0), sentinel)
+		Return(pgconn.NewCommandTag("DELETE 0"), sentinel)
 
-	worker := NewSessionCleanupWorker(store, fakeClock{now: fixedTime})
+	worker := NewSessionCleanupWorker(store, clock.Fixed(fixedTime))
 	outcome, err := worker.Execute(context.Background())
 	require.ErrorIs(t, err, sentinel, "Execute returns the store error unwrapped; the runtime annotates it")
 	assert.Zero(t, outcome.DeletedCount)
@@ -54,7 +56,7 @@ func TestSessionCleanupWorker_Execute_PropagatesError(t *testing.T) {
 
 func TestSessionCleanupWorker_Contract(t *testing.T) {
 	t.Parallel()
-	worker := NewSessionCleanupWorker(nil, fakeClock{now: fixedTime})
+	worker := NewSessionCleanupWorker(nil, clock.Fixed(fixedTime))
 
 	// The runtime keys scheduling and failure reporting on these values.
 	assert.Equal(t, "session_cleanup", worker.TaskName())

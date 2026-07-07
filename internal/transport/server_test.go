@@ -15,28 +15,20 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/testsupport"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
-type fakeClock struct {
-	now time.Time
-}
-
-func (c fakeClock) Now() time.Time {
-	return c.now
-}
-
 var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler {
 	t.Helper()
 	db := testsupport.OpenPostgresStore(t)
-	queries := sqlcgen.New(db.DB())
-	svc, err := auth.NewService(db.DB(), queries, id.NewGenerator(), fakeClock{now: fixedTime}, config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), email.NoopSender{}, nil)
+	queries := sqlcgen.New(db.Pool())
+	svc, err := auth.NewService(db.Pool(), queries, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), nil, nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
 	srv := transport.New(":0", dist, svc, nil, db, false, devMode, devProxyURL, nil)

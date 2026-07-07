@@ -15,6 +15,8 @@ type AuthConfig struct {
 	SSOStateLifetime time.Duration `env:"DINCHY_AUTH_SSO_STATE_LIFETIME" validate:"gt=0"`
 	// PasswordResetLifetime is the validity window for password reset tokens.
 	PasswordResetLifetime time.Duration `env:"DINCHY_AUTH_PASSWORD_RESET_LIFETIME" validate:"gt=0"`
+	// InviteLifetime is the validity window for organization invitation tokens.
+	InviteLifetime time.Duration `env:"DINCHY_AUTH_INVITE_LIFETIME" validate:"gt=0"`
 	// TOTPIssuer is the issuer label shown in authenticator apps for Dinchy TOTP secrets.
 	TOTPIssuer string `env:"DINCHY_AUTH_TOTP_ISSUER" validate:"required"`
 	// DefaultOrganisationName is the organisation name created during first-user setup.
@@ -31,6 +33,7 @@ func DefaultAuth() AuthConfig {
 		SessionMaxLifetime:      7 * 24 * time.Hour,
 		SSOStateLifetime:        10 * time.Minute,
 		PasswordResetLifetime:   time.Hour,
+		InviteLifetime:          7 * 24 * time.Hour,
 		TOTPIssuer:              "Dinchy",
 		DefaultOrganisationName: "Default",
 		DefaultOrganisationSlug: "default",

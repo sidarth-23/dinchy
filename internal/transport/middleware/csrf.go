@@ -4,15 +4,14 @@ package middleware
 // They are internal failure details only and are never returned to users.
 
 import (
-	"crypto/rand"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -29,7 +28,10 @@ func CSRF() func(http.Handler) http.Handler {
 			var token string
 			cookie, err := r.Cookie(support.CSRFCookieName)
 			if err != nil || cookie.Value == "" {
-				token = generateToken()
+				token, err = security.RandomToken(32)
+				if err != nil {
+					panic(err)
+				}
 				http.SetCookie(w, support.CSRFCookie(token, secure))
 			} else {
 				token = cookie.Value
@@ -52,12 +54,4 @@ func CSRF() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func generateToken() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b)
 }

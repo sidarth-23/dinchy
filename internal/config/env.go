@@ -16,14 +16,58 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
-// loadFromEnv iterates Config fields, reads the env tag to find the env var name,
-// and overrides the field value only when the env var is non-empty.
-func loadFromEnv(cfg any) error {
-	v := reflect.ValueOf(cfg).Elem()
+// applyModsValue walks the config value recursively and normalizes every string
+// field carrying a `mod:"..."` tag using the transform registry. Running once at
+// load keeps all value normalization in the config phase so consumers read
+// accurate values.
+func applyModsValue(v reflect.Value) error {
 	t := v.Type()
-
 	for i := range t.NumField() {
 		field := t.Field(i)
+		if field.Type.Kind() == reflect.Struct {
+			if err := applyModsValue(v.Field(i)); err != nil {
+				return err
+			}
+			continue
+		}
+		spec := field.Tag.Get("mod")
+		if spec == "" {
+			continue
+		}
+		if field.Type.Kind() != reflect.String {
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				apperrors.WithCause(fmt.Errorf("mod tag %q on non-string field %q", spec, field.Name)),
+				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
+			)
+		}
+		normalized, ok := transform.Apply(spec, v.Field(i).String())
+		if !ok {
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				apperrors.WithCause(fmt.Errorf("unknown mod %q on field %q", spec, field.Name)),
+				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
+			)
+		}
+		v.Field(i).SetString(normalized)
+	}
+	return nil
+}
+
+// loadFromEnvValue walks the config value recursively, reads the env tag on each
+// field to find the env var name, and overrides the field value only when the env
+// var is non-empty. Nested config structs are descended into so a single call
+// populates the whole tree.
+func loadFromEnvValue(v reflect.Value) error {
+	t := v.Type()
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if field.Type.Kind() == reflect.Struct {
+			if err := loadFromEnvValue(v.Field(i)); err != nil {
+				return err
+			}
+			continue
+		}
 		envKey := field.Tag.Get("env")
 		if envKey == "" {
 			continue
@@ -34,14 +78,14 @@ func loadFromEnv(cfg any) error {
 		}
 		switch field.Type.Kind() {
 		case reflect.String:
-			switch envKey {
-			case "DINCHY_CACHE_BACKEND", "DINCHY_LOG_LEVEL", "DINCHY_LOG_FORMAT":
-				v.Field(i).SetString(strings.ToLower(transform.Trim(raw)))
-			default:
-				v.Field(i).SetString(raw)
-			}
+			v.Field(i).SetString(raw)
 		case reflect.Bool:
-			v.Field(i).SetBool(parseBool(raw))
+			truthy := false
+			switch strings.ToLower(raw) {
+			case "1", "true", "t", "yes", "on":
+				truthy = true
+			}
+			v.Field(i).SetBool(truthy)
 		case reflect.Int:
 			var parsed int
 			if _, err := fmt.Sscanf(raw, "%d", &parsed); err != nil {
@@ -72,6 +116,16 @@ func loadFromEnv(cfg any) error {
 				)
 			}
 			v.Field(i).SetUint(parsed)
+		case reflect.Float32, reflect.Float64:
+			parsed, err := strconv.ParseFloat(raw, field.Type.Bits())
+			if err != nil {
+				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+					apperrors.WithCause(fmt.Errorf("parse float env %q for %q: %w", envKey, field.Name, err)),
+					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
+					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
+				)
+			}
+			v.Field(i).SetFloat(parsed)
 		default:
 			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),
@@ -81,14 +135,6 @@ func loadFromEnv(cfg any) error {
 		}
 	}
 	return nil
-}
-
-func parseBool(s string) bool {
-	switch strings.ToLower(s) {
-	case "1", "true", "t", "yes", "on":
-		return true
-	}
-	return false
 }
 
 func loadEnvPath(p string) error {
@@ -112,12 +158,17 @@ func loadEnvFile() error {
 		return loadEnvPath(p)
 	}
 
-	if p, err := xdgEnvPath(); err != nil {
-		return apperrors.Annotate(err)
-	} else if p != "" {
-		if _, err := os.Stat(p); err == nil {
-			return loadEnvPath(p)
+	xdg := os.Getenv("XDG_CONFIG_HOME")
+	if xdg == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithStage(apperrors.StageResolveXDGConfigHome))
 		}
+		xdg = filepath.Join(home, ".config")
+	}
+	xdgPath := filepath.Join(xdg, "dinchy", "dinchy.env")
+	if _, err := os.Stat(xdgPath); err == nil {
+		return loadEnvPath(xdgPath)
 	}
 
 	const systemPath = "/etc/dinchy/dinchy.env"
@@ -126,16 +177,4 @@ func loadEnvFile() error {
 	}
 
 	return nil
-}
-
-func xdgEnvPath() (string, error) {
-	xdg := os.Getenv("XDG_CONFIG_HOME")
-	if xdg == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithStage(apperrors.StageResolveXDGConfigHome))
-		}
-		xdg = filepath.Join(home, ".config")
-	}
-	return filepath.Join(xdg, "dinchy", "dinchy.env"), nil
 }

@@ -54,7 +54,7 @@ func TestRunValidateEventRejectsInvalidCatalog(t *testing.T) {
 										ID:      "login",
 										Action:  "login",
 										Outcome: "succeeded",
-										MetadataKeys: []manifest.TypedKey{
+										MetadataKeys: []manifest.Field{
 											{Name: "email", Type: "uuid"},
 										},
 									},

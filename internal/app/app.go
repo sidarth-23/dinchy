@@ -53,51 +53,47 @@ func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
 func (a *App) Start() error {
 	ctx := context.Background()
 
-	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN)
+	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN, store.WithLogger(a.logger))
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageOpenStore),
 		)
 	}
 	a.closer = s
-	queries := sqlcgen.New(s.DB())
+	queries := sqlcgen.New(s.Pool())
 
 	cacheStore, err := cache.Open(ctx, a.cfg.Cache)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 	a.cache = cacheStore
-	streamStore, _ := cacheStore.(cachecore.StreamStore)
-	var eventBusSvc *eventbus.Service
-	var auditSvc *audit.Service
-	if a.cfg.Audit.Enabled {
-		if streamStore == nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("redis stream store is required when audit is enabled")))
-		}
-		eventBusSvc, err = eventbus.NewService(streamStore, id.NewGenerator(), eventbus.Config{
-			StreamName:          a.cfg.EventBus.StreamName,
-			ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix,
-			ConsumerName:        a.cfg.EventBus.ConsumerName,
-			BatchSize:           a.cfg.EventBus.BatchSize,
-			RetentionWindow:     a.cfg.EventBus.RetentionWindow,
-			ClaimMinIdle:        a.cfg.EventBus.ClaimMinIdle,
-			ReadBlock:           a.cfg.EventBus.ReadBlock,
-			WorkerInterval:      a.cfg.EventBus.WorkerInterval,
-		})
-		if err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-		}
-		auditSvc, err = audit.NewService(queries)
-		if err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-		}
-		eventBusSvc.Register(auditSvc)
-		if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-		}
+	streamStore, ok := cacheStore.(cachecore.StreamStore)
+	if !ok {
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("cache backend does not support the streams required by the event bus")))
+	}
+	eventBusSvc, err := eventbus.NewService(streamStore, id.NewGenerator(), eventbus.Config{
+		StreamName:          a.cfg.EventBus.StreamName,
+		ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix,
+		ConsumerName:        a.cfg.EventBus.ConsumerName,
+		BatchSize:           a.cfg.EventBus.BatchSize,
+		RetentionWindow:     a.cfg.EventBus.RetentionWindow,
+		ClaimMinIdle:        a.cfg.EventBus.ClaimMinIdle,
+		ReadBlock:           a.cfg.EventBus.ReadBlock,
+		WorkerInterval:      a.cfg.EventBus.WorkerInterval,
+	})
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	clk := clock.System{}
+	auditSvc, err := audit.NewService(queries, clk)
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	eventBusSvc.Register(auditSvc)
+	if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 
-	clk := clock.RealClock{}
 	var sender email.Sender = email.NoopSender{}
 	if a.cfg.SMTP.Enabled() {
 		smtpSender, err := email.NewSMTPSender(a.cfg.SMTP)
@@ -106,26 +102,35 @@ func (a *App) Start() error {
 		}
 		sender = smtpSender
 	}
-	authSvc, err := auth.NewService(s.DB(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), sender, eventBusSvc)
+	mailer, err := email.NewMailer(sender, a.cfg.PublicBaseURL)
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	authSvc, err := auth.NewService(s.Pool(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), mailer, eventBusSvc)
 	if err != nil {
 		return apperrors.Annotate(err,
 			apperrors.WithStage(apperrors.StageSetup),
 		)
 	}
 
-	dist, err := frontendFS(a.cfg.DevMode)
-	if err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageLoadFrontendAssets),
-		)
+	var dist fs.FS
+	if !a.cfg.DevMode {
+		distFS, err := frontend.DistFS()
+		if err != nil {
+			return apperrors.Annotate(err,
+				apperrors.WithStage(apperrors.StageFrontendDistFs),
+				apperrors.WithStage(apperrors.StageLoadFrontendAssets),
+			)
+		}
+		dist = distFS
 	}
 
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 
-	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk)}
-	if eventBusSvc != nil {
-		registeredWorkers = append(registeredWorkers, eventbus.NewWorker(eventBusSvc, auditSvc.Name()))
+	registeredWorkers := []workers.Worker{
+		workers.NewSessionCleanupWorker(queries, clk),
+		eventbus.NewWorker(eventBusSvc, auditSvc.Name()),
 	}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, a.errCh, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {
@@ -192,17 +197,4 @@ func (a *App) Wait() error {
 			return nil
 		}
 	}
-}
-
-func frontendFS(devMode bool) (fs.FS, error) {
-	if devMode {
-		return nil, nil
-	}
-	dist, err := frontend.DistFS()
-	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageFrontendDistFs),
-		)
-	}
-	return dist, nil
 }

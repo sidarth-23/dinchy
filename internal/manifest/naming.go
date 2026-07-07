@@ -25,7 +25,15 @@ func GoName(value string) string {
 		if segment == "" {
 			continue
 		}
-		b.WriteString(goSegment(segment))
+		if acronym, ok := goAcronyms[strings.ToLower(segment)]; ok {
+			b.WriteString(acronym)
+			continue
+		}
+		if segment == strings.ToUpper(segment) {
+			b.WriteString(segment)
+			continue
+		}
+		b.WriteString(strings.ToUpper(segment[:1]) + strings.ToLower(segment[1:]))
 	}
 	return b.String()
 }
@@ -49,17 +57,4 @@ func DisplayPath(parts []string) string {
 		return "<root>"
 	}
 	return strings.Join(cleaned, ".")
-}
-
-func goSegment(segment string) string {
-	if segment == "" {
-		return ""
-	}
-	if acronym, ok := goAcronyms[strings.ToLower(segment)]; ok {
-		return acronym
-	}
-	if segment == strings.ToUpper(segment) {
-		return segment
-	}
-	return strings.ToUpper(segment[:1]) + strings.ToLower(segment[1:])
 }

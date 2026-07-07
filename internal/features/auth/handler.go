@@ -1,11 +1,10 @@
-// Package auth handles password hashing, session issuance, and session validation.
+// Package auth handles authentication, sessions, account setup, and related feature flows.
 package auth
 
 import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -32,6 +31,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Get application bootstrap state",
 		Description: "Returns setup status, authentication state, app metadata, and current user info. Called by the frontend on initial load.",
 		Tags:        []string{"Bootstrap"},
+		Errors:      []int{http.StatusForbidden},
 	}, a.bootstrap)
 
 	huma.Register(h, huma.Operation{
@@ -41,6 +41,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Authenticate with email and password",
 		Description: "Validates credentials and issues a session cookie. Returns the current bootstrap state with viewer info.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.login)
 
 	huma.Register(h, huma.Operation{
@@ -50,6 +51,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "End the current session",
 		Description: "Revokes the current session and clears the session cookie.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusForbidden},
 	}, a.logout)
 
 	huma.Register(h, huma.Operation{
@@ -59,6 +61,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Get current session state",
 		Description: "Returns bootstrap state for the current request. Used to validate that a session is still active.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusForbidden},
 	}, a.session)
 
 	huma.Register(h, huma.Operation{
@@ -71,30 +74,13 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 	}, a.ssoProviders)
 
 	huma.Register(h, huma.Operation{
-		OperationID: "auth-sso-settings",
-		Method:      http.MethodGet,
-		Path:        "/auth/sso/settings",
-		Summary:     "List SSO provider settings",
-		Description: "Returns SSO provider setting status without exposing secret values.",
-		Tags:        []string{"Auth", "SSO"},
-	}, a.ssoSettings)
-
-	huma.Register(h, huma.Operation{
-		OperationID: "auth-sso-settings-update",
-		Method:      http.MethodPut,
-		Path:        "/auth/sso/settings/{provider_id}",
-		Summary:     "Update an SSO provider setting",
-		Description: "Updates DB-backed SSO provider settings. Env-backed fields are read-only.",
-		Tags:        []string{"Auth", "SSO"},
-	}, a.updateSSOSettings)
-
-	huma.Register(h, huma.Operation{
 		OperationID: "auth-sso-start",
 		Method:      http.MethodGet,
 		Path:        "/auth/sso/{provider_id}/start",
 		Summary:     "Start an SSO login",
 		Description: "Redirects to the provider authorization URL and sets a short-lived state cookie.",
 		Tags:        []string{"Auth", "SSO"},
+		Errors:      []int{http.StatusBadRequest, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.ssoStart)
 
 	huma.Register(h, huma.Operation{
@@ -104,6 +90,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Complete an SSO login",
 		Description: "Consumes the provider callback, creates a session, and redirects back into the app.",
 		Tags:        []string{"Auth", "SSO"},
+		Errors:      []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.ssoCallback)
 
 	huma.Register(h, huma.Operation{
@@ -111,15 +98,39 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/organisations/select",
 		Summary:     "Switch active organisation",
+		Description: "Sets the active organisation for the current session and reissues the session cookie.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, a.selectOrganisation)
+
+	huma.Register(h, huma.Operation{
+		OperationID: "auth-create-invitation",
+		Method:      http.MethodPost,
+		Path:        "/auth/invitations",
+		Summary:     "Create an organisation invitation",
+		Description: "Invites a member to the current organisation. Requires an owner or admin session.",
+		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
+	}, a.createInvitation)
+
+	huma.Register(h, huma.Operation{
+		OperationID: "auth-accept-invitation",
+		Method:      http.MethodPost,
+		Path:        "/auth/invitations/{token}/accept",
+		Summary:     "Accept an organisation invitation",
+		Description: "Consumes an invitation token, provisions the member account, and issues a session cookie.",
+		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusBadRequest, http.StatusForbidden, http.StatusUnprocessableEntity},
+	}, a.acceptInvitation)
 
 	huma.Register(h, huma.Operation{
 		OperationID: "auth-forgot-password",
 		Method:      http.MethodPost,
 		Path:        "/auth/forgot-password",
 		Summary:     "Request a password reset",
+		Description: "Sends a password reset email when the address matches an account. Always returns 200 to avoid account enumeration.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusUnprocessableEntity},
 	}, a.forgotPassword)
 
 	huma.Register(h, huma.Operation{
@@ -127,7 +138,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/reset-password",
 		Summary:     "Reset password",
+		Description: "Sets a new password using a valid reset token and revokes existing sessions.",
 		Tags:        []string{"Auth"},
+		Errors:      []int{http.StatusBadRequest, http.StatusUnprocessableEntity},
 	}, a.resetPassword)
 
 	huma.Register(h, huma.Operation{
@@ -135,7 +148,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/totp/enroll",
 		Summary:     "Start TOTP enrollment",
+		Description: "Generates a TOTP secret and provisioning URL for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
+		Errors:      []int{http.StatusUnauthorized},
 	}, a.totpEnroll)
 
 	huma.Register(h, huma.Operation{
@@ -143,7 +158,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/totp/confirm",
 		Summary:     "Confirm TOTP enrollment",
+		Description: "Verifies a TOTP code and enables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
+		Errors:      []int{http.StatusUnauthorized, http.StatusUnprocessableEntity, http.StatusTooManyRequests},
 	}, a.totpConfirm)
 
 	huma.Register(h, huma.Operation{
@@ -151,7 +168,9 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Method:      http.MethodPost,
 		Path:        "/auth/totp/disable",
 		Summary:     "Disable TOTP",
+		Description: "Disables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
+		Errors:      []int{http.StatusUnauthorized},
 	}, a.totpDisable)
 
 	huma.Register(h, huma.Operation{
@@ -161,6 +180,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Summary:     "Create the first admin user",
 		Description: "Creates the initial admin account. Returns 409 if setup has already been completed.",
 		Tags:        []string{"Setup"},
+		Errors:      []int{http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
 	}, a.setup)
 }
 
@@ -276,39 +296,6 @@ func (a *API) ssoProviders(ctx context.Context, _ *struct{}) (*SSOProvidersOut, 
 	return out, nil
 }
 
-func (a *API) ssoSettings(ctx context.Context, _ *struct{}) (*SSOProviderSettingsOut, error) {
-	if err := requireSSOSettingsAccess(ctx); err != nil {
-		return nil, err
-	}
-	settings, err := a.auth.listSSOProviderSettings(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &SSOProviderSettingsOut{Body: settings}, nil
-}
-
-func (a *API) updateSSOSettings(ctx context.Context, in *SSOProviderSettingUpdateIn) (*SSOProviderSettingUpdateOut, error) {
-	if err := requireSSOSettingsAccess(ctx); err != nil {
-		return nil, err
-	}
-	setting, err := a.auth.updateSSOProviderSetting(ctx, in.ProviderID, in.Body)
-	if err != nil {
-		return nil, err
-	}
-	return &SSOProviderSettingUpdateOut{Body: setting}, nil
-}
-
-func requireSSOSettingsAccess(ctx context.Context) error {
-	session := SessionFrom(ctx)
-	if session == nil {
-		return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
-	}
-	if session.Role != RoleOwner && session.Role != RoleAdmin {
-		return apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
-	}
-	return nil
-}
-
 func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
@@ -381,6 +368,73 @@ func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) 
 	return out, nil
 }
 
+func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*CreateInvitationOut, error) {
+	if a.requireHTTPS && !support.IsSecure(ctx) {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+	}
+	sess := SessionFrom(ctx)
+	if sess == nil {
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+	}
+	if sess.Role != RoleOwner && sess.Role != RoleAdmin {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
+	}
+	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationCreate),
+			apperrors.WithStage(apperrors.StageCreateInvitation),
+		)
+	}
+	out := &CreateInvitationOut{}
+	out.Body.Created = invitation.ID != ""
+	return out, nil
+}
+
+func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*AcceptInvitationOut, error) {
+	if a.requireHTTPS && !support.IsSecure(ctx) {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+	}
+	token, err := a.auth.AcceptInvitation(
+		ctx,
+		in.Token,
+		in.Body.DisplayName,
+		in.Body.Password,
+		support.RemoteIPFrom(ctx),
+		support.UserAgentFrom(ctx),
+	)
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
+			apperrors.WithStage(apperrors.StageAcceptInvitation),
+		)
+	}
+	bs, err := a.settings.Bootstrap(ctx)
+	if err != nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
+			apperrors.WithStage(apperrors.StageBootstrap),
+		)
+	}
+	sess, err := a.auth.Session(ctx, token)
+	if err != nil || sess == nil {
+		return nil, apperrors.Annotate(err,
+			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
+			apperrors.WithStage(apperrors.StageSessionLookup),
+		)
+	}
+	secure := support.IsSecure(ctx)
+	out := &AcceptInvitationOut{}
+	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.Body.SetupRequired = false
+	out.Body.Authenticated = true
+	out.Body.App.InstanceName = bs.InstanceName
+	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (a *API) forgotPassword(ctx context.Context, in *ForgotPasswordIn) (*ForgotPasswordOut, error) {
 	if err := a.auth.ForgotPassword(ctx, in.Body.Email); err != nil {
 		return nil, err
@@ -446,7 +500,7 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	}
 	token, err := a.auth.SetupFirstUser(
 		ctx,
-		strings.ToLower(in.Body.Email),
+		in.Body.Email,
 		in.Body.DisplayName,
 		in.Body.Password,
 		support.RemoteIPFrom(ctx),

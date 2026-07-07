@@ -2,27 +2,29 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
-func (s *Service) listSSOProviders(ctx context.Context) ([]SSOProviderOut, error) {
-	configs, err := s.effectiveSSOProviderConfigs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]SSOProviderOut, 0, len(configs))
-	for _, providerConfig := range configs {
-		if !providerConfig.Enabled {
+func (s *Service) listSSOProviders(_ context.Context) ([]SSOProviderOut, error) {
+	out := make([]SSOProviderOut, 0, len(s.sso.envProviders))
+	for _, provider := range config.SupportedSSOProviders() {
+		providerConfig, ok := s.sso.envProviders[string(provider.ID)]
+		if !ok || !providerConfig.Enabled {
 			continue
 		}
 		out = append(out, SSOProviderOut{ID: string(providerConfig.ID), Name: providerConfig.Name})
@@ -30,11 +32,15 @@ func (s *Service) listSSOProviders(ctx context.Context) ([]SSOProviderOut, error
 	return out, nil
 }
 
+// effectiveSSOProviderConfig returns the env-configured provider. SSO is configured
+// exclusively through environment values, so the registry is the single source of truth.
+func (s *Service) effectiveSSOProviderConfig(providerID string) (config.SSOProviderConfig, bool) {
+	providerConfig, ok := s.sso.envProviders[providerID]
+	return providerConfig, ok
+}
+
 func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisationSlug string) (string, []http.Cookie, error) {
-	providerConfig, ok, err := s.effectiveSSOProviderConfig(ctx, providerID)
-	if err != nil {
-		return "", nil, err
-	}
+	providerConfig, ok := s.effectiveSSOProviderConfig(providerID)
 	if !ok || !providerConfig.Enabled {
 		return "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
 	}
@@ -45,7 +51,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	stateToken, err := newRandomToken(32)
+	stateToken, err := security.RandomToken(32)
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
@@ -57,14 +63,14 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	transactionID, err := newRandomToken(32)
+	transactionID, err := security.RandomToken(32)
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
 	cacheState := ssoCacheState{
 		ProviderID:       providerID,
 		ReturnTo:         internalReturnPath(returnTo),
-		OrganisationSlug: strings.TrimSpace(organisationSlug),
+		OrganisationSlug: organisationSlug,
 		State:            stateToken,
 		Session:          session.Marshal(),
 	}
@@ -83,10 +89,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 }
 
 func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, transactionID, ip, userAgent string) (string, string, []http.Cookie, error) {
-	providerConfig, ok, err := s.effectiveSSOProviderConfig(ctx, providerID)
-	if err != nil {
-		return "", "", nil, err
-	}
+	providerConfig, ok := s.effectiveSSOProviderConfig(providerID)
 	if !ok || !providerConfig.Enabled {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
 	}
@@ -120,20 +123,41 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	}
 	userRow, err := s.store.FindUserByProviderAccount(ctx, sqlcgen.FindUserByProviderAccountParams{Provider: providerID, ProviderAccountID: gothUser.UserID})
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		if !errors.Is(err, pgx.ErrNoRows) {
 			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
 		}
 	}
-	user := userFromProviderAccountRow(userRow)
+	var user *User
+	if userRow.ID != uuid.Nil {
+		user = &User{ID: userRow.ID.String(), Email: userRow.Email, DisplayName: userRow.DisplayName, EmailVerified: userRow.EmailVerifiedAt.Valid}
+	}
 	if user == nil && gothUser.Email != "" {
-		emailRow, emailErr := s.store.FindUserByEmail(ctx, transform.Email(gothUser.Email))
+		// gothUser.Email comes from the SSO provider, not a validated request, so it
+		// is normalized here at the ingestion boundary to match stored (lowercased)
+		// emails.
+		providerEmail := gothUser.Email
+		transform.ApplyTo(transform.SpecEmail, &providerEmail)
+		emailRow, emailErr := s.store.FindUserByEmail(ctx, providerEmail)
 		if emailErr != nil {
-			if errors.Is(emailErr, sql.ErrNoRows) {
+			if errors.Is(emailErr, pgx.ErrNoRows) {
 				return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
 			}
 			return "", "", nil, apperrors.Annotate(emailErr, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
 		}
 		user = userFromFindUserRow(emailRow)
+		if user == nil || !user.EmailVerified {
+			return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
+		}
+		if err := s.store.InsertAccount(ctx, sqlcgen.InsertAccountParams{
+			ID:                id.MustParse(s.idg.New()),
+			UserID:            id.MustParse(user.ID),
+			Provider:          providerID,
+			ProviderAccountID: gothUser.UserID,
+			CreatedAt:         sqltype.Timestamptz(s.clock.Now()),
+			UpdatedAt:         sqltype.Timestamptz(s.clock.Now()),
+		}); err != nil {
+			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
+		}
 	}
 	if user == nil {
 		return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))

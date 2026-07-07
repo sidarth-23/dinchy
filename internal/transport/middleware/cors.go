@@ -14,7 +14,9 @@ import (
 func CORS(devMode bool, devProxyURL string) func(http.Handler) http.Handler {
 	allowedDevOrigin := ""
 	if devMode {
-		allowedDevOrigin = originFromURL(devProxyURL)
+		if u, err := url.Parse(devProxyURL); err == nil && u.Scheme != "" && u.Host != "" {
+			allowedDevOrigin = u.Scheme + "://" + u.Host
+		}
 	}
 
 	cors := chi_cors.Handler(chi_cors.Options{
@@ -52,24 +54,12 @@ func CORS(devMode bool, devProxyURL string) func(http.Handler) http.Handler {
 }
 
 func isAllowedOrigin(r *http.Request, origin, allowedDevOrigin string) bool {
-	if origin == requestOrigin(r) {
-		return true
-	}
-	return allowedDevOrigin != "" && origin == allowedDevOrigin
-}
-
-func requestOrigin(r *http.Request) string {
 	scheme := "http"
 	if support.IsSecure(r.Context()) {
 		scheme = "https"
 	}
-	return scheme + "://" + r.Host
-}
-
-func originFromURL(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return ""
+	if origin == scheme+"://"+r.Host {
+		return true
 	}
-	return u.Scheme + "://" + u.Host
+	return allowedDevOrigin != "" && origin == allowedDevOrigin
 }

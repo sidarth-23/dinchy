@@ -2,28 +2,24 @@ package workers
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
 	stderrors "errors"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-
-type fakeClock struct {
-	now time.Time
-}
-
-func (c fakeClock) Now() time.Time { return c.now }
 
 // stubWorker is a configurable Worker so runtime tests can drive each branch
 // without depending on a concrete worker implementation.
@@ -76,14 +72,14 @@ func TestRuntime_RegisterWorker_EnsuresTask(t *testing.T) {
 	worker := newStubWorker()
 
 	store.EXPECT().EnsureTask(gomock.Any(), sqlcgen.EnsureTaskParams{
-		ID:                      taskIDForName(worker.name),
+		ID:                      uuid.NewSHA1(uuid.Nil, []byte(worker.name)),
 		TaskName:                worker.name,
 		ScheduleIntervalSeconds: worker.interval,
-		NextRunAt:               sql.NullTime{Time: fixedTime, Valid: true},
-		UpdatedAt:               fixedTime,
+		NextRunAt:               sqltype.Timestamptz(fixedTime),
+		UpdatedAt:               sqltype.Timestamptz(fixedTime),
 	}).Return(nil)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
+	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, nil, worker)
 	require.NoError(t, runtime.registerWorker(context.Background(), worker))
 }
 
@@ -96,7 +92,7 @@ func TestRuntime_RegisterWorker_AnnotatesEnsureError(t *testing.T) {
 	store.EXPECT().EnsureTask(gomock.Any(), gomock.Any()).
 		Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
+	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, nil, worker)
 	err := runtime.registerWorker(context.Background(), worker)
 	require.Error(t, err)
 
@@ -113,18 +109,18 @@ func TestRuntime_RunWorker_SkipsExecuteWhenNotClaimed(t *testing.T) {
 
 	store.EXPECT().
 		ClaimTask(gomock.Any(), sqlcgen.ClaimTaskParams{
-			LeaseOwner:       sql.NullString{String: "local", Valid: true},
-			LeaseExpiresAt:   sql.NullTime{Time: fixedTime.Add(worker.lease), Valid: true},
-			LastRunAt:        sql.NullTime{Time: fixedTime, Valid: true},
-			UpdatedAt:        fixedTime,
-			TaskName:         worker.name,
-			LeaseExpiresAt_2: sql.NullTime{Time: fixedTime.Add(worker.lease), Valid: true},
-			NextRunAt:        sql.NullTime{Time: fixedTime, Valid: true},
+			LeaseOwner:           sqltype.Text("local"),
+			LeaseExpiresAt:       sqltype.Timestamptz(fixedTime.Add(worker.lease)),
+			LastRunAt:            sqltype.Timestamptz(fixedTime),
+			UpdatedAt:            sqltype.Timestamptz(fixedTime),
+			TaskName:             worker.name,
+			LeaseExpiresAtCutoff: sqltype.Timestamptz(fixedTime.Add(worker.lease)),
+			NextRunAtCutoff:      sqltype.Timestamptz(fixedTime),
 		}).
-		Return(driver.RowsAffected(0), nil)
+		Return(pgconn.NewCommandTag("UPDATE 0"), nil)
 	// No Execute, no FinishTask expected.
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
+	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, nil, worker)
 	require.NoError(t, runtime.runWorker(context.Background(), worker))
 	assert.Zero(t, worker.executed, "Execute must not run when the task was not claimed")
 }
@@ -139,13 +135,13 @@ func TestRuntime_RunWorker_SuccessFinishesTask(t *testing.T) {
 	gomock.InOrder(
 		store.EXPECT().
 			ClaimTask(gomock.Any(), gomock.Any()).
-			Return(driver.RowsAffected(1), nil),
+			Return(pgconn.NewCommandTag("UPDATE 1"), nil),
 		store.EXPECT().
 			FinishTask(gomock.Any(), gomock.Any()).
 			Return(nil),
 	)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
+	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, nil, worker)
 	require.NoError(t, runtime.runWorker(context.Background(), worker))
 	assert.Equal(t, 1, worker.executed)
 }
@@ -161,13 +157,13 @@ func TestRuntime_RunWorker_FailureRecordsAndAnnotates(t *testing.T) {
 	gomock.InOrder(
 		store.EXPECT().
 			ClaimTask(gomock.Any(), gomock.Any()).
-			Return(driver.RowsAffected(1), nil),
+			Return(pgconn.NewCommandTag("UPDATE 1"), nil),
 		store.EXPECT().
 			FinishTask(gomock.Any(), gomock.Any()).
 			Return(nil),
 	)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
+	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, nil, worker)
 	err := runtime.runWorker(context.Background(), worker)
 	require.Error(t, err)
 	require.ErrorIs(t, err, execErr, "the execution error must be preserved as the cause")
@@ -187,13 +183,13 @@ func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T)
 	gomock.InOrder(
 		store.EXPECT().
 			ClaimTask(gomock.Any(), gomock.Any()).
-			Return(driver.RowsAffected(1), nil),
+			Return(pgconn.NewCommandTag("UPDATE 1"), nil),
 		store.EXPECT().
 			FinishTask(gomock.Any(), gomock.Any()).
 			Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError))),
 	)
 
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, nil, worker)
+	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, nil, worker)
 	err := runtime.runWorker(context.Background(), worker)
 	require.Error(t, err)
 
@@ -211,10 +207,10 @@ func TestRuntime_RunAllWorkers_ReportsErrorToChannel(t *testing.T) {
 
 	store.EXPECT().
 		ClaimTask(gomock.Any(), gomock.Any()).
-		Return(driver.RowsAffected(0), apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
+		Return(pgconn.NewCommandTag("UPDATE 0"), apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
 
 	errCh := make(chan error, 1)
-	runtime := NewRuntime(store, fakeClock{now: fixedTime}, nil, errCh, worker)
+	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, errCh, worker)
 	runtime.runAllWorkers(context.Background())
 
 	select {

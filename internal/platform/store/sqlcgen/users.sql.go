@@ -7,10 +7,9 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const confirmTwoFactor = `-- name: ConfirmTwoFactor :exec
@@ -20,13 +19,30 @@ WHERE user_id = $3
 `
 
 type ConfirmTwoFactorParams struct {
-	LastUsedStep sql.NullInt64
-	UpdatedAt    time.Time
-	UserID       uuid.UUID
+	LastUsedStep pgtype.Int8        `db:"last_used_step" json:"last_used_step"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UserID       uuid.UUID          `db:"user_id" json:"user_id"`
 }
 
 func (q *Queries) ConfirmTwoFactor(ctx context.Context, arg ConfirmTwoFactorParams) error {
-	_, err := q.db.ExecContext(ctx, confirmTwoFactor, arg.LastUsedStep, arg.UpdatedAt, arg.UserID)
+	_, err := q.db.Exec(ctx, confirmTwoFactor, arg.LastUsedStep, arg.UpdatedAt, arg.UserID)
+	return err
+}
+
+const consumeOrganisationInvitation = `-- name: ConsumeOrganisationInvitation :exec
+UPDATE organisation_invitations
+SET status = 'accepted', accepted_at = $1, updated_at = $2
+WHERE id = $3 AND status = 'pending' AND accepted_at IS NULL
+`
+
+type ConsumeOrganisationInvitationParams struct {
+	AcceptedAt pgtype.Timestamptz `db:"accepted_at" json:"accepted_at"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID         uuid.UUID          `db:"id" json:"id"`
+}
+
+func (q *Queries) ConsumeOrganisationInvitation(ctx context.Context, arg ConsumeOrganisationInvitationParams) error {
+	_, err := q.db.Exec(ctx, consumeOrganisationInvitation, arg.AcceptedAt, arg.UpdatedAt, arg.ID)
 	return err
 }
 
@@ -37,13 +53,13 @@ WHERE id = $3 AND consumed_at IS NULL
 `
 
 type ConsumeVerificationTokenParams struct {
-	ConsumedAt sql.NullTime
-	UpdatedAt  time.Time
-	ID         uuid.UUID
+	ConsumedAt pgtype.Timestamptz `db:"consumed_at" json:"consumed_at"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID         uuid.UUID          `db:"id" json:"id"`
 }
 
 func (q *Queries) ConsumeVerificationToken(ctx context.Context, arg ConsumeVerificationTokenParams) error {
-	_, err := q.db.ExecContext(ctx, consumeVerificationToken, arg.ConsumedAt, arg.UpdatedAt, arg.ID)
+	_, err := q.db.Exec(ctx, consumeVerificationToken, arg.ConsumedAt, arg.UpdatedAt, arg.ID)
 	return err
 }
 
@@ -52,7 +68,7 @@ SELECT COUNT(*) FROM users
 `
 
 func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countUsers)
+	row := q.db.QueryRow(ctx, countUsers)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -64,7 +80,7 @@ WHERE user_id = $1
 `
 
 func (q *Queries) DisableTwoFactor(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, disableTwoFactor, userID)
+	_, err := q.db.Exec(ctx, disableTwoFactor, userID)
 	return err
 }
 
@@ -76,19 +92,19 @@ WHERE m.user_id = $1 AND o.id = $2
 `
 
 type FindOrganisationByIDForUserParams struct {
-	UserID uuid.UUID
-	ID     uuid.UUID
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
 }
 
 type FindOrganisationByIDForUserRow struct {
-	ID   uuid.UUID
-	Name string
-	Slug string
-	Role string
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+	Slug string    `db:"slug" json:"slug"`
+	Role string    `db:"role" json:"role"`
 }
 
 func (q *Queries) FindOrganisationByIDForUser(ctx context.Context, arg FindOrganisationByIDForUserParams) (FindOrganisationByIDForUserRow, error) {
-	row := q.db.QueryRowContext(ctx, findOrganisationByIDForUser, arg.UserID, arg.ID)
+	row := q.db.QueryRow(ctx, findOrganisationByIDForUser, arg.UserID, arg.ID)
 	var i FindOrganisationByIDForUserRow
 	err := row.Scan(
 		&i.ID,
@@ -107,25 +123,60 @@ WHERE m.user_id = $1 AND o.slug = $2
 `
 
 type FindOrganisationBySlugForUserParams struct {
-	UserID uuid.UUID
-	Slug   string
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Slug   string    `db:"slug" json:"slug"`
 }
 
 type FindOrganisationBySlugForUserRow struct {
-	ID   uuid.UUID
-	Name string
-	Slug string
-	Role string
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+	Slug string    `db:"slug" json:"slug"`
+	Role string    `db:"role" json:"role"`
 }
 
 func (q *Queries) FindOrganisationBySlugForUser(ctx context.Context, arg FindOrganisationBySlugForUserParams) (FindOrganisationBySlugForUserRow, error) {
-	row := q.db.QueryRowContext(ctx, findOrganisationBySlugForUser, arg.UserID, arg.Slug)
+	row := q.db.QueryRow(ctx, findOrganisationBySlugForUser, arg.UserID, arg.Slug)
 	var i FindOrganisationBySlugForUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Slug,
 		&i.Role,
+	)
+	return i, err
+}
+
+const findOrganisationInvitationByToken = `-- name: FindOrganisationInvitationByToken :one
+SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organisation_invitations
+WHERE token_hash = $1
+`
+
+type FindOrganisationInvitationByTokenRow struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	Email           string             `db:"email" json:"email"`
+	Role            string             `db:"role" json:"role"`
+	Status          string             `db:"status" json:"status"`
+	TokenHash       string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	InvitedByUserID uuid.UUID          `db:"invited_by_user_id" json:"invited_by_user_id"`
+	AcceptedAt      pgtype.Timestamptz `db:"accepted_at" json:"accepted_at"`
+}
+
+func (q *Queries) FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (FindOrganisationInvitationByTokenRow, error) {
+	row := q.db.QueryRow(ctx, findOrganisationInvitationByToken, tokenHash)
+	var i FindOrganisationInvitationByTokenRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.InvitedByUserID,
+		&i.AcceptedAt,
 	)
 	return i, err
 }
@@ -137,15 +188,15 @@ WHERE user_id = $1 AND provider = 'password'
 `
 
 type FindPasswordAccountByUserIDRow struct {
-	ID                uuid.UUID
-	UserID            uuid.UUID
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      sql.NullString
+	ID                uuid.UUID   `db:"id" json:"id"`
+	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
+	Provider          string      `db:"provider" json:"provider"`
+	ProviderAccountID string      `db:"provider_account_id" json:"provider_account_id"`
+	PasswordHash      pgtype.Text `db:"password_hash" json:"password_hash"`
 }
 
 func (q *Queries) FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (FindPasswordAccountByUserIDRow, error) {
-	row := q.db.QueryRowContext(ctx, findPasswordAccountByUserID, userID)
+	row := q.db.QueryRow(ctx, findPasswordAccountByUserID, userID)
 	var i FindPasswordAccountByUserIDRow
 	err := row.Scan(
 		&i.ID,
@@ -157,6 +208,48 @@ func (q *Queries) FindPasswordAccountByUserID(ctx context.Context, userID uuid.U
 	return i, err
 }
 
+const findPendingOrganisationInvitationByEmail = `-- name: FindPendingOrganisationInvitationByEmail :one
+SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organisation_invitations
+WHERE organisation_id = $1 AND email = $2 AND status = 'pending' AND accepted_at IS NULL
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type FindPendingOrganisationInvitationByEmailParams struct {
+	OrganisationID uuid.UUID `db:"organisation_id" json:"organisation_id"`
+	Email          string    `db:"email" json:"email"`
+}
+
+type FindPendingOrganisationInvitationByEmailRow struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	Email           string             `db:"email" json:"email"`
+	Role            string             `db:"role" json:"role"`
+	Status          string             `db:"status" json:"status"`
+	TokenHash       string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	InvitedByUserID uuid.UUID          `db:"invited_by_user_id" json:"invited_by_user_id"`
+	AcceptedAt      pgtype.Timestamptz `db:"accepted_at" json:"accepted_at"`
+}
+
+func (q *Queries) FindPendingOrganisationInvitationByEmail(ctx context.Context, arg FindPendingOrganisationInvitationByEmailParams) (FindPendingOrganisationInvitationByEmailRow, error) {
+	row := q.db.QueryRow(ctx, findPendingOrganisationInvitationByEmail, arg.OrganisationID, arg.Email)
+	var i FindPendingOrganisationInvitationByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganisationID,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.InvitedByUserID,
+		&i.AcceptedAt,
+	)
+	return i, err
+}
+
 const findTwoFactorByUserID = `-- name: FindTwoFactorByUserID :one
 SELECT id, user_id, secret, verified, last_used_step, failed_verification_count, locked_until
 FROM two_factors
@@ -164,17 +257,17 @@ WHERE user_id = $1
 `
 
 type FindTwoFactorByUserIDRow struct {
-	ID                      uuid.UUID
-	UserID                  uuid.UUID
-	Secret                  string
-	Verified                bool
-	LastUsedStep            sql.NullInt64
-	FailedVerificationCount int64
-	LockedUntil             sql.NullTime
+	ID                      uuid.UUID          `db:"id" json:"id"`
+	UserID                  uuid.UUID          `db:"user_id" json:"user_id"`
+	Secret                  string             `db:"secret" json:"secret"`
+	Verified                bool               `db:"verified" json:"verified"`
+	LastUsedStep            pgtype.Int8        `db:"last_used_step" json:"last_used_step"`
+	FailedVerificationCount int64              `db:"failed_verification_count" json:"failed_verification_count"`
+	LockedUntil             pgtype.Timestamptz `db:"locked_until" json:"locked_until"`
 }
 
 func (q *Queries) FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (FindTwoFactorByUserIDRow, error) {
-	row := q.db.QueryRowContext(ctx, findTwoFactorByUserID, userID)
+	row := q.db.QueryRow(ctx, findTwoFactorByUserID, userID)
 	var i FindTwoFactorByUserIDRow
 	err := row.Scan(
 		&i.ID,
@@ -189,56 +282,60 @@ func (q *Queries) FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (
 }
 
 const findUserByEmail = `-- name: FindUserByEmail :one
-SELECT id, email, display_name, disabled_at
+SELECT id, email, display_name, email_verified_at, disabled_at
 FROM users
 WHERE email = $1 AND disabled_at IS NULL
 `
 
 type FindUserByEmailRow struct {
-	ID          uuid.UUID
-	Email       string
-	DisplayName string
-	DisabledAt  sql.NullTime
+	ID              uuid.UUID          `db:"id" json:"id"`
+	Email           string             `db:"email" json:"email"`
+	DisplayName     string             `db:"display_name" json:"display_name"`
+	EmailVerifiedAt pgtype.Timestamptz `db:"email_verified_at" json:"email_verified_at"`
+	DisabledAt      pgtype.Timestamptz `db:"disabled_at" json:"disabled_at"`
 }
 
 func (q *Queries) FindUserByEmail(ctx context.Context, email string) (FindUserByEmailRow, error) {
-	row := q.db.QueryRowContext(ctx, findUserByEmail, email)
+	row := q.db.QueryRow(ctx, findUserByEmail, email)
 	var i FindUserByEmailRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.DisplayName,
+		&i.EmailVerifiedAt,
 		&i.DisabledAt,
 	)
 	return i, err
 }
 
 const findUserByProviderAccount = `-- name: FindUserByProviderAccount :one
-SELECT u.id, u.email, u.display_name, u.disabled_at
+SELECT u.id, u.email, u.display_name, u.email_verified_at, u.disabled_at
 FROM accounts a
 JOIN users u ON u.id = a.user_id
 WHERE a.provider = $1 AND a.provider_account_id = $2 AND u.disabled_at IS NULL
 `
 
 type FindUserByProviderAccountParams struct {
-	Provider          string
-	ProviderAccountID string
+	Provider          string `db:"provider" json:"provider"`
+	ProviderAccountID string `db:"provider_account_id" json:"provider_account_id"`
 }
 
 type FindUserByProviderAccountRow struct {
-	ID          uuid.UUID
-	Email       string
-	DisplayName string
-	DisabledAt  sql.NullTime
+	ID              uuid.UUID          `db:"id" json:"id"`
+	Email           string             `db:"email" json:"email"`
+	DisplayName     string             `db:"display_name" json:"display_name"`
+	EmailVerifiedAt pgtype.Timestamptz `db:"email_verified_at" json:"email_verified_at"`
+	DisabledAt      pgtype.Timestamptz `db:"disabled_at" json:"disabled_at"`
 }
 
 func (q *Queries) FindUserByProviderAccount(ctx context.Context, arg FindUserByProviderAccountParams) (FindUserByProviderAccountRow, error) {
-	row := q.db.QueryRowContext(ctx, findUserByProviderAccount, arg.Provider, arg.ProviderAccountID)
+	row := q.db.QueryRow(ctx, findUserByProviderAccount, arg.Provider, arg.ProviderAccountID)
 	var i FindUserByProviderAccountRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.DisplayName,
+		&i.EmailVerifiedAt,
 		&i.DisabledAt,
 	)
 	return i, err
@@ -251,22 +348,22 @@ WHERE token_hash = $1 AND purpose = $2
 `
 
 type FindVerificationTokenParams struct {
-	TokenHash string
-	Purpose   string
+	TokenHash string `db:"token_hash" json:"token_hash"`
+	Purpose   string `db:"purpose" json:"purpose"`
 }
 
 type FindVerificationTokenRow struct {
-	ID         uuid.UUID
-	UserID     uuid.NullUUID
-	Email      string
-	Purpose    string
-	TokenHash  string
-	ExpiresAt  time.Time
-	ConsumedAt sql.NullTime
+	ID         uuid.UUID          `db:"id" json:"id"`
+	UserID     uuid.NullUUID      `db:"user_id" json:"user_id"`
+	Email      string             `db:"email" json:"email"`
+	Purpose    string             `db:"purpose" json:"purpose"`
+	TokenHash  string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt  pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	ConsumedAt pgtype.Timestamptz `db:"consumed_at" json:"consumed_at"`
 }
 
 func (q *Queries) FindVerificationToken(ctx context.Context, arg FindVerificationTokenParams) (FindVerificationTokenRow, error) {
-	row := q.db.QueryRowContext(ctx, findVerificationToken, arg.TokenHash, arg.Purpose)
+	row := q.db.QueryRow(ctx, findVerificationToken, arg.TokenHash, arg.Purpose)
 	var i FindVerificationTokenRow
 	err := row.Scan(
 		&i.ID,
@@ -286,17 +383,17 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type InsertAccountParams struct {
-	ID                uuid.UUID
-	UserID            uuid.UUID
-	Provider          string
-	ProviderAccountID string
-	PasswordHash      sql.NullString
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                uuid.UUID          `db:"id" json:"id"`
+	UserID            uuid.UUID          `db:"user_id" json:"user_id"`
+	Provider          string             `db:"provider" json:"provider"`
+	ProviderAccountID string             `db:"provider_account_id" json:"provider_account_id"`
+	PasswordHash      pgtype.Text        `db:"password_hash" json:"password_hash"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) error {
-	_, err := q.db.ExecContext(ctx, insertAccount,
+	_, err := q.db.Exec(ctx, insertAccount,
 		arg.ID,
 		arg.UserID,
 		arg.Provider,
@@ -320,16 +417,16 @@ ON CONFLICT(user_id) DO UPDATE SET
 `
 
 type InsertOrReplaceTwoFactorParams struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	Secret    string
-	Verified  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID          `db:"id" json:"id"`
+	UserID    uuid.UUID          `db:"user_id" json:"user_id"`
+	Secret    string             `db:"secret" json:"secret"`
+	Verified  bool               `db:"verified" json:"verified"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertOrReplaceTwoFactor(ctx context.Context, arg InsertOrReplaceTwoFactorParams) error {
-	_, err := q.db.ExecContext(ctx, insertOrReplaceTwoFactor,
+	_, err := q.db.Exec(ctx, insertOrReplaceTwoFactor,
 		arg.ID,
 		arg.UserID,
 		arg.Secret,
@@ -346,20 +443,65 @@ VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertOrganisationParams struct {
-	ID        uuid.UUID
-	Name      string
-	Slug      string
-	Logo      sql.NullString
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID          `db:"id" json:"id"`
+	Name      string             `db:"name" json:"name"`
+	Slug      string             `db:"slug" json:"slug"`
+	Logo      pgtype.Text        `db:"logo" json:"logo"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertOrganisation(ctx context.Context, arg InsertOrganisationParams) error {
-	_, err := q.db.ExecContext(ctx, insertOrganisation,
+	_, err := q.db.Exec(ctx, insertOrganisation,
 		arg.ID,
 		arg.Name,
 		arg.Slug,
 		arg.Logo,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const insertOrganisationInvitation = `-- name: InsertOrganisationInvitation :exec
+INSERT INTO organisation_invitations (
+  id,
+  organisation_id,
+  email,
+  role,
+  status,
+  token_hash,
+  expires_at,
+  invited_by_user_id,
+  created_at,
+  updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`
+
+type InsertOrganisationInvitationParams struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	Email           string             `db:"email" json:"email"`
+	Role            string             `db:"role" json:"role"`
+	Status          string             `db:"status" json:"status"`
+	TokenHash       string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	InvitedByUserID uuid.UUID          `db:"invited_by_user_id" json:"invited_by_user_id"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) InsertOrganisationInvitation(ctx context.Context, arg InsertOrganisationInvitationParams) error {
+	_, err := q.db.Exec(ctx, insertOrganisationInvitation,
+		arg.ID,
+		arg.OrganisationID,
+		arg.Email,
+		arg.Role,
+		arg.Status,
+		arg.TokenHash,
+		arg.ExpiresAt,
+		arg.InvitedByUserID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -372,16 +514,16 @@ VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertOrganisationMemberParams struct {
-	ID             uuid.UUID
-	OrganisationID uuid.UUID
-	UserID         uuid.UUID
-	Role           string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganisationID uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	UserID         uuid.UUID          `db:"user_id" json:"user_id"`
+	Role           string             `db:"role" json:"role"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertOrganisationMember(ctx context.Context, arg InsertOrganisationMemberParams) error {
-	_, err := q.db.ExecContext(ctx, insertOrganisationMember,
+	_, err := q.db.Exec(ctx, insertOrganisationMember,
 		arg.ID,
 		arg.OrganisationID,
 		arg.UserID,
@@ -398,16 +540,16 @@ VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertUserParams struct {
-	ID              uuid.UUID
-	Email           string
-	DisplayName     string
-	EmailVerifiedAt sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID              uuid.UUID          `db:"id" json:"id"`
+	Email           string             `db:"email" json:"email"`
+	DisplayName     string             `db:"display_name" json:"display_name"`
+	EmailVerifiedAt pgtype.Timestamptz `db:"email_verified_at" json:"email_verified_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) error {
-	_, err := q.db.ExecContext(ctx, insertUser,
+	_, err := q.db.Exec(ctx, insertUser,
 		arg.ID,
 		arg.Email,
 		arg.DisplayName,
@@ -424,18 +566,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type InsertVerificationTokenParams struct {
-	ID        uuid.UUID
-	UserID    uuid.NullUUID
-	Email     string
-	Purpose   string
-	TokenHash string
-	ExpiresAt time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID          `db:"id" json:"id"`
+	UserID    uuid.NullUUID      `db:"user_id" json:"user_id"`
+	Email     string             `db:"email" json:"email"`
+	Purpose   string             `db:"purpose" json:"purpose"`
+	TokenHash string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) error {
-	_, err := q.db.ExecContext(ctx, insertVerificationToken,
+	_, err := q.db.Exec(ctx, insertVerificationToken,
 		arg.ID,
 		arg.UserID,
 		arg.Email,
@@ -457,14 +599,14 @@ ORDER BY o.name
 `
 
 type ListOrganisationsForUserRow struct {
-	ID   uuid.UUID
-	Name string
-	Slug string
-	Role string
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+	Slug string    `db:"slug" json:"slug"`
+	Role string    `db:"role" json:"role"`
 }
 
 func (q *Queries) ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]ListOrganisationsForUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, listOrganisationsForUser, userID)
+	rows, err := q.db.Query(ctx, listOrganisationsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -482,9 +624,6 @@ func (q *Queries) ListOrganisationsForUser(ctx context.Context, userID uuid.UUID
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -498,13 +637,42 @@ WHERE user_id = $3
 `
 
 type MarkTwoFactorUsedParams struct {
-	LastUsedStep sql.NullInt64
-	UpdatedAt    time.Time
-	UserID       uuid.UUID
+	LastUsedStep pgtype.Int8        `db:"last_used_step" json:"last_used_step"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UserID       uuid.UUID          `db:"user_id" json:"user_id"`
 }
 
 func (q *Queries) MarkTwoFactorUsed(ctx context.Context, arg MarkTwoFactorUsedParams) error {
-	_, err := q.db.ExecContext(ctx, markTwoFactorUsed, arg.LastUsedStep, arg.UpdatedAt, arg.UserID)
+	_, err := q.db.Exec(ctx, markTwoFactorUsed, arg.LastUsedStep, arg.UpdatedAt, arg.UserID)
+	return err
+}
+
+const registerTwoFactorFailure = `-- name: RegisterTwoFactorFailure :exec
+UPDATE two_factors
+SET
+  failed_verification_count = failed_verification_count + 1,
+  locked_until = CASE
+    WHEN failed_verification_count + 1 >= $1 THEN $2
+    ELSE locked_until
+  END,
+  updated_at = $3
+WHERE user_id = $4
+`
+
+type RegisterTwoFactorFailureParams struct {
+	FailureLimit int64              `db:"failure_limit" json:"failure_limit"`
+	LockedUntil  pgtype.Timestamptz `db:"locked_until" json:"locked_until"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UserID       uuid.UUID          `db:"user_id" json:"user_id"`
+}
+
+func (q *Queries) RegisterTwoFactorFailure(ctx context.Context, arg RegisterTwoFactorFailureParams) error {
+	_, err := q.db.Exec(ctx, registerTwoFactorFailure,
+		arg.FailureLimit,
+		arg.LockedUntil,
+		arg.UpdatedAt,
+		arg.UserID,
+	)
 	return err
 }
 
@@ -515,13 +683,30 @@ WHERE user_id = $3 AND revoked_at IS NULL
 `
 
 type RevokeSessionsForUserParams struct {
-	RevokedAt sql.NullTime
-	UpdatedAt time.Time
-	UserID    uuid.UUID
+	RevokedAt pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UserID    uuid.UUID          `db:"user_id" json:"user_id"`
 }
 
 func (q *Queries) RevokeSessionsForUser(ctx context.Context, arg RevokeSessionsForUserParams) error {
-	_, err := q.db.ExecContext(ctx, revokeSessionsForUser, arg.RevokedAt, arg.UpdatedAt, arg.UserID)
+	_, err := q.db.Exec(ctx, revokeSessionsForUser, arg.RevokedAt, arg.UpdatedAt, arg.UserID)
+	return err
+}
+
+const updateUserEmailVerifiedAt = `-- name: UpdateUserEmailVerifiedAt :exec
+UPDATE users
+SET email_verified_at = $1, updated_at = $2
+WHERE id = $3
+`
+
+type UpdateUserEmailVerifiedAtParams struct {
+	EmailVerifiedAt pgtype.Timestamptz `db:"email_verified_at" json:"email_verified_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID              uuid.UUID          `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdateUserEmailVerifiedAt(ctx context.Context, arg UpdateUserEmailVerifiedAtParams) error {
+	_, err := q.db.Exec(ctx, updateUserEmailVerifiedAt, arg.EmailVerifiedAt, arg.UpdatedAt, arg.ID)
 	return err
 }
 
@@ -532,12 +717,12 @@ WHERE user_id = $3 AND provider = 'password'
 `
 
 type UpdateUserPasswordHashParams struct {
-	PasswordHash sql.NullString
-	UpdatedAt    time.Time
-	UserID       uuid.UUID
+	PasswordHash pgtype.Text        `db:"password_hash" json:"password_hash"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	UserID       uuid.UUID          `db:"user_id" json:"user_id"`
 }
 
 func (q *Queries) UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserPasswordHash, arg.PasswordHash, arg.UpdatedAt, arg.UserID)
+	_, err := q.db.Exec(ctx, updateUserPasswordHash, arg.PasswordHash, arg.UpdatedAt, arg.UserID)
 	return err
 }

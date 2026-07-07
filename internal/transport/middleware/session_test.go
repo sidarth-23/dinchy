@@ -13,35 +13,29 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/testsupport"
 	"github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
-type fakeClock struct {
-	now time.Time
-}
-
-func (c fakeClock) Now() time.Time { return c.now }
-
 var sessionFixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newSessionService(t *testing.T) *auth.Service {
 	t.Helper()
 	db := testsupport.OpenPostgresStore(t)
-	queries := sqlcgen.New(db.DB())
+	queries := sqlcgen.New(db.Pool())
 	svc, err := auth.NewService(
-		db.DB(),
+		db.Pool(),
 		queries,
 		id.NewGenerator(),
-		fakeClock{now: sessionFixedTime},
+		clock.Fixed(sessionFixedTime),
 		config.DefaultAuth(),
 		nil,
 		nil,
 		cachecore.NewKeyer("test"),
-		email.NoopSender{},
+		nil,
 		nil,
 	)
 	require.NoError(t, err)

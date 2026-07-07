@@ -38,11 +38,19 @@
             "find_account",
             "find_organisation",
             "list_organisations",
+            "create_invitation",
+            "accept_invitation",
             "totp_enroll",
             "totp_confirm",
+            "totp_lockout",
             "create_verification_token",
             "find_verification_token",
             "consume_verification_token",
+            "find_invitation",
+            "find_pending_invitation",
+            "consume_invitation",
+            "send_email",
+            "update_user_email_verified_at",
             "password_hash",
             "ensure_task",
             "claim_task",
@@ -66,7 +74,8 @@
             "logout",
             "new_session",
             "totp",
-            "password_reset"
+            "password_reset",
+            "invitation"
           ]
         },
         {
@@ -83,7 +92,9 @@
             "auth_oidc_callback",
             "auth_sso_start",
             "auth_sso_callback",
-            "bootstrap_get"
+            "bootstrap_get",
+            "auth_invitation_create",
+            "auth_invitation_accept"
           ]
         },
         {
@@ -122,11 +133,17 @@
             "find_organisation_by_slug_for_user",
             "find_organisation_by_id_for_user",
             "update_user_password_hash",
+            "update_user_email_verified_at",
             "revoke_sessions_for_user",
             "insert_verification_token",
             "find_verification_token",
             "consume_verification_token",
+            "insert_organisation_invitation",
+            "find_organisation_invitation_by_token",
+            "find_pending_organisation_invitation_by_email",
+            "consume_organisation_invitation",
             "save_two_factor",
+            "record_two_factor_failure",
             "find_two_factor_by_user_id",
             "confirm_two_factor",
             "mark_two_factor_used",

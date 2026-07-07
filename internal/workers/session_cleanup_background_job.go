@@ -5,7 +5,9 @@ import (
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 const (
@@ -19,15 +21,11 @@ const (
 // SessionCleanupWorker prunes ended sessions after the retention period.
 type SessionCleanupWorker struct {
 	store Store
-	clock contextClock
-}
-
-type contextClock interface {
-	Now() time.Time
+	clock clock.Clock
 }
 
 // NewSessionCleanupWorker creates the session cleanup worker.
-func NewSessionCleanupWorker(store Store, clk contextClock) Worker {
+func NewSessionCleanupWorker(store Store, clk clock.Clock) Worker {
 	return &SessionCleanupWorker{store: store, clock: clk}
 }
 
@@ -58,15 +56,11 @@ func (w *SessionCleanupWorker) ExecutionStage() apperrors.Stage {
 func (w *SessionCleanupWorker) Execute(ctx context.Context) (WorkerOutcome, error) {
 	now := w.clock.Now()
 	result, err := w.store.DeleteEndedSessionsOlderThan(ctx, sqlcgen.DeleteEndedSessionsOlderThanParams{
-		ExpiresAt: now.Add(-sessionCleanupRetentionDuration).UTC(),
-		UpdatedAt: now.UTC(),
+		ExpiresAt: sqltype.Timestamptz(now.Add(-sessionCleanupRetentionDuration)),
+		UpdatedAt: sqltype.Timestamptz(now),
 	})
 	if err != nil {
 		return WorkerOutcome{}, err
 	}
-	deletedCount, err := result.RowsAffected()
-	if err != nil {
-		return WorkerOutcome{}, err
-	}
-	return WorkerOutcome{DeletedCount: deletedCount}, nil
+	return WorkerOutcome{DeletedCount: result.RowsAffected()}, nil
 }

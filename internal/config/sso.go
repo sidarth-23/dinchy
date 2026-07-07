@@ -1,7 +1,5 @@
 package config
 
-import "github.com/sidarth-23/dinchy/internal/platform/transform"
-
 type SSOProviderID string
 
 const (
@@ -38,23 +36,23 @@ type SSOProviderConfig struct {
 
 type SSOEnvConfig struct {
 	// GoogleClientID is the Google OAuth client ID; Google SSO is enabled only when ID, secret, and callback URL are set.
-	GoogleClientID string `env:"DINCHY_GOOGLE_CLIENT_ID"`
+	GoogleClientID string `env:"DINCHY_GOOGLE_CLIENT_ID" mod:"trim"`
 	// GoogleSecret is the Google OAuth client secret.
-	GoogleSecret string `env:"DINCHY_GOOGLE_CLIENT_SECRET"`
+	GoogleSecret string `env:"DINCHY_GOOGLE_CLIENT_SECRET" mod:"trim"`
 	// GoogleCallbackURL is the absolute Google OAuth callback URL.
-	GoogleCallbackURL string `env:"DINCHY_GOOGLE_CALLBACK_URL" validate:"omitempty,url"`
+	GoogleCallbackURL string `env:"DINCHY_GOOGLE_CALLBACK_URL" mod:"trim" validate:"omitempty,url"`
 	// GitHubClientID is the GitHub OAuth client ID; GitHub SSO is enabled only when ID, secret, and callback URL are set.
-	GitHubClientID string `env:"DINCHY_GITHUB_CLIENT_ID"`
+	GitHubClientID string `env:"DINCHY_GITHUB_CLIENT_ID" mod:"trim"`
 	// GitHubSecret is the GitHub OAuth client secret.
-	GitHubSecret string `env:"DINCHY_GITHUB_CLIENT_SECRET"`
+	GitHubSecret string `env:"DINCHY_GITHUB_CLIENT_SECRET" mod:"trim"`
 	// GitHubCallbackURL is the absolute GitHub OAuth callback URL.
-	GitHubCallbackURL string `env:"DINCHY_GITHUB_CALLBACK_URL" validate:"omitempty,url"`
+	GitHubCallbackURL string `env:"DINCHY_GITHUB_CALLBACK_URL" mod:"trim" validate:"omitempty,url"`
 	// GitLabClientID is the GitLab OAuth client ID; GitLab SSO is enabled only when ID, secret, and callback URL are set.
-	GitLabClientID string `env:"DINCHY_GITLAB_CLIENT_ID"`
+	GitLabClientID string `env:"DINCHY_GITLAB_CLIENT_ID" mod:"trim"`
 	// GitLabSecret is the GitLab OAuth client secret.
-	GitLabSecret string `env:"DINCHY_GITLAB_CLIENT_SECRET"`
+	GitLabSecret string `env:"DINCHY_GITLAB_CLIENT_SECRET" mod:"trim"`
 	// GitLabCallbackURL is the absolute GitLab OAuth callback URL.
-	GitLabCallbackURL string `env:"DINCHY_GITLAB_CALLBACK_URL" validate:"omitempty,url"`
+	GitLabCallbackURL string `env:"DINCHY_GITLAB_CALLBACK_URL" mod:"trim" validate:"omitempty,url"`
 }
 
 func SupportedSSOProviders() []SSOProviderDefinition {
@@ -90,9 +88,6 @@ func configuredSSOProviders(cfg Config) []SSOProviderConfig {
 			provider.Secret = cfg.SSO.GitLabSecret
 			provider.CallbackURL = cfg.SSO.GitLabCallbackURL
 		}
-		provider.ClientID = transform.Trim(provider.ClientID)
-		provider.Secret = transform.Trim(provider.Secret)
-		provider.CallbackURL = transform.Trim(provider.CallbackURL)
 		provider.Enabled = provider.ClientID != "" && provider.Secret != "" && provider.CallbackURL != ""
 		if provider.ClientID != "" || provider.Secret != "" || provider.CallbackURL != "" {
 			providers = append(providers, provider)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 func newSSORegistry(authConfig config.AuthConfig, configs []config.SSOProviderConfig, cacheKeyer cachecore.Keyer) (*ssoRegistry, error) {
@@ -76,7 +77,7 @@ func internalReturnPath(raw string) string {
 }
 
 func (s *Service) clearSSOCookies() []http.Cookie {
-	return []http.Cookie{*clearCookie(s.sso.stateCookieName, false)}
+	return []http.Cookie{*support.ClearCookie(s.sso.stateCookieName, false)}
 }
 
 func (r *ssoRegistry) cacheKey(transactionID string) string {

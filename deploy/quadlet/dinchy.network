@@ -1,0 +1,8 @@
+[Unit]
+Description=Dinchy container network
+
+[Network]
+NetworkName=dinchy
+
+[Install]
+WantedBy=default.target

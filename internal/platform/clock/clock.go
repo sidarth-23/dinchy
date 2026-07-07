@@ -1,31 +1,22 @@
 // Package clock provides a mockable time source for testability.
 package clock
 
-import (
-	"database/sql"
-	"time"
-)
+import "time"
 
-// Clock abstracts time so it can be controlled in tests.
+// Clock reports the current time. Production uses the system clock; tests inject a fixed one.
 type Clock interface {
 	Now() time.Time
 }
 
-// RealClock returns the current UTC time using the system clock.
-type RealClock struct{}
+// System reports wall-clock time in UTC.
+type System struct{}
 
 // Now returns the current time in UTC.
-func (RealClock) Now() time.Time { return time.Now().UTC() }
+func (System) Now() time.Time { return time.Now().UTC() }
 
-// UTC normalizes a time to UTC.
-func UTC(value time.Time) time.Time {
-	return value.UTC()
-}
+// Fixed returns a Clock that always reports t. Intended for tests.
+func Fixed(t time.Time) Clock { return fixed{t: t} }
 
-// NullTime converts a time and validity flag into a nullable SQL time.
-func NullTime(value time.Time, valid bool) sql.NullTime {
-	if !valid {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: value.UTC(), Valid: true}
-}
+type fixed struct{ t time.Time }
+
+func (f fixed) Now() time.Time { return f.t }

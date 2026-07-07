@@ -17,7 +17,7 @@ func Redacted(value any) any {
 }
 
 func (v redactedValue) LogValue() slog.Value {
-	if redactionVisible() {
+	if revealRedacted.Load() {
 		if value := reflect.ValueOf(v.value); !value.IsValid() {
 			return slog.AnyValue(nil)
 		} else if value.Kind() == reflect.Ptr || value.Kind() == reflect.Map || value.Kind() == reflect.Slice || value.Kind() == reflect.Interface || value.Kind() == reflect.Func || value.Kind() == reflect.Chan {

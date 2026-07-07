@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/cache/core"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -26,7 +26,7 @@ type Config struct {
 }
 
 type Publisher interface {
-	Publish(ctx context.Context, event Event) error
+	Publish(ctx context.Context, event events.Event) error
 }
 
 type Subscriber interface {
@@ -47,30 +47,6 @@ func NewService(stream core.StreamStore, idg *id.Generator, cfg Config) (*Servic
 	}
 	if idg == nil {
 		idg = id.NewGenerator()
-	}
-	if strings.TrimSpace(cfg.StreamName) == "" {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event stream name is required")))
-	}
-	if strings.TrimSpace(cfg.ConsumerGroupPrefix) == "" {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event consumer group prefix is required")))
-	}
-	if strings.TrimSpace(cfg.ConsumerName) == "" {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event consumer name is required")))
-	}
-	if cfg.BatchSize <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event batch size must be positive")))
-	}
-	if cfg.RetentionWindow <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event retention window must be positive")))
-	}
-	if cfg.ClaimMinIdle <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event claim idle duration must be positive")))
-	}
-	if cfg.ReadBlock <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event read block must be positive")))
-	}
-	if cfg.WorkerInterval <= 0 {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event worker interval must be positive")))
 	}
 	return &Service{
 		stream:      stream,
@@ -116,21 +92,27 @@ func (s *Service) EnsureConsumerGroups(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) Publish(ctx context.Context, event Event) error {
+func (s *Service) Publish(ctx context.Context, event events.Event) error {
 	if s == nil {
 		return nil
 	}
-	if event.ID == "" {
-		event.ID = s.idg.New()
+	if event == nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event is required")))
 	}
-	if event.CreatedAt.IsZero() {
-		event.CreatedAt = time.Now().UTC()
+	definition, ok := events.DefinitionFor(event.Type())
+	if !ok {
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event type %q is not defined in the catalog", event.Type())))
 	}
-	event.Metadata = sanitizeMap(event.Metadata)
-	event.Changes = sanitizeMap(event.Changes)
-	payload, err := json.Marshal(event)
+	wireEvent := newWireEvent(event, definition)
+	if wireEvent.ID == "" {
+		wireEvent.ID = s.idg.New()
+	}
+	if wireEvent.CreatedAt.IsZero() {
+		wireEvent.CreatedAt = time.Now().UTC()
+	}
+	payload, err := json.Marshal(wireEvent)
 	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("marshal event %q: %w", event.EventType, err)))
+		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("marshal event %q: %w", event.Type(), err)))
 	}
 	if _, err := s.stream.AddStream(ctx, s.cfg.StreamName, map[string]any{"payload": string(payload)}, s.cfg.RetentionWindow); err != nil {
 		return apperrors.Annotate(err)
@@ -169,7 +151,7 @@ func (s *Service) ProcessSubscriber(ctx context.Context, name string) (int64, er
 }
 
 func (s *Service) consumerGroupName(subscriberName string) string {
-	return strings.TrimSpace(s.cfg.ConsumerGroupPrefix) + ":" + subscriberName
+	return s.cfg.ConsumerGroupPrefix + ":" + subscriberName
 }
 
 func sanitizeMap(in map[string]any) map[string]any {
@@ -178,21 +160,38 @@ func sanitizeMap(in map[string]any) map[string]any {
 	}
 	out := make(map[string]any, len(in))
 	for key, value := range in {
-		if isSensitive(key) {
+		switch key {
+		case "password", "token", "secret", "client_secret", "cookie", "session", "totp_secret", "smtp_password":
 			out[key] = map[string]any{"redacted": true}
-			continue
+		default:
+			out[key] = value
 		}
-		out[key] = value
 	}
 	return out
 }
 
-func isSensitive(key string) bool {
-	switch key {
-	case "password", "token", "secret", "client_secret", "cookie", "session", "totp_secret", "smtp_password":
-		return true
-	default:
-		return false
+func newWireEvent(event events.Event, definition events.Definition) Event {
+	envelope := event.EnvelopeData()
+	return Event{
+		ID:                  envelope.ID,
+		EventType:           string(event.Type()),
+		Category:            definition.Category,
+		Subcategory:         definition.Subcategory,
+		Action:              definition.Action,
+		Outcome:             definition.Outcome,
+		ActorUserID:         envelope.ActorUserID,
+		ActorOrganisationID: envelope.ActorOrganisationID,
+		TargetType:          envelope.TargetType,
+		TargetID:            envelope.TargetID,
+		TargetDisplay:       envelope.TargetDisplay,
+		RequestID:           envelope.RequestID,
+		TraceID:             envelope.TraceID,
+		SpanID:              envelope.SpanID,
+		IPAddress:           envelope.IPAddress,
+		UserAgent:           envelope.UserAgent,
+		Metadata:            sanitizeMap(event.MetadataMap()),
+		Changes:             sanitizeMap(event.ChangesMap()),
+		CreatedAt:           envelope.CreatedAt,
 	}
 }
 

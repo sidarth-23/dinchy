@@ -61,9 +61,9 @@ type Option func(*AppError)
 
 // ResponsePayload is the public error payload serialized by transport.
 type ResponsePayload struct {
-	Code    string         `json:"code"`
-	Message string         `json:"message"`
-	Meta    map[string]any `json:"meta,omitempty"`
+	Code    string         `json:"code" doc:"Stable machine-readable error code"`
+	Message string         `json:"message" doc:"Localized, human-readable error message"`
+	Meta    map[string]any `json:"meta,omitempty" doc:"Additional error context; for validation failures this carries a fields array of {message, location, value}"`
 }
 
 // ErrorResponse is the transport-layer error type returned to Huma.

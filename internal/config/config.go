@@ -4,6 +4,8 @@
 package config
 
 import (
+	"reflect"
+
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/validation"
@@ -24,6 +26,9 @@ type Config struct {
 	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,http_url"`
 	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
 	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
+	// PublicBaseURL is the externally reachable base URL used to build links in
+	// outbound email (invitation and password reset). Required when SMTP is enabled.
+	PublicBaseURL string `env:"DINCHY_PUBLIC_BASE_URL" validate:"omitempty,http_url"`
 	// Auth contains authentication behavior and lifetime settings.
 	Auth AuthConfig
 	// SSO contains startup SSO provider values loaded from environment.
@@ -38,26 +43,8 @@ type Config struct {
 	Logging LoggingConfig
 	// Telemetry controls OpenTelemetry logs and traces.
 	Telemetry TelemetryConfig
-	// Audit controls the audit subscriber worker.
-	Audit AuditConfig
 	// SSOProviders contains the enabled SSO providers derived from env configuration.
 	SSOProviders []SSOProviderConfig
-}
-
-// defaultConfig returns a Config pre-populated with sensible defaults.
-func defaultConfig() Config {
-	return Config{
-		Addr:         ":8080",
-		InternalAddr: ":9090",
-		DevProxyURL:  "http://127.0.0.1:5173",
-		Auth:         DefaultAuth(),
-		SMTP:         DefaultSMTP(),
-		Cache:        DefaultCache(),
-		EventBus:     DefaultEventBus(),
-		Logging:      DefaultLogging(),
-		Telemetry:    DefaultTelemetry(),
-		Audit:        DefaultAudit(),
-	}
 }
 
 // Load reads configuration from an env file (if present) and environment variables,
@@ -68,43 +55,26 @@ func Load() (Config, error) {
 		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
 	}
 
-	cfg := defaultConfig()
-	if err := loadFromEnv(&cfg); err != nil {
+	cfg := Config{
+		Addr:         ":8080",
+		InternalAddr: ":9090",
+		DevProxyURL:  "http://127.0.0.1:5173",
+		Auth:         DefaultAuth(),
+		SMTP:         DefaultSMTP(),
+		Cache:        DefaultCache(),
+		EventBus:     DefaultEventBus(),
+		Logging:      DefaultLogging(),
+		Telemetry:    DefaultTelemetry(),
+	}
+	if err := loadFromEnvValue(reflect.ValueOf(&cfg).Elem()); err != nil {
 		return Config{}, err
 	}
-	if err := loadFromEnv(&cfg.Database); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Auth); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.SSO); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.SMTP); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Cache); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.EventBus); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Logging); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Telemetry); err != nil {
-		return Config{}, err
-	}
-	if err := loadFromEnv(&cfg.Audit); err != nil {
+	if err := applyModsValue(reflect.ValueOf(&cfg).Elem()); err != nil {
 		return Config{}, err
 	}
 	cfg.SSOProviders = configuredSSOProviders(cfg)
 
 	v := validation.New()
-	if err := registerValidationRules(v); err != nil {
-		return Config{}, err
-	}
 	if err := v.Struct(cfg); err != nil {
 		return Config{}, err
 	}

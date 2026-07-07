@@ -2,15 +2,15 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
+	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 type setupTransaction struct {
@@ -20,11 +20,10 @@ type setupTransaction struct {
 }
 
 func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName, password, ip, userAgent string) (string, error) {
-	hash, err := hashPassword(password)
+	hash, err := security.HashPassword(password)
 	if err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
-	emailAddress = transform.Email(emailAddress)
 	now := s.clock.Now()
 	organisationID := s.idg.New()
 	if s.beginTx == nil {
@@ -41,7 +40,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 		OrganisationMemberID: s.idg.New(),
 		Email:                emailAddress,
 		PasswordHash:         hash,
-		DisplayName:          transform.Trim(displayName),
+		DisplayName:          displayName,
 		OrganisationName:     s.authConfig.DefaultOrganisationName,
 		OrganisationSlug:     s.authConfig.DefaultOrganisationSlug,
 		Now:                  now,
@@ -58,20 +57,18 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err := tx.commit(); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationCommit))
 	}
-	if err := s.publishEvent(ctx, eventbus.Event{
-		Category:            "security",
-		Subcategory:         "auth",
-		EventType:           string(events.AuthSecurityAuthSetupCompleted),
-		Action:              "setup_first_user",
-		Outcome:             "succeeded",
-		ActorUserID:         user.ID,
-		ActorOrganisationID: organisationID,
-		TargetType:          "user",
-		TargetID:            user.ID,
-		TargetDisplay:       user.Email,
-		IPAddress:           ip,
-		UserAgent:           userAgent,
-		Metadata:            events.AuthSecurityAuthSetupCompletedMetadata{Email: user.Email, DisplayName: user.DisplayName}.Map(),
+	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{
+		EventType: events.AuthSecurityAuthSetupCompleted,
+		Envelope: events.Envelope{
+			ActorUserID:         user.ID,
+			ActorOrganisationID: organisationID,
+			TargetType:          "user",
+			TargetID:            user.ID,
+			TargetDisplay:       user.Email,
+			IPAddress:           ip,
+			UserAgent:           userAgent,
+		},
+		Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName),
 	}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
@@ -88,44 +85,45 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 	}
 	now := in.Now.UTC()
 	if err := q.InsertUser(ctx, sqlcgen.InsertUserParams{
-		ID:          mustParseUUID(in.ID),
-		Email:       in.Email,
-		DisplayName: in.DisplayName,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:              id.MustParse(in.ID),
+		Email:           in.Email,
+		DisplayName:     in.DisplayName,
+		EmailVerifiedAt: sqltype.Timestamptz(now),
+		CreatedAt:       sqltype.Timestamptz(now),
+		UpdatedAt:       sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertUser))
 	}
 	if err := q.InsertAccount(ctx, sqlcgen.InsertAccountParams{
-		ID:                mustParseUUID(in.AccountID),
-		UserID:            mustParseUUID(in.ID),
+		ID:                id.MustParse(in.AccountID),
+		UserID:            id.MustParse(in.ID),
 		Provider:          string(AccountProviderPassword),
 		ProviderAccountID: in.Email,
-		PasswordHash:      nullString(in.PasswordHash),
-		CreatedAt:         now,
-		UpdatedAt:         now,
+		PasswordHash:      sqltype.Text(in.PasswordHash),
+		CreatedAt:         sqltype.Timestamptz(now),
+		UpdatedAt:         sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertAccount))
 	}
 	if err := q.InsertOrganisation(ctx, sqlcgen.InsertOrganisationParams{
-		ID:        mustParseUUID(in.OrganisationID),
+		ID:        id.MustParse(in.OrganisationID),
 		Name:      in.OrganisationName,
 		Slug:      in.OrganisationSlug,
-		Logo:      sql.NullString{},
-		CreatedAt: now,
-		UpdatedAt: now,
+		Logo:      sqltype.Text(""),
+		CreatedAt: sqltype.Timestamptz(now),
+		UpdatedAt: sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisation))
 	}
 	if err := q.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{
-		ID:             mustParseUUID(in.OrganisationMemberID),
-		OrganisationID: mustParseUUID(in.OrganisationID),
-		UserID:         mustParseUUID(in.ID),
+		ID:             id.MustParse(in.OrganisationMemberID),
+		OrganisationID: id.MustParse(in.OrganisationID),
+		UserID:         id.MustParse(in.ID),
 		Role:           string(RoleOwner),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		CreatedAt:      sqltype.Timestamptz(now),
+		UpdatedAt:      sqltype.Timestamptz(now),
 	}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisationMember))
 	}
-	return User{ID: in.ID, Email: in.Email, DisplayName: in.DisplayName}, nil
+	return User{ID: in.ID, Email: in.Email, DisplayName: in.DisplayName, EmailVerified: true}, nil
 }
