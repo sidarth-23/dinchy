@@ -53,7 +53,7 @@ func OpenPostgresStore(t testing.TB) *store.Store {
 	dsn := fmt.Sprintf("postgres://dinchy:dinchy@127.0.0.1:%s/dinchy?sslmode=disable", hostPort)
 
 	var db *store.Store
-	for attempt := 0; attempt < 20; attempt++ {
+	for range 20 {
 		db, err = store.Open(ctx, dsn)
 		if err == nil {
 			break
