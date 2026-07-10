@@ -11,7 +11,8 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features"
+	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
@@ -36,39 +37,32 @@ type Store interface {
 
 // Service owns session token creation, resolution, revocation, and cookie naming.
 type Service struct {
-	features.BaseService
+	*module.Service
 	store         Store
 	config        config.SessionConfig
 	principals    cache.Entry[cachedPrincipal]
 	sessionTTLCap time.Duration
 }
 
-// Dependencies contains the dependencies required by the session Service.
-type Dependencies struct {
-	Base        features.ServiceDependencies
-	Store       Store
-	Config      config.SessionConfig
-	CacheConfig config.CacheConfig
-	Cache       cache.Cache
-}
-
 // NewService builds a session Service. A nil or disabled cache makes session
 // resolution read straight through to the store.
-func NewService(dependencies Dependencies) (*Service, error) {
-	base, err := features.NewBaseService("session", dependencies.Base)
-	if err != nil {
+func NewService(base *module.Service, store Store, sessionConfig config.SessionConfig, cacheConfig config.CacheConfig) (*Service, error) {
+	if base == nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("session module service is required")))
+	}
+	if err := base.Initialize(); err != nil {
 		return nil, apperrors.Annotate(err)
 	}
 	return &Service{
-		BaseService:   base,
-		store:         dependencies.Store,
-		config:        dependencies.Config,
-		principals:    cache.NewEntry[cachedPrincipal](dependencies.Cache, sessionCacheNamespace, dependencies.CacheConfig.SessionTTLCap),
-		sessionTTLCap: dependencies.CacheConfig.SessionTTLCap,
+		Service:       base,
+		store:         store,
+		config:        sessionConfig,
+		principals:    cache.NewEntry[cachedPrincipal](base.Cache, sessionCacheNamespace, cacheConfig.SessionTTLCap),
+		sessionTTLCap: cacheConfig.SessionTTLCap,
 	}, nil
 }
 
-var _ features.Service = (*Service)(nil)
+var _ module.Module = (*Service)(nil)
 
 // SessionCookieName returns the configured name of the session cookie.
 func (s *Service) SessionCookieName() string {
@@ -81,7 +75,7 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*Principal, err
 		return nil, nil
 	}
 	hash := security.HashToken(rawToken)
-	now := s.Clock().Now()
+	now := s.Clock.Now()
 
 	if cached, hit, err := s.principals.Get(ctx, hash); err != nil {
 		logging.Warn(ctx, s.Logger(ctx), "Session cache read failed, falling back to database", slog.Any("error", err))
@@ -122,8 +116,8 @@ func (s *Service) cacheTTL(p *Principal, now time.Time) time.Duration {
 
 // Create issues a new session token for the given user and organization.
 func (s *Service) Create(ctx context.Context, userID, organisationID, ip, userAgent string) (string, error) {
-	token := s.IDGenerator().New()
-	now := s.Clock().Now().UTC()
+	token := s.IDGenerator.New()
+	now := s.Clock.Now().UTC()
 	if err := s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{
 		ID:                   id.MustParse(token),
 		UserID:               id.MustParse(userID),
@@ -150,7 +144,7 @@ func (s *Service) Logout(ctx context.Context, rawToken string) (*Principal, erro
 	if err != nil {
 		return nil, err
 	}
-	now := s.Clock().Now()
+	now := s.Clock.Now()
 	hash := security.HashToken(rawToken)
 	if err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now), TokenHash: hash}); err != nil {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
@@ -167,7 +161,7 @@ func (s *Service) RevokeForUser(ctx context.Context, userID string) error {
 	hashes := s.activeHashesForInvalidation(ctx, func(ctx context.Context) ([]string, error) {
 		return s.store.GetActiveSessionTokenHashesForUser(ctx, uid)
 	})
-	now := s.Clock().Now()
+	now := s.Clock.Now()
 	if err := s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: uid, RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithOperation(apperrors.OperationRevokeSessionsForUser), apperrors.WithStage(apperrors.StageRevokeSession))
 	}

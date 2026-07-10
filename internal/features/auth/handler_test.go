@@ -205,8 +205,7 @@ func TestAPIBootstrap_WithSession(t *testing.T) {
 func TestAPILogout_ClearsCookie(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	publisher := &recordingPublisher{}
-	api.auth.publisher = publisher
+	publisher := api.auth.EventPublisher.(*recordingPublisher)
 	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.sessions.SessionCookieName(), Value: "rawtoken"}})
 
 	gomock.InOrder(
@@ -248,7 +247,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	require.NoError(t, err)
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, api.auth.redis.Get(testCtx, api.auth.sso.cacheKey(transactionID)).Scan(&cached))
+	require.NoError(t, api.auth.RedisClient.Get(testCtx, api.auth.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
 	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 	parsedAuthURL, err := url.Parse(session.AuthURL)

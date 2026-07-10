@@ -15,10 +15,10 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
-	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/health"
+	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
@@ -70,20 +70,6 @@ func (a *App) Start() error {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 	clk := clock.System{}
-	featureDependencies := features.FeatureDependencies{Logger: a.logger}
-	serviceDependencies := features.ServiceDependencies{
-		FeatureDependencies: featureDependencies,
-		Clock:               clk,
-		IDGenerator:         id.NewGenerator(),
-	}
-	auditSvc, err := audit.NewService(audit.Dependencies{Base: serviceDependencies, Store: queries})
-	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-	}
-	eventBusSvc.Register(auditSvc)
-	if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-	}
 	var sender email.Sender = email.NoopSender{}
 	if a.cfg.SMTP.Enabled() {
 		smtpSender, err := email.NewSMTPSender(a.cfg.SMTP)
@@ -98,11 +84,20 @@ func (a *App) Start() error {
 	}
 	keyer := cache.NewKeyer(a.cfg.Redis.KeyPrefix)
 	sessionCache := cache.NewRedis(redisClient, keyer, a.cfg.Cache.Enabled)
-	sessionSvc, err := session.NewService(session.Dependencies{Base: serviceDependencies, Store: queries, Config: a.cfg.Session, CacheConfig: a.cfg.Cache, Cache: sessionCache})
+	sharedService := module.Service{BaseLogger: a.logger, Clock: clk, IDGenerator: id.NewGenerator(), Database: s.Pool(), RedisClient: redisClient, Cache: sessionCache, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc}
+	auditSvc, err := audit.NewService(sharedService.Named("audit"), queries)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
-	authSvc, err := auth.NewService(auth.Dependencies{Base: serviceDependencies, Database: s.Pool(), Store: queries, Sessions: sessionSvc, AuthConfig: a.cfg.Auth, Providers: a.cfg.SSOProviders, RedisClient: redisClient, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc})
+	eventBusSvc.Register(auditSvc)
+	if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	sessionSvc, err := session.NewService(sharedService.Named("session"), queries, a.cfg.Session, a.cfg.Cache)
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	authSvc, err := auth.NewService(sharedService.Named("auth"), queries, sessionSvc, a.cfg.Auth, a.cfg.SSOProviders)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
@@ -115,7 +110,10 @@ func (a *App) Start() error {
 		dist = distFS
 	}
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
-	healthAPI := health.NewAPI(health.Dependencies{Base: featureDependencies, DB: s})
+	healthAPI, err := health.NewAPI(sharedService.Named("health"), s)
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, healthAPI)
 	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc)}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, registeredWorkers...)

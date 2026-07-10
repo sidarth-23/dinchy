@@ -12,6 +12,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/sidarth-23/dinchy/internal/module"
+	"github.com/sidarth-23/dinchy/internal/platform/clock"
 )
 
 type fakePinger struct {
@@ -26,12 +29,18 @@ func newTestHandler(t *testing.T, db Pinger) http.Handler {
 	t.Helper()
 	r := chi.NewRouter()
 	api := humachi.New(r, huma.DefaultConfig("Dinchy Internal API", "0.1.0"))
-	NewAPI(Dependencies{DB: db}).Register(api)
+	base := (&module.Service{Clock: clock.System{}}).Named("health")
+	healthAPI, err := NewAPI(base, db)
+	require.NoError(t, err)
+	healthAPI.Register(api)
 	return r
 }
 
 func TestAPIName(t *testing.T) {
-	assert.Equal(t, "health", NewAPI(Dependencies{}).Name())
+	base := (&module.Service{Clock: clock.System{}}).Named("health")
+	healthAPI, err := NewAPI(base, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "health", healthAPI.Name())
 }
 
 func TestHealthz(t *testing.T) {

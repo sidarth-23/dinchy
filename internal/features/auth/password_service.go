@@ -41,10 +41,10 @@ type VerificationToken struct {
 
 // ForgotPassword issues a password reset token and emails it, returning nil for unknown addresses to avoid account enumeration.
 func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error {
-	if !s.mailer.Configured() {
+	if !s.Mailer.Configured() {
 		return apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
-	start := s.Clock().Now()
+	start := s.Clock.Now()
 	defer waitUntil(start.Add(config.PasswordResetMinimumDuration))
 	userRow, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
@@ -62,9 +62,9 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
 	tokenHash := security.HashToken(rawToken)
-	now := s.Clock().Now()
+	now := s.Clock.Now()
 	if err := s.store.InsertVerificationToken(ctx, sqlcgen.InsertVerificationTokenParams{
-		ID:        id.MustParse(s.IDGenerator().New()),
+		ID:        id.MustParse(s.IDGenerator.New()),
 		UserID:    uuid.NullUUID{UUID: id.MustParse(user.ID), Valid: true},
 		Email:     emailAddress,
 		Purpose:   string(VerificationPurposePasswordReset),
@@ -75,7 +75,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageCreateVerificationToken))
 	}
-	if err := s.mailer.SendPasswordReset(ctx, email.PasswordResetEmail{To: emailAddress, Token: rawToken}); err != nil {
+	if err := s.Mailer.SendPasswordReset(ctx, email.PasswordResetEmail{To: emailAddress, Token: rawToken}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageSendEmail))
 	}
 	return nil
@@ -101,7 +101,7 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 		ConsumedAt:      sqltype.TimeValue(tokenRow.ConsumedAt),
 		ConsumedAtValid: tokenRow.ConsumedAt.Valid,
 	}
-	now := s.Clock().Now()
+	now := s.Clock.Now()
 	if !token.UserIDValid || token.ConsumedAtValid || now.After(token.ExpiresAt) {
 		return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))
 	}

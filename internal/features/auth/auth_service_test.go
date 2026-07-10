@@ -18,8 +18,8 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
-	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
@@ -46,10 +46,11 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	clk := clock.Fixed(fixedTime)
 	noopMailer, err := email.NewMailer(email.NoopSender{}, "")
 	require.NoError(t, err)
-	base := features.ServiceDependencies{Clock: clk, IDGenerator: id.NewGenerator()}
-	sessionSvc, err := session.NewService(session.Dependencies{Base: base, Store: store, Config: config.DefaultSession(), CacheConfig: config.DefaultCache()})
+	publisher := &recordingPublisher{}
+	sharedService := module.Service{Clock: clk, IDGenerator: id.NewGenerator(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: noopMailer, EventPublisher: publisher}
+	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), config.DefaultCache())
 	require.NoError(t, err)
-	svc, err := NewService(Dependencies{Base: base, Store: store, Sessions: sessionSvc, AuthConfig: config.DefaultAuth(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: noopMailer})
+	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
@@ -130,8 +131,7 @@ func sessionRow(rowID, userID, email, displayName, organisationID, organisationN
 func TestSetupFirstUser_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
-	publisher := &recordingPublisher{}
-	svc.publisher = publisher
+	publisher := svc.EventPublisher.(*recordingPublisher)
 	var createdUserID string
 
 	store.EXPECT().

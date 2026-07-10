@@ -11,8 +11,8 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
-	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
@@ -21,7 +21,8 @@ const testAuditTime = 1_735_689_600
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	svc, err := NewService(Dependencies{Base: features.ServiceDependencies{Clock: clock.Fixed(time.Unix(testAuditTime, 0).UTC())}, Store: &failingStore{t: t}})
+	base := (&module.Service{Clock: clock.Fixed(time.Unix(testAuditTime, 0).UTC())}).Named("audit")
+	svc, err := NewService(base, &failingStore{t: t})
 	require.NoError(t, err)
 	return svc
 }

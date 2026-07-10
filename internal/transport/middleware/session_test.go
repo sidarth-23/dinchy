@@ -16,7 +16,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
-	"github.com/sidarth-23/dinchy/internal/features"
+	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -154,7 +154,8 @@ func (s *sessionStore) GetInstanceName(context.Context) (string, error) { return
 
 func newSessionService(t *testing.T, store *sessionStore) *session.Service {
 	t.Helper()
-	service, err := session.NewService(session.Dependencies{Base: features.ServiceDependencies{Clock: clock.Fixed(sessionFixedTime), IDGenerator: id.NewGenerator()}, Store: store, Config: config.DefaultSession(), CacheConfig: config.DefaultCache()})
+	base := (&module.Service{Clock: clock.Fixed(sessionFixedTime), IDGenerator: id.NewGenerator()}).Named("session")
+	service, err := session.NewService(base, store, config.DefaultSession(), config.DefaultCache())
 	require.NoError(t, err)
 	return service
 }

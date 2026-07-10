@@ -41,7 +41,8 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if !ok || !providerConfig.Enabled {
 		return "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
 	}
-	if s.redis == nil {
+	redisClient := s.RedisClient
+	if redisClient == nil {
 		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthSSOCacheRequired))
 	}
 	provider, err := newGothProviderForSSO(providerConfig)
@@ -65,10 +66,10 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
 	cacheState := ssoCacheState{ProviderID: providerID, ReturnTo: internalReturnPath(returnTo), OrganisationSlug: organisationSlug, State: stateToken, ProviderSession: session.Marshal()}
-	if err := s.redis.Set(ctx, s.sso.cacheKey(transactionID), cacheState, s.sso.stateLifetime).Err(); err != nil {
+	if err := redisClient.Set(ctx, s.sso.cacheKey(transactionID), cacheState, s.sso.stateLifetime).Err(); err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
-	return authURL, []http.Cookie{{Name: s.sso.stateCookieName, Value: transactionID, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(s.sso.stateLifetime.Seconds()), Expires: s.Clock().Now().Add(s.sso.stateLifetime)}}, nil
+	return authURL, []http.Cookie{{Name: s.sso.stateCookieName, Value: transactionID, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(s.sso.stateLifetime.Seconds()), Expires: s.Clock.Now().Add(s.sso.stateLifetime)}}, nil
 }
 
 func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, transactionID, ip, userAgent string) (string, string, []http.Cookie, error) {
@@ -76,11 +77,12 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if !ok || !providerConfig.Enabled {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOProviderNotFound, i18n.P("provider", providerID)))
 	}
-	if s.redis == nil || transactionID == "" {
+	redisClient := s.RedisClient
+	if redisClient == nil || transactionID == "" {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
 	}
 	var cached ssoCacheState
-	if err := s.redis.Get(ctx, s.sso.cacheKey(transactionID)).Scan(&cached); err != nil {
+	if err := redisClient.Get(ctx, s.sso.cacheKey(transactionID)).Scan(&cached); err != nil {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
 	}
 	if cached.ProviderID != providerID || cached.State != queryState {
@@ -126,7 +128,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 		if user == nil || !user.EmailVerified {
 			return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
 		}
-		if err := s.store.InsertAccount(ctx, sqlcgen.InsertAccountParams{ID: id.MustParse(s.IDGenerator().New()), UserID: id.MustParse(user.ID), Provider: providerID, ProviderAccountID: gothUser.UserID, CreatedAt: sqltype.Timestamptz(s.Clock().Now()), UpdatedAt: sqltype.Timestamptz(s.Clock().Now())}); err != nil {
+		if err := s.store.InsertAccount(ctx, sqlcgen.InsertAccountParams{ID: id.MustParse(s.IDGenerator.New()), UserID: id.MustParse(user.ID), Provider: providerID, ProviderAccountID: gothUser.UserID, CreatedAt: sqltype.Timestamptz(s.Clock.Now()), UpdatedAt: sqltype.Timestamptz(s.Clock.Now())}); err != nil {
 			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
 		}
 	}
@@ -141,7 +143,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if err != nil {
 		return "", "", nil, err
 	}
-	if err := s.redis.Del(ctx, s.sso.cacheKey(transactionID)).Err(); err != nil {
+	if err := redisClient.Del(ctx, s.sso.cacheKey(transactionID)).Err(); err != nil {
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
 	return cached.ReturnTo, token, s.clearSSOCookies(), nil

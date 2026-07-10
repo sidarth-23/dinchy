@@ -24,12 +24,12 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))
 	}
 	if err := s.store.InsertOrReplaceTwoFactor(ctx, sqlcgen.InsertOrReplaceTwoFactorParams{
-		ID:        id.MustParse(s.IDGenerator().New()),
+		ID:        id.MustParse(s.IDGenerator.New()),
 		UserID:    id.MustParse(userID),
 		Secret:    key.Secret(),
 		Verified:  false,
-		CreatedAt: sqltype.Timestamptz(s.Clock().Now()),
-		UpdatedAt: sqltype.Timestamptz(s.Clock().Now()),
+		CreatedAt: sqltype.Timestamptz(s.Clock.Now()),
+		UpdatedAt: sqltype.Timestamptz(s.Clock.Now()),
 	}); err != nil {
 		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))
 	}
@@ -46,7 +46,7 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, displayName, code str
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
 	}
 	twoFactor := twoFactorFromFindTwoFactorRow(twoFactorRow)
-	now := s.Clock().Now().UTC()
+	now := s.Clock.Now().UTC()
 	if twoFactor.locked(now) {
 		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))
 	}
@@ -113,7 +113,7 @@ func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) e
 	if !twoFactor.Verified {
 		return nil
 	}
-	now := s.Clock().Now().UTC()
+	now := s.Clock.Now().UTC()
 	if twoFactor.locked(now) {
 		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))
 	}

@@ -92,8 +92,7 @@ func TestConfirmTOTP_InvalidCode(t *testing.T) {
 func TestConfirmTOTP_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
-	publisher := &recordingPublisher{}
-	svc.publisher = publisher
+	publisher := svc.EventPublisher.(*recordingPublisher)
 
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, pgtype.Timestamptz{}), nil)
@@ -136,8 +135,7 @@ func TestConfirmTOTP_LocksAfterRepeatedFailures(t *testing.T) {
 func TestDisableTOTP_DelegatesToStore(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
-	publisher := &recordingPublisher{}
-	svc.publisher = publisher
+	publisher := svc.EventPublisher.(*recordingPublisher)
 
 	store.EXPECT().DisableTwoFactor(gomock.Any(), id.MustParse(testUserID)).Return(nil)
 

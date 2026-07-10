@@ -6,8 +6,8 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
-	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -15,35 +15,31 @@ import (
 
 // Service records and lists audit events. It implements events.Subscriber.
 type Service struct {
-	features.BaseService
+	*module.Service
 	store Store
 }
 
-// Dependencies contains the dependencies required by the audit Service.
-type Dependencies struct {
-	Base  features.ServiceDependencies
-	Store Store
-}
-
 // NewService builds an audit Service, requiring a non-nil store and clock.
-func NewService(dependencies Dependencies) (*Service, error) {
-	if dependencies.Store == nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit store is required")))
+func NewService(base *module.Service, store Store) (*Service, error) {
+	if base == nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit module service is required")))
 	}
-	base, err := features.NewBaseService("audit", dependencies.Base)
-	if err != nil {
+	if err := base.Initialize(); err != nil {
 		return nil, apperrors.Annotate(err)
 	}
-	return &Service{BaseService: base, store: dependencies.Store}, nil
+	if store == nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit store is required")))
+	}
+	return &Service{Service: base, store: store}, nil
 }
 
 // Handle persists an event as an audit log, assigning an ID and timestamp when absent.
 func (s *Service) Handle(ctx context.Context, event events.Record) error {
 	if event.ID == "" {
-		event.ID = s.IDGenerator().New()
+		event.ID = s.IDGenerator.New()
 	}
 	if event.CreatedAt.IsZero() {
-		event.CreatedAt = s.Clock().Now()
+		event.CreatedAt = s.Clock.Now()
 	}
 	params, err := insertParams(event)
 	if err != nil {
@@ -57,7 +53,7 @@ func (s *Service) Handle(ctx context.Context, event events.Record) error {
 
 var (
 	_ events.Subscriber = (*Service)(nil)
-	_ features.Service  = (*Service)(nil)
+	_ module.Module     = (*Service)(nil)
 )
 
 // List returns audit records matching the given filters.

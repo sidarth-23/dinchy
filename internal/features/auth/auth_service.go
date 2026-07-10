@@ -5,70 +5,43 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
-	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/cache"
-	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 // Service handles authentication, sessions, TOTP, invitations, and SSO for the auth feature.
 type Service struct {
-	features.BaseService
-	db         *pgxpool.Pool
+	*module.Service
 	beginTx    func(context.Context) (*setupTransaction, error)
 	store      Store
 	sessions   *session.Service
 	authConfig config.AuthConfig
 	sso        *ssoRegistry
-	redis      *goredis.Client
-	mailer     *email.Mailer
-	publisher  events.Publisher
-}
-
-// Dependencies contains the dependencies required by the auth Service.
-type Dependencies struct {
-	Base           features.ServiceDependencies
-	Database       *pgxpool.Pool
-	Store          Store
-	Sessions       *session.Service
-	AuthConfig     config.AuthConfig
-	Providers      []config.SSOProviderConfig
-	RedisClient    *goredis.Client
-	CacheKeyer     cache.Keyer
-	Mailer         *email.Mailer
-	EventPublisher events.Publisher
 }
 
 // NewService builds an auth Service, wiring the SSO registry and falling back to a no-op mailer when none is provided.
-func NewService(dependencies Dependencies) (*Service, error) {
-	base, err := features.NewBaseService("auth", dependencies.Base)
-	if err != nil {
+func NewService(base *module.Service, store Store, sessions *session.Service, authConfig config.AuthConfig, providers []config.SSOProviderConfig) (*Service, error) {
+	if base == nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("auth module service is required")))
+	}
+	if err := base.Initialize(); err != nil {
 		return nil, apperrors.Annotate(err)
 	}
-	registry, err := newSSORegistry(dependencies.AuthConfig, dependencies.Providers, dependencies.CacheKeyer)
+	registry, err := newSSORegistry(authConfig, providers, base.CacheKeyer)
 	if err != nil {
 		return nil, err
 	}
-	mailer := dependencies.Mailer
-	if mailer == nil {
-		mailer, err = email.NewMailer(email.NoopSender{}, "")
-		if err != nil {
-			return nil, err
-		}
-	}
-	service := &Service{BaseService: base, db: dependencies.Database, store: dependencies.Store, sessions: dependencies.Sessions, authConfig: dependencies.AuthConfig, sso: registry, redis: dependencies.RedisClient, mailer: mailer, publisher: dependencies.EventPublisher}
-	if dependencies.Database != nil {
+	service := &Service{Service: base, store: store, sessions: sessions, authConfig: authConfig, sso: registry}
+	if base.Database != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
-			tx, err := dependencies.Database.Begin(ctx)
+			tx, err := base.Database.Begin(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -78,7 +51,7 @@ func NewService(dependencies Dependencies) (*Service, error) {
 	return service, nil
 }
 
-var _ features.Service = (*Service)(nil)
+var _ module.Module = (*Service)(nil)
 
 // Bootstrap reports whether first-user setup is still required and the current instance name.
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {
@@ -94,10 +67,10 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {
 }
 
 func (s *Service) publishEvent(ctx context.Context, event events.Event) error {
-	if s.publisher == nil {
+	if s.EventPublisher == nil {
 		return nil
 	}
-	return s.publisher.Publish(ctx, event)
+	return s.EventPublisher.Publish(ctx, event)
 }
 
 // OrganisationsForUser lists the organizations the given user can access.

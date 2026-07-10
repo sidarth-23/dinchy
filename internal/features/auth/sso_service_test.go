@@ -161,7 +161,7 @@ func TestStartSSO_ReturnsMetadataAndTransactionCookie(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
+	require.NoError(t, svc.RedisClient.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	assert.Equal(t, "github", cached.ProviderID)
 	assert.Equal(t, "/projects/123?tab=activity", cached.ReturnTo)
 	assert.Equal(t, "default", cached.OrganisationSlug)
@@ -178,7 +178,7 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
+	require.NoError(t, svc.RedisClient.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
 	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 
@@ -230,7 +230,7 @@ func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
+	require.NoError(t, svc.RedisClient.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
 	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 
