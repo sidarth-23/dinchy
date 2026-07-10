@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
@@ -16,8 +17,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
-
-const passwordResetMinimumDuration = 250 * time.Millisecond
 
 // VerificationPurpose identifies what a verification token authorizes.
 type VerificationPurpose string
@@ -46,7 +45,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		return apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
 	start := s.clock.Now()
-	defer waitUntil(start.Add(passwordResetMinimumDuration))
+	defer waitUntil(start.Add(config.PasswordResetMinimumDuration))
 	userRow, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

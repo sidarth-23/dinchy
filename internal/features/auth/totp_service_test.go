@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -103,17 +104,17 @@ func TestConfirmTOTP_LocksAfterRepeatedFailures(t *testing.T) {
 	var failedCount int64
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).DoAndReturn(func(context.Context, uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error) {
 		return twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, failedCount, pgtype.Timestamptz{}), nil
-	}).Times(int(totpFailureLimit))
+	}).Times(int(config.TOTPFailureLimit))
 	store.EXPECT().RegisterTwoFactorFailure(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, params sqlcgen.RegisterTwoFactorFailureParams) error {
 		failedCount++
 		assert.Equal(t, failedCount, params.FailureLimit)
-		if failedCount >= totpFailureLimit {
+		if failedCount >= config.TOTPFailureLimit {
 			assert.True(t, params.LockedUntil.Valid)
 		}
 		return nil
-	}).Times(int(totpFailureLimit))
+	}).Times(int(config.TOTPFailureLimit))
 
-	for attempt := int64(1); attempt < totpFailureLimit; attempt++ {
+	for attempt := int64(1); attempt < config.TOTPFailureLimit; attempt++ {
 		err := svc.ConfirmTOTP(testCtx, testUserID, "000000")
 		require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP)))
 	}
@@ -188,13 +189,13 @@ func TestLogin_TOTPFailureLocksAccount(t *testing.T) {
 	var failedCount int64
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).DoAndReturn(func(context.Context, uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error) {
 		return twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, failedCount, pgtype.Timestamptz{}), nil
-	}).Times(int(totpFailureLimit))
+	}).Times(int(config.TOTPFailureLimit))
 	store.EXPECT().RegisterTwoFactorFailure(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, params sqlcgen.RegisterTwoFactorFailureParams) error {
 		failedCount++
 		return nil
-	}).Times(int(totpFailureLimit))
+	}).Times(int(config.TOTPFailureLimit))
 
-	for attempt := int64(1); attempt < totpFailureLimit; attempt++ {
+	for attempt := int64(1); attempt < config.TOTPFailureLimit; attempt++ {
 		_, err := svc.Login(testCtx, "user@example.com", "secret", "", "000000", "", "")
 		require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP)))
 	}

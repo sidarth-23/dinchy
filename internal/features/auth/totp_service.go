@@ -8,17 +8,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pquerna/otp/totp"
 
+	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
-)
-
-const (
-	totpFailureLimit = int64(5)
-	totpLockDuration = 15 * time.Minute
 )
 
 // StartTOTPEnrollment creates a new TOTP secret and stores it for the user.
@@ -142,8 +138,8 @@ func totpStep(t time.Time) int64 {
 func (s *Service) recordTOTPFailure(ctx context.Context, userID string, currentCount int64, now time.Time, message i18n.Message) error {
 	nextCount := currentCount + 1
 	lockedUntil := sqltype.OptionalTimestamptz(time.Time{}, false)
-	if nextCount >= totpFailureLimit {
-		lockedUntil = sqltype.Timestamptz(now.Add(totpLockDuration))
+	if nextCount >= config.TOTPFailureLimit {
+		lockedUntil = sqltype.Timestamptz(now.Add(config.TOTPLockDuration))
 	}
 	if err := s.store.RegisterTwoFactorFailure(ctx, sqlcgen.RegisterTwoFactorFailureParams{
 		FailureLimit: nextCount,

@@ -2,6 +2,15 @@ package config
 
 import "time"
 
+// PasswordResetMinimumDuration is the minimum wall-clock duration a password reset request should take.
+const PasswordResetMinimumDuration = 250 * time.Millisecond
+
+// TOTPFailureLimit is the number of failed TOTP attempts allowed before lockout.
+const TOTPFailureLimit int64 = 5
+
+// TOTPLockDuration is the duration of the TOTP lockout after repeated failures.
+const TOTPLockDuration = 15 * time.Minute
+
 // AuthConfig holds authentication behavior, cookie names, and token lifetimes.
 type AuthConfig struct {
 	// SessionCookieName is the HTTP cookie name used for Dinchy session tokens.
