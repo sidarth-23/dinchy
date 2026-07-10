@@ -37,7 +37,7 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 }
 
 // ConfirmTOTP validates the enrollment code, marks two-factor as verified, and records failures toward the lockout limit.
-func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
+func (s *Service) ConfirmTOTP(ctx context.Context, userID, displayName, code string) error {
 	twoFactorRow, err := s.store.FindTwoFactorByUserID(ctx, id.MustParse(userID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -56,9 +56,13 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sqltype.Int8(totpStep(now)), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
 	}
+	envelope, err := events.NewEnvelope(ctx, userID, "", events.NewTarget("user", userID, displayName))
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
+	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorEnabledEvent{
 		EventType: events.AuthSecurityTwoFactorEnabled,
-		Envelope:  events.NewEnvelope(ctx, userID, "", "user", userID, ""),
+		Envelope:  envelope,
 		Metadata:  events.NewAuthSecurityTwoFactorEnabledMetadata(),
 	})
 }
@@ -85,13 +89,17 @@ func (t *TwoFactor) locked(now time.Time) bool {
 }
 
 // DisableTOTP removes the user's two-factor enrollment and emits a disabled event.
-func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
+func (s *Service) DisableTOTP(ctx context.Context, userID, displayName string) error {
 	if err := s.store.DisableTwoFactor(ctx, id.MustParse(userID)); err != nil {
 		return err
 	}
+	envelope, err := events.NewEnvelope(ctx, userID, "", events.NewTarget("user", userID, displayName))
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP))
+	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorDisabledEvent{
 		EventType: events.AuthSecurityTwoFactorDisabled,
-		Envelope:  events.NewEnvelope(ctx, userID, "", "user", userID, ""),
+		Envelope:  envelope,
 		Metadata:  events.NewAuthSecurityTwoFactorDisabledMetadata(),
 	})
 }

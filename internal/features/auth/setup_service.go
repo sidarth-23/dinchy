@@ -45,7 +45,11 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err := tx.commit(); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationCommit))
 	}
-	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{EventType: events.AuthSecurityAuthSetupCompleted, Envelope: events.NewEnvelope(ctx, user.ID, organisationID, "user", user.ID, user.Email), Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName)}); err != nil {
+	envelope, err := events.NewEnvelope(ctx, user.ID, organisationID, events.NewTarget("user", user.ID, user.DisplayName))
+	if err != nil {
+		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
+	}
+	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{EventType: events.AuthSecurityAuthSetupCompleted, Envelope: envelope, Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName)}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
 	return s.sessions.Create(ctx, user.ID, organisationID, ip, userAgent)

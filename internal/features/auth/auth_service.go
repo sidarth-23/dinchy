@@ -134,7 +134,12 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 		return "", err
 	}
 	if loggedOutPrincipal != nil {
-		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.NewEnvelope(ctx, loggedOutPrincipal.UserID, loggedOutPrincipal.OrganisationID, "session", loggedOutPrincipal.SessionID, ""), Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})
+		envelope, err := events.NewEnvelope(ctx, loggedOutPrincipal.UserID, loggedOutPrincipal.OrganisationID, events.NewTarget("session", loggedOutPrincipal.SessionID, loggedOutPrincipal.DisplayName))
+		if err != nil {
+			return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageLogout))
+		}
+		// Best effort: logout should not fail if audit publication fails.
+		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})
 	}
 	return s.sessions.Create(ctx, principal.UserID, organization.ID, ip, userAgent)
 }

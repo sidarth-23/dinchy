@@ -50,9 +50,9 @@ type LogOut struct {
 	Outcome             string         `json:"outcome" doc:"Outcome of the action"`
 	ActorUserID         string         `json:"actor_user_id,omitempty" doc:"ID of the acting user"`
 	ActorOrganisationID string         `json:"actor_organization_id,omitempty" doc:"ID of the acting organization"`
-	TargetType          string         `json:"target_type,omitempty" doc:"Type of the affected target"`
-	TargetID            string         `json:"target_id,omitempty" doc:"ID of the affected target"`
-	TargetDisplay       string         `json:"target_display,omitempty" doc:"Human-readable target label"`
+	TargetType          string         `json:"target_type" doc:"Type of the affected target"`
+	TargetID            string         `json:"target_id" doc:"ID of the affected target"`
+	TargetDisplay       string         `json:"target_display" doc:"Human-readable target label"`
 	RequestID           string         `json:"request_id,omitempty" doc:"Originating request ID"`
 	TraceID             string         `json:"trace_id,omitempty" doc:"Distributed trace ID"`
 	SpanID              string         `json:"span_id,omitempty" doc:"Distributed span ID"`

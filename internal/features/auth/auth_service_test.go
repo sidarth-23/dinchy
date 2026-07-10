@@ -17,6 +17,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
@@ -93,6 +94,16 @@ func organisationRow(rowID, name, slug, role string) sqlcgen.ListOrganisationsFo
 	return sqlcgen.ListOrganisationsForUserRow{ID: id.MustParse(rowID), Name: name, Slug: slug, Role: role}
 }
 
+type recordingPublisher struct {
+	event events.Event
+	err   error
+}
+
+func (p *recordingPublisher) Publish(_ context.Context, event events.Event) error {
+	p.event = event
+	return p.err
+}
+
 func sessionRow(rowID, userID, email, displayName, organisationID, organisationName, organisationSlug, role string, idleExpiresAt, expiresAt time.Time, revokedAt pgtype.Timestamptz) sqlcgen.GetSessionByTokenHashRow {
 	return sqlcgen.GetSessionByTokenHashRow{
 		ID:                   id.MustParse(rowID),
@@ -112,6 +123,8 @@ func sessionRow(rowID, userID, email, displayName, organisationID, organisationN
 func TestSetupFirstUser_Success(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
+	publisher := &recordingPublisher{}
+	svc.publisher = publisher
 
 	store.EXPECT().
 		CountUsers(gomock.Any()).
@@ -143,6 +156,12 @@ func TestSetupFirstUser_Success(t *testing.T) {
 	token, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "password123", "127.0.0.1", "ua")
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
+	require.NotNil(t, publisher.event)
+	require.Equal(t, events.AuthSecurityAuthSetupCompleted, publisher.event.Type())
+	envelope := publisher.event.EnvelopeData()
+	assert.Equal(t, "user", envelope.TargetType)
+	assert.Equal(t, testUserID, envelope.TargetID)
+	assert.Equal(t, "Admin", envelope.TargetDisplay)
 }
 
 func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {

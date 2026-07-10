@@ -12,9 +12,9 @@ type Record struct {
 	Outcome             string         `json:"outcome"`
 	ActorUserID         string         `json:"actor_user_id,omitempty"`
 	ActorOrganisationID string         `json:"actor_organization_id,omitempty"`
-	TargetType          string         `json:"target_type,omitempty"`
-	TargetID            string         `json:"target_id,omitempty"`
-	TargetDisplay       string         `json:"target_display,omitempty"`
+	TargetType          string         `json:"target_type"`
+	TargetID            string         `json:"target_id"`
+	TargetDisplay       string         `json:"target_display"`
 	RequestID           string         `json:"request_id,omitempty"`
 	TraceID             string         `json:"trace_id,omitempty"`
 	SpanID              string         `json:"span_id,omitempty"`

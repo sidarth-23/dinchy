@@ -272,7 +272,15 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 			)
 		}
 		if principal != nil {
-			_ = a.auth.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.NewEnvelope(ctx, principal.UserID, principal.OrganisationID, "session", principal.SessionID, ""), Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
+			envelope, err := events.NewEnvelope(ctx, principal.UserID, principal.OrganisationID, events.NewTarget("session", principal.SessionID, principal.DisplayName))
+			if err != nil {
+				return nil, apperrors.Annotate(err,
+					apperrors.WithHandler(apperrors.HandlerAuthLogout),
+					apperrors.WithStage(apperrors.StageLogout),
+				)
+			}
+			// Best effort: logout should not fail if audit publication fails.
+			_ = a.auth.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
 		}
 	}
 	out := &LogoutOut{}
@@ -486,7 +494,7 @@ func (a *API) totpConfirm(ctx context.Context, in *TOTPConfirmIn) (*TOTPConfirmO
 	if sess == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	if err := a.auth.ConfirmTOTP(ctx, sess.UserID, in.Body.Code); err != nil {
+	if err := a.auth.ConfirmTOTP(ctx, sess.UserID, sess.DisplayName, in.Body.Code); err != nil {
 		return nil, err
 	}
 	out := &TOTPConfirmOut{}
@@ -499,7 +507,7 @@ func (a *API) totpDisable(ctx context.Context, _ *struct{}) (*TOTPConfirmOut, er
 	if sess == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	if err := a.auth.DisableTOTP(ctx, sess.UserID); err != nil {
+	if err := a.auth.DisableTOTP(ctx, sess.UserID, sess.DisplayName); err != nil {
 		return nil, err
 	}
 	out := &TOTPConfirmOut{}
