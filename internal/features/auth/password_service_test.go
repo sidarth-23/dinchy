@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -40,7 +41,8 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	store := NewMockStore(ctrl)
 	mailer, err := email.NewMailer(sender, "https://app.test")
 	require.NoError(t, err)
-	svc, err := NewService(nil, store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, newTestRedis(t), platformredis.NewKeyer("test"), mailer, nil)
+	sessionSvc := session.NewService(store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultSession())
+	svc, err := NewService(nil, store, sessionSvc, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, newTestRedis(t), platformredis.NewKeyer("test"), mailer, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{

@@ -137,7 +137,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if err != nil {
 		return "", "", nil, err
 	}
-	token, err := s.newSession(ctx, user.ID, organization.ID, ip, userAgent)
+	token, err := s.sessions.Create(ctx, user.ID, organization.ID, ip, userAgent)
 	if err != nil {
 		return "", "", nil, err
 	}

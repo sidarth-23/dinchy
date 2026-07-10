@@ -11,6 +11,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
@@ -87,7 +88,9 @@ func (a *App) Start() error {
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
-	authSvc, err := auth.NewService(s.Pool(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, redisClient, platformredis.NewKeyer(a.cfg.Redis.KeyPrefix), mailer, eventBusSvc)
+	sessionIDGenerator := id.NewGenerator()
+	sessionSvc := session.NewService(queries, sessionIDGenerator, clk, a.cfg.Session)
+	authSvc, err := auth.NewService(s.Pool(), queries, sessionSvc, sessionIDGenerator, clk, a.cfg.Auth, a.cfg.SSOProviders, redisClient, platformredis.NewKeyer(a.cfg.Redis.KeyPrefix), mailer, eventBusSvc)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
@@ -99,7 +102,7 @@ func (a *App) Start() error {
 		}
 		dist = distFS
 	}
-	a.public = transport.New(a.cfg.Addr, dist, authSvc, a.cfg.Auth.SessionCookieName, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc.Name())}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, registeredWorkers...)

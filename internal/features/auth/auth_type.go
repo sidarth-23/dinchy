@@ -124,10 +124,6 @@ type Store interface {
 	MarkTwoFactorUsed(ctx context.Context, arg sqlcgen.MarkTwoFactorUsedParams) error
 	RegisterTwoFactorFailure(ctx context.Context, arg sqlcgen.RegisterTwoFactorFailureParams) error
 	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
-	InsertSession(ctx context.Context, arg sqlcgen.InsertSessionParams) error
-	GetSessionByTokenHash(ctx context.Context, tokenHash string) (sqlcgen.GetSessionByTokenHashRow, error)
-	RevokeSessionByTokenHash(ctx context.Context, arg sqlcgen.RevokeSessionByTokenHashParams) error
-	RevokeSessionsForUser(ctx context.Context, arg sqlcgen.RevokeSessionsForUserParams) error
 	GetInstanceName(ctx context.Context) (string, error)
 }
 

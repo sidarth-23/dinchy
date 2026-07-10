@@ -30,6 +30,8 @@ type Config struct {
 	// PublicBaseURL is the externally reachable base URL used to build links in
 	// outbound email (invitation and password reset). Required when SMTP is enabled.
 	PublicBaseURL string `env:"DINCHY_PUBLIC_BASE_URL" validate:"omitempty,http_url"`
+	// Session contains session cookie naming and lifetime settings.
+	Session SessionConfig
 	// Auth contains authentication behavior and lifetime settings.
 	Auth AuthConfig
 	// SSO contains startup SSO provider values loaded from environment.
@@ -61,6 +63,7 @@ func Load() (Config, error) {
 		InternalAddr: ":9090",
 		DevProxyURL:  "http://127.0.0.1:5173",
 		Database:     DefaultDatabase(),
+		Session:      DefaultSession(),
 		Auth:         DefaultAuth(),
 		SMTP:         DefaultSMTP(),
 		Redis:        DefaultRedis(),

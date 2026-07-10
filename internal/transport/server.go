@@ -29,7 +29,7 @@ import (
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sessionCookieName string, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string, logger *slog.Logger) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string, logger *slog.Logger) *http.Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -59,7 +59,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionCookieName strin
 	r.Use(mw.SecureHeaders(devMode))
 	r.Use(mw.CORS(devMode, devProxyURL))
 	r.Use(mw.CSRF())
-	r.Use(session.RequestMiddleware(sessionCookieName, authSvc.Session))
+	r.Use(session.RequestMiddleware(sessionSvc.SessionCookieName(), sessionSvc.Session))
 	r.Use(mw.Timeout(30 * time.Second))
 	r.Use(mw.AccessLog(logger))
 
@@ -68,7 +68,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionCookieName strin
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
 	api.UseMiddleware(mw.SessionResolutionGuard(api))
-	auth.Register(api, authSvc, sr, requireHTTPS)
+	auth.Register(api, authSvc, sessionSvc, sr, requireHTTPS)
 	if auditSvc != nil {
 		audit.Register(api, auditSvc)
 	}

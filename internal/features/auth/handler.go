@@ -11,6 +11,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
@@ -19,13 +20,14 @@ import (
 // API groups the auth handlers and their shared dependencies.
 type API struct {
 	auth         *Service
+	sessions     *session.Service
 	settings     SettingsReader
 	requireHTTPS bool
 }
 
 // Register mounts the auth operations on the given huma.API instance.
-func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
-	a := &API{auth: svc, settings: sr, requireHTTPS: requireHTTPS}
+func Register(h huma.API, svc *Service, sessions *session.Service, sr SettingsReader, requireHTTPS bool) {
+	a := &API{auth: svc, sessions: sessions, settings: sr, requireHTTPS: requireHTTPS}
 
 	huma.Register(h, huma.Operation{
 		OperationID: "get-bootstrap",
@@ -237,7 +239,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 			apperrors.WithStage(apperrors.StageBootstrap),
 		)
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
 		return nil, apperrors.Annotate(err,
 			apperrors.WithHandler(apperrors.HandlerAuthLogin),
@@ -246,7 +248,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &LoginOut{}
-	out.SetCookie = []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}
+	out.SetCookie = []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -260,17 +262,21 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
-	sessionToken := support.CookieValueFrom(ctx, a.auth.authConfig.SessionCookieName)
+	sessionToken := support.CookieValueFrom(ctx, a.sessions.SessionCookieName())
 	if sessionToken != "" {
-		if err := a.auth.Logout(ctx, sessionToken); err != nil {
+		principal, err := a.sessions.Logout(ctx, sessionToken)
+		if err != nil {
 			return nil, apperrors.Annotate(err,
 				apperrors.WithHandler(apperrors.HandlerAuthLogout),
 				apperrors.WithStage(apperrors.StageLogout),
 			)
 		}
+		if principal != nil {
+			_ = a.auth.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: principal.UserID, ActorOrganisationID: principal.OrganisationID, TargetType: "session", TargetID: principal.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
+		}
 	}
 	out := &LogoutOut{}
-	out.SetCookie = *session.ClearSessionCookie(a.auth.authConfig.SessionCookieName, support.IsSecure(ctx))
+	out.SetCookie = *session.ClearSessionCookie(a.sessions.SessionCookieName(), support.IsSecure(ctx))
 	return out, nil
 }
 
@@ -350,17 +356,17 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 	out := &SSOCallbackOut{
 		Status:    http.StatusFound,
 		Location:  returnTo,
-		SetCookie: append([]http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}, clearCookie...),
+		SetCookie: append([]http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}, clearCookie...),
 	}
 	return out, nil
 }
 
 func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) (*SelectOrganisationOut, error) {
-	token, err := a.auth.SelectOrganisation(ctx, support.CookieValueFrom(ctx, a.auth.authConfig.SessionCookieName), in.Body.OrganisationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+	token, err := a.auth.SelectOrganisation(ctx, support.CookieValueFrom(ctx, a.sessions.SessionCookieName()), in.Body.OrganisationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
 		return nil, apperrors.Annotate(err, apperrors.WithHandler(apperrors.HandlerAuthSession), apperrors.WithStage(apperrors.StageSessionLookup))
 	}
@@ -368,7 +374,7 @@ func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) 
 	if err != nil {
 		return nil, err
 	}
-	out := &SelectOrganisationOut{SetCookie: []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, support.IsSecure(ctx))}}
+	out := &SelectOrganisationOut{SetCookie: []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, support.IsSecure(ctx))}}
 	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
 		return nil, err
 	}
@@ -423,7 +429,7 @@ func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*Ac
 			apperrors.WithStage(apperrors.StageBootstrap),
 		)
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
 		return nil, apperrors.Annotate(err,
 			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
@@ -432,7 +438,7 @@ func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*Ac
 	}
 	secure := support.IsSecure(ctx)
 	out := &AcceptInvitationOut{}
-	out.SetCookie = []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}
+	out.SetCookie = []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -526,7 +532,7 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 			apperrors.WithStage(apperrors.StageBootstrap),
 		)
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
 		return nil, apperrors.Annotate(err,
 			apperrors.WithHandler(apperrors.HandlerAuthSetup),
@@ -535,7 +541,7 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}
-	out.SetCookie = []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}
+	out.SetCookie = []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName

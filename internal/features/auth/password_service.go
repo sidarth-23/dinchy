@@ -115,7 +115,7 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 	if err := s.store.ConsumeVerificationToken(ctx, sqlcgen.ConsumeVerificationTokenParams{ID: id.MustParse(token.ID), ConsumedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageConsumeVerificationToken))
 	}
-	return s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: id.MustParse(token.UserID), RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)})
+	return s.sessions.RevokeForUser(ctx, token.UserID)
 }
 
 func waitUntil(target time.Time) {

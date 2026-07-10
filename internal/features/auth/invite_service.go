@@ -318,7 +318,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationCommit))
 	}
 
-	token, sessionErr := s.newSession(ctx, user.ID, invitation.OrganisationID, ip, userAgent)
+	token, sessionErr := s.sessions.Create(ctx, user.ID, invitation.OrganisationID, ip, userAgent)
 	if sessionErr != nil {
 		return "", sessionErr
 	}

@@ -48,7 +48,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{EventType: events.AuthSecurityAuthSetupCompleted, Envelope: events.Envelope{ActorUserID: user.ID, ActorOrganisationID: organisationID, TargetType: "user", TargetID: user.ID, TargetDisplay: user.Email, IPAddress: ip, UserAgent: userAgent}, Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName)}); err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
-	return s.newSession(ctx, user.ID, organisationID, ip, userAgent)
+	return s.sessions.Create(ctx, user.ID, organisationID, ip, userAgent)
 }
 
 func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, error) {

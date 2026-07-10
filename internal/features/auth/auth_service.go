@@ -17,9 +17,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
-	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 // Service handles authentication, sessions, TOTP, invitations, and SSO for the auth feature.
@@ -27,6 +25,7 @@ type Service struct {
 	db         *pgxpool.Pool
 	beginTx    func(context.Context) (*setupTransaction, error)
 	store      Store
+	sessions   *session.Service
 	idg        *id.Generator
 	clock      clock.Clock
 	authConfig config.AuthConfig
@@ -37,7 +36,7 @@ type Service struct {
 }
 
 // NewService builds an auth Service, wiring the SSO registry and falling back to a no-op mailer when none is provided.
-func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer platformredis.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
+func NewService(db *pgxpool.Pool, s Store, sessionSvc *session.Service, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer platformredis.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
 	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
 		return nil, err
@@ -48,7 +47,7 @@ func NewService(db *pgxpool.Pool, s Store, idg *id.Generator, clk clock.Clock, a
 			return nil, err
 		}
 	}
-	service := &Service{db: db, store: s, idg: idg, clock: clk, authConfig: authConfig, sso: registry, redis: redisClient, mailer: mailer, publisher: publisher}
+	service := &Service{db: db, store: s, sessions: sessionSvc, idg: idg, clock: clk, authConfig: authConfig, sso: registry, redis: redisClient, mailer: mailer, publisher: publisher}
 	if db != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
 			tx, err := db.Begin(ctx)
@@ -107,51 +106,12 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 	if err != nil {
 		return "", err
 	}
-	return s.newSession(ctx, user.ID, organization.ID, ip, userAgent)
-}
-
-// Session resolves a raw token to its active session, returning nil when the token is empty, unknown, revoked, or expired.
-func (s *Service) Session(ctx context.Context, rawToken string) (*session.Principal, error) {
-	if rawToken == "" {
-		return nil, nil
-	}
-	row, err := s.store.GetSessionByTokenHash(ctx, security.HashToken(rawToken))
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
-	}
-	principal := session.FromGetSessionRow(row)
-	now := s.clock.Now()
-	if principal.RevokedAt.Valid || now.After(principal.IdleExpiresAt) || now.After(principal.ExpiresAt) {
-		return nil, nil
-	}
-	return principal, nil
-}
-
-// Logout revokes the session identified by the raw token and emits a logout event.
-func (s *Service) Logout(ctx context.Context, rawToken string) error {
-	if rawToken == "" {
-		return nil
-	}
-	principal, err := s.Session(ctx, rawToken)
-	if err != nil {
-		return err
-	}
-	now := s.clock.Now()
-	if err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now), TokenHash: security.HashToken(rawToken)}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
-	}
-	if principal != nil {
-		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: principal.UserID, ActorOrganisationID: principal.OrganisationID, TargetType: "session", TargetID: principal.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
-	}
-	return nil
+	return s.sessions.Create(ctx, user.ID, organization.ID, ip, userAgent)
 }
 
 // SelectOrganisation switches the current session to another organization the user belongs to, returning a fresh session token.
 func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisationSlug, ip, userAgent string) (string, error) {
-	principal, err := s.Session(ctx, rawToken)
+	principal, err := s.sessions.Session(ctx, rawToken)
 	if err != nil {
 		return "", err
 	}
@@ -169,8 +129,12 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 	if organization == nil {
 		return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 	}
-	if err := s.Logout(ctx, rawToken); err != nil {
+	loggedOutPrincipal, err := s.sessions.Logout(ctx, rawToken)
+	if err != nil {
 		return "", err
 	}
-	return s.newSession(ctx, principal.UserID, organization.ID, ip, userAgent)
+	if loggedOutPrincipal != nil {
+		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: loggedOutPrincipal.UserID, ActorOrganisationID: loggedOutPrincipal.OrganisationID, TargetType: "session", TargetID: loggedOutPrincipal.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})
+	}
+	return s.sessions.Create(ctx, principal.UserID, organization.ID, ip, userAgent)
 }

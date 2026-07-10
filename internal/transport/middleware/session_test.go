@@ -16,10 +16,8 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
-	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
@@ -145,30 +143,17 @@ func (s *sessionStore) RevokeSessionsForUser(context.Context, sqlcgen.RevokeSess
 }
 func (s *sessionStore) GetInstanceName(context.Context) (string, error) { return "dinchy", nil }
 
-func newSessionService(t *testing.T, store *sessionStore) *auth.Service {
+func newSessionService(t *testing.T, store *sessionStore) *session.Service {
 	t.Helper()
-	svc, err := auth.NewService(
-		nil,
-		store,
-		id.NewGenerator(),
-		clock.Fixed(sessionFixedTime),
-		config.DefaultAuth(),
-		nil,
-		nil,
-		platformredis.NewKeyer("test"),
-		nil,
-		nil,
-	)
-	require.NoError(t, err)
-	return svc
+	return session.NewService(store, id.NewGenerator(), clock.Fixed(sessionFixedTime), config.DefaultSession())
 }
 
 // sessionCapture builds the Session middleware wrapping a handler that records
 // whether it ran and the session it observed in context.
-func sessionCapture(svc *auth.Service) (http.Handler, *bool, **session.Principal) {
+func sessionCapture(svc *session.Service) (http.Handler, *bool, **session.Principal) {
 	ran := new(bool)
 	captured := new(*session.Principal)
-	handler := session.RequestMiddleware(config.DefaultAuth().SessionCookieName, svc.Session)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := session.RequestMiddleware(config.DefaultSession().SessionCookieName, svc.Session)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		*ran = true
 		*captured = session.PrincipalFrom(r.Context())
 		w.WriteHeader(http.StatusOK)
@@ -200,7 +185,7 @@ func TestSession_ValidCookieInjectsSession(t *testing.T) {
 	const token = "raw-token"
 	handler, ran, captured := sessionCapture(svc)
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
-	req.AddCookie(&http.Cookie{Name: config.DefaultAuth().SessionCookieName, Value: token})
+	req.AddCookie(&http.Cookie{Name: config.DefaultSession().SessionCookieName, Value: token})
 	req = req.WithContext(support.WithRequestCookies(req.Context(), req.Cookies()))
 
 	rr := httptest.NewRecorder()
@@ -231,7 +216,7 @@ func TestSession_InvalidCookieContinuesAnonymous(t *testing.T) {
 
 	handler, ran, captured := sessionCapture(svc)
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
-	req.AddCookie(&http.Cookie{Name: config.DefaultAuth().SessionCookieName, Value: "not-a-real-token"})
+	req.AddCookie(&http.Cookie{Name: config.DefaultSession().SessionCookieName, Value: "not-a-real-token"})
 	req = req.WithContext(support.WithRequestCookies(req.Context(), req.Cookies()))
 
 	rr := httptest.NewRecorder()

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -44,7 +45,8 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	clk := clock.Fixed(fixedTime)
 	noopMailer, err := email.NewMailer(email.NoopSender{}, "")
 	require.NoError(t, err)
-	svc, err := NewService(nil, store, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestRedis(t), platformredis.NewKeyer("test"), noopMailer, nil)
+	sessionSvc := session.NewService(store, id.NewGenerator(), clk, config.DefaultSession())
+	svc, err := NewService(nil, store, sessionSvc, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestRedis(t), platformredis.NewKeyer("test"), noopMailer, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
@@ -206,7 +208,7 @@ func TestSession_ValidToken(t *testing.T) {
 
 	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 
-	got, err := svc.Session(testCtx, "rawtoken")
+	got, err := svc.sessions.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, testSessionID, got.SessionID)
@@ -216,7 +218,7 @@ func TestSession_EmptyToken(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
 
-	got, err := svc.Session(testCtx, "")
+	got, err := svc.sessions.Session(testCtx, "")
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }
@@ -227,7 +229,7 @@ func TestSession_ExpiredIdle(t *testing.T) {
 
 	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(-1*time.Second), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 
-	got, err := svc.Session(testCtx, "rawtoken")
+	got, err := svc.sessions.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
 	assert.Nil(t, got, "idle-expired session should return nil")
 }
@@ -238,7 +240,7 @@ func TestSession_ExpiredAbsolute(t *testing.T) {
 
 	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(-1*time.Second), pgtype.Timestamptz{}), nil)
 
-	got, err := svc.Session(testCtx, "rawtoken")
+	got, err := svc.sessions.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
 	assert.Nil(t, got, "absolutely-expired session should return nil")
 }
@@ -249,7 +251,7 @@ func TestSession_Revoked(t *testing.T) {
 
 	store.EXPECT().GetSessionByTokenHash(gomock.Any(), gomock.Any()).Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), sqltype.Timestamptz(fixedTime.Add(-time.Hour))), nil)
 
-	got, err := svc.Session(testCtx, "rawtoken")
+	got, err := svc.sessions.Session(testCtx, "rawtoken")
 	require.NoError(t, err)
 	assert.Nil(t, got, "revoked session should return nil")
 }
@@ -267,14 +269,18 @@ func TestLogout_RevokesSession(t *testing.T) {
 			Return(nil),
 	)
 
-	require.NoError(t, svc.Logout(testCtx, "rawtoken"))
+	principal, err := svc.sessions.Logout(testCtx, "rawtoken")
+	require.NoError(t, err)
+	require.NotNil(t, principal)
 }
 
 func TestLogout_EmptyToken(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
 	// No store calls expected.
-	require.NoError(t, svc.Logout(testCtx, ""))
+	principal, err := svc.sessions.Logout(testCtx, "")
+	require.NoError(t, err)
+	assert.Nil(t, principal)
 }
 
 func TestPasswordHash_RoundTrip(t *testing.T) {

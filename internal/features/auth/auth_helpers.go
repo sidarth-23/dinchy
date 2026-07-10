@@ -13,7 +13,6 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
 func userFromFindUserRow(row sqlcgen.FindUserByEmailRow) *User {
@@ -83,13 +82,4 @@ func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, organisa
 		return Organization{}, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 	}
 	return organisationFromListOrganisationRow(rows[0]), nil
-}
-
-func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, userAgent string) (string, error) {
-	token := s.idg.New()
-	now := s.clock.Now().UTC()
-	if err := s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{ID: id.MustParse(token), UserID: id.MustParse(userID), ActiveOrganisationID: id.MustParse(organisationID), TokenHash: security.HashToken(token), IpAddress: ip, UserAgent: userAgent, IdleExpiresAt: sqltype.Timestamptz(now.Add(s.authConfig.SessionIdleTimeout)), ExpiresAt: sqltype.Timestamptz(now.Add(s.authConfig.SessionMaxLifetime)), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowNewSession), apperrors.WithStage(apperrors.StageCreateSession))
-	}
-	return token, nil
 }

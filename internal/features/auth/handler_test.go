@@ -38,6 +38,7 @@ func newHTTPTestAPI(t *testing.T) (*API, *MockStore) {
 	svc, store := newTestService(t)
 	api := &API{
 		auth:         svc,
+		sessions:     svc.sessions,
 		settings:     testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}},
 		requireHTTPS: false,
 	}
@@ -72,7 +73,7 @@ func TestAPILogin_Success(t *testing.T) {
 	out, err := api.login(ctx, &LoginIn{Body: LoginBody{Email: "user@example.com", Password: "secret"}})
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
-	assert.Equal(t, api.auth.authConfig.SessionCookieName, out.SetCookie[0].Name)
+	assert.Equal(t, api.sessions.SessionCookieName(), out.SetCookie[0].Name)
 	assert.False(t, out.SetCookie[0].Secure)
 	assert.True(t, out.Body.Authenticated)
 	assert.Equal(t, "dinchy", out.Body.App.InstanceName)
@@ -129,7 +130,7 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 	out, err := api.setup(ctx, &SetupIn{Body: SetupBody{Email: "admin@example.com", DisplayName: "Admin", Password: "password123"}})
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
-	assert.Equal(t, api.auth.authConfig.SessionCookieName, out.SetCookie[0].Name)
+	assert.Equal(t, api.sessions.SessionCookieName(), out.SetCookie[0].Name)
 	assert.True(t, out.Body.Authenticated)
 	require.NotNil(t, out.Body.Viewer)
 	assert.Equal(t, "admin@example.com", out.Body.Viewer.Email)
@@ -203,7 +204,7 @@ func TestAPIBootstrap_WithSession(t *testing.T) {
 func TestAPILogout_ClearsCookie(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.auth.authConfig.SessionCookieName, Value: "rawtoken"}})
+	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.sessions.SessionCookieName(), Value: "rawtoken"}})
 
 	gomock.InOrder(
 		store.EXPECT().
@@ -215,13 +216,13 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 
 	out, err := api.logout(ctx, &LogoutIn{})
 	require.NoError(t, err)
-	assert.Equal(t, api.auth.authConfig.SessionCookieName, out.SetCookie.Name)
+	assert.Equal(t, api.sessions.SessionCookieName(), out.SetCookie.Name)
 	assert.Equal(t, -1, out.SetCookie.MaxAge)
 }
 
 func TestAPISSOStart_SetsSecureOnAllCookies(t *testing.T) {
 	svc, _ := newSSOTestService(t)
-	api := &API{auth: svc, settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, requireHTTPS: false}
+	api := &API{auth: svc, sessions: svc.sessions, settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, requireHTTPS: false}
 
 	out, err := api.ssoStart(support.WithSecure(context.Background(), true), &SSOStartIn{ProviderID: "github", ReturnTo: "/dashboard"})
 	require.NoError(t, err)
@@ -285,7 +286,7 @@ func TestHumaValidation_RejectsInvalidInvitationRole(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
 	_, api := humatest.New(t)
-	Register(api, svc, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
 
 	// "owner" is not in the role enum; validation rejects it before the handler runs.
 	resp := api.Post("/auth/invitations", map[string]any{"email": "invitee@example.com", "role": "owner"})
@@ -296,7 +297,7 @@ func TestHumaValidation_RejectsMalformedEmail(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
 	_, api := humatest.New(t)
-	Register(api, svc, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
 
 	// A malformed address fails format:email validation before the handler runs.
 	resp := api.Post("/auth/forgot-password", map[string]any{"email": "not-an-email"})
@@ -328,7 +329,7 @@ func TestHumaResolver_LowercasesSetupEmailEndToEnd(t *testing.T) {
 		AnyTimes()
 
 	_, api := humatest.New(t)
-	Register(api, svc, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
 
 	resp := api.Post("/setup/first-user", map[string]any{
 		"email":        "ADMIN@EXAMPLE.COM",
