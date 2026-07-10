@@ -13,6 +13,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 )
@@ -36,8 +37,7 @@ type Publisher interface {
 
 // Subscriber consumes event records dispatched to it by name.
 type Subscriber interface {
-	// Name returns the stable identifier used to route and track the subscriber.
-	Name() string
+	features.Feature
 	// Handle processes one event record; a returned error leaves it unacknowledged.
 	Handle(ctx context.Context, event Record) error
 }

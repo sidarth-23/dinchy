@@ -16,6 +16,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -153,7 +154,9 @@ func (s *sessionStore) GetInstanceName(context.Context) (string, error) { return
 
 func newSessionService(t *testing.T, store *sessionStore) *session.Service {
 	t.Helper()
-	return session.NewService(store, id.NewGenerator(), clock.Fixed(sessionFixedTime), config.DefaultSession(), config.DefaultCache(), nil)
+	service, err := session.NewService(session.Dependencies{Base: features.ServiceDependencies{Clock: clock.Fixed(sessionFixedTime), IDGenerator: id.NewGenerator()}, Store: store, Config: config.DefaultSession(), CacheConfig: config.DefaultCache()})
+	require.NoError(t, err)
+	return service
 }
 
 // sessionCapture builds the Session middleware wrapping a handler that records

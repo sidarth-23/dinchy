@@ -15,6 +15,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -90,7 +91,13 @@ func newCache(t *testing.T, enabled bool) (cache.Cache, *miniredis.Miniredis) {
 
 func newService(t *testing.T, store session.Store, c cache.Cache) *session.Service {
 	t.Helper()
-	return session.NewService(store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultSession(), config.DefaultCache(), c)
+	service, err := session.NewService(session.Dependencies{Base: features.ServiceDependencies{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator()}, Store: store, Config: config.DefaultSession(), CacheConfig: config.DefaultCache(), Cache: c})
+	require.NoError(t, err)
+	return service
+}
+
+func TestServiceName(t *testing.T) {
+	assert.Equal(t, "session", newService(t, &fakeStore{}, nil).Name())
 }
 
 func TestSession_CachesAfterFirstLookup(t *testing.T) {

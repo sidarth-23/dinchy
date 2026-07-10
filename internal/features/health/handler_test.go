@@ -26,8 +26,12 @@ func newTestHandler(t *testing.T, db Pinger) http.Handler {
 	t.Helper()
 	r := chi.NewRouter()
 	api := humachi.New(r, huma.DefaultConfig("Dinchy Internal API", "0.1.0"))
-	Register(api, db)
+	NewAPI(Dependencies{DB: db}).Register(api)
 	return r
+}
+
+func TestAPIName(t *testing.T) {
+	assert.Equal(t, "health", NewAPI(Dependencies{}).Name())
 }
 
 func TestHealthz(t *testing.T) {

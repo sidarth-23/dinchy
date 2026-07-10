@@ -11,6 +11,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -20,7 +21,7 @@ const testAuditTime = 1_735_689_600
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	svc, err := NewService(&failingStore{t: t}, clock.Fixed(time.Unix(testAuditTime, 0).UTC()))
+	svc, err := NewService(Dependencies{Base: features.ServiceDependencies{Clock: clock.Fixed(time.Unix(testAuditTime, 0).UTC())}, Store: &failingStore{t: t}})
 	require.NoError(t, err)
 	return svc
 }
@@ -51,6 +52,10 @@ func TestInsertParams_MalformedEventIDReturnsError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), badID)
+}
+
+func TestServiceName(t *testing.T) {
+	assert.Equal(t, "audit", newTestService(t).Name())
 }
 
 func TestHandle_MalformedEventIDReturnsErrorWithoutPanicking(t *testing.T) {

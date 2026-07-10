@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
-
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
@@ -51,7 +51,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 	if !inviter.HasPermission(permission.AuthInvitationsCreate) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
 	}
-	now := s.clock.Now().UTC()
+	now := s.Clock().Now().UTC()
 	organisationID := id.MustParse(inviter.OrganisationID)
 
 	if userRow, err := s.store.FindUserByEmail(ctx, emailAddress); err == nil {
@@ -84,7 +84,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 	if err != nil {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
-	invitationID := s.idg.New()
+	invitationID := s.IDGenerator().New()
 	expiresAt := now.Add(s.authConfig.InviteLifetime)
 	if err := s.store.InsertOrganisationInvitation(ctx, sqlcgen.InsertOrganisationInvitationParams{
 		ID:              id.MustParse(invitationID),
@@ -128,7 +128,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	if err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationBeginTx))
 	}
-	now := s.clock.Now().UTC()
+	now := s.Clock().Now().UTC()
 	invitationRow, err := tx.queries.FindOrganisationInvitationByToken(ctx, security.HashToken(token))
 	if err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
@@ -207,7 +207,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 			}
 		}
 	} else {
-		userID := s.idg.New()
+		userID := s.IDGenerator().New()
 		if err := tx.queries.InsertUser(ctx, sqlcgen.InsertUserParams{
 			ID:              id.MustParse(userID),
 			Email:           emailAddress,
@@ -243,7 +243,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		}
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		if err := tx.queries.InsertAccount(ctx, sqlcgen.InsertAccountParams{
-			ID:                id.MustParse(s.idg.New()),
+			ID:                id.MustParse(s.IDGenerator().New()),
 			UserID:            id.MustParse(user.ID),
 			Provider:          string(AccountProviderPassword),
 			ProviderAccountID: emailAddress,
@@ -276,7 +276,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		_ = memberRow
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		if err := tx.queries.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{
-			ID:             id.MustParse(s.idg.New()),
+			ID:             id.MustParse(s.IDGenerator().New()),
 			OrganisationID: id.MustParse(invitation.OrganisationID),
 			UserID:         id.MustParse(user.ID),
 			Role:           string(invitation.Role),

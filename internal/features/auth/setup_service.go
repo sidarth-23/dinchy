@@ -26,8 +26,8 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
 	}
-	now := s.clock.Now()
-	organisationID := s.idg.New()
+	now := s.Clock().Now()
+	organisationID := s.IDGenerator().New()
 	if s.beginTx == nil {
 		return "", apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("transaction opener is required for first-user setup")))
 	}
@@ -35,7 +35,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationBeginTx))
 	}
-	user, err := createFirstUser(ctx, tx.queries, CreateUserInput{ID: s.idg.New(), AccountID: s.idg.New(), OrganisationID: organisationID, OrganisationMemberID: s.idg.New(), AdminRoleID: s.idg.New(), MemberRoleID: s.idg.New(), Email: emailAddress, PasswordHash: hash, DisplayName: displayName, OrganisationName: s.authConfig.DefaultOrganisationName, OrganisationSlug: s.authConfig.DefaultOrganisationSlug, Now: now})
+	user, err := createFirstUser(ctx, tx.queries, CreateUserInput{ID: s.IDGenerator().New(), AccountID: s.IDGenerator().New(), OrganisationID: organisationID, OrganisationMemberID: s.IDGenerator().New(), AdminRoleID: s.IDGenerator().New(), MemberRoleID: s.IDGenerator().New(), Email: emailAddress, PasswordHash: hash, DisplayName: displayName, OrganisationName: s.authConfig.DefaultOrganisationName, OrganisationSlug: s.authConfig.DefaultOrganisationSlug, Now: now})
 	if err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser)), apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationRollback)))

@@ -15,8 +15,10 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/features/health"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
@@ -68,7 +70,13 @@ func (a *App) Start() error {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 	clk := clock.System{}
-	auditSvc, err := audit.NewService(queries, clk)
+	featureDependencies := features.FeatureDependencies{Logger: a.logger}
+	serviceDependencies := features.ServiceDependencies{
+		FeatureDependencies: featureDependencies,
+		Clock:               clk,
+		IDGenerator:         id.NewGenerator(),
+	}
+	auditSvc, err := audit.NewService(audit.Dependencies{Base: serviceDependencies, Store: queries})
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
@@ -88,11 +96,13 @@ func (a *App) Start() error {
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
-	sessionIDGenerator := id.NewGenerator()
 	keyer := cache.NewKeyer(a.cfg.Redis.KeyPrefix)
 	sessionCache := cache.NewRedis(redisClient, keyer, a.cfg.Cache.Enabled)
-	sessionSvc := session.NewService(queries, sessionIDGenerator, clk, a.cfg.Session, a.cfg.Cache, sessionCache)
-	authSvc, err := auth.NewService(s.Pool(), queries, sessionSvc, sessionIDGenerator, clk, a.cfg.Auth, a.cfg.SSOProviders, redisClient, keyer, mailer, eventBusSvc)
+	sessionSvc, err := session.NewService(session.Dependencies{Base: serviceDependencies, Store: queries, Config: a.cfg.Session, CacheConfig: a.cfg.Cache, Cache: sessionCache})
+	if err != nil {
+		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+	}
+	authSvc, err := auth.NewService(auth.Dependencies{Base: serviceDependencies, Database: s.Pool(), Store: queries, Sessions: sessionSvc, AuthConfig: a.cfg.Auth, Providers: a.cfg.SSOProviders, RedisClient: redisClient, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc})
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
@@ -105,8 +115,9 @@ func (a *App) Start() error {
 		dist = distFS
 	}
 	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
-	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
-	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc.Name())}
+	healthAPI := health.NewAPI(health.Dependencies{Base: featureDependencies, DB: s})
+	a.internal = transport.NewInternal(a.cfg.InternalAddr, healthAPI)
+	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc)}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageStartTaskRuntime))

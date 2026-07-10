@@ -14,6 +14,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
@@ -41,8 +42,10 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	store := NewMockStore(ctrl)
 	mailer, err := email.NewMailer(sender, "https://app.test")
 	require.NoError(t, err)
-	sessionSvc := session.NewService(store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultSession(), config.DefaultCache(), nil)
-	svc, err := NewService(nil, store, sessionSvc, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, newTestRedis(t), cache.NewKeyer("test"), mailer, nil)
+	base := features.ServiceDependencies{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator()}
+	sessionSvc, err := session.NewService(session.Dependencies{Base: base, Store: store, Config: config.DefaultSession(), CacheConfig: config.DefaultCache()})
+	require.NoError(t, err)
+	svc, err := NewService(Dependencies{Base: base, Store: store, Sessions: sessionSvc, AuthConfig: config.DefaultAuth(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: mailer})
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{

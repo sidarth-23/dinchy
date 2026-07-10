@@ -14,7 +14,7 @@ import (
 
 // NewInternal creates a minimal http.Server for liveness and readiness probes.
 // It serves a separate internal listener and mounts the probes as Huma routes.
-func NewInternal(addr string, db health.Pinger) *http.Server {
+func NewInternal(addr string, healthAPI *health.API) *http.Server {
 	r := chi.NewRouter()
 	r.Use(mw.RequestID())
 	r.Use(mw.Recover(slog.Default()))
@@ -23,7 +23,9 @@ func NewInternal(addr string, db health.Pinger) *http.Server {
 	cfg := huma.DefaultConfig("Dinchy Internal API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/"}}
 	api := humachi.New(apiRouter, cfg)
-	health.Register(api, db)
+	if healthAPI != nil {
+		healthAPI.Register(api)
+	}
 	r.Mount("/", apiRouter)
 
 	return &http.Server{

@@ -18,6 +18,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
@@ -29,14 +30,13 @@ import (
 )
 
 var (
-	fixedTime                = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-	testCtx                  = context.Background()
-	testUserID               = "00000000-0000-0000-0000-000000000001"
-	testAccountID            = "00000000-0000-0000-0000-000000000002"
-	testOrganisationID       = "00000000-0000-0000-0000-000000000003"
-	testSessionID            = "00000000-0000-0000-0000-000000000004"
-	testOrganisationMemberID = "00000000-0000-0000-0000-000000000005"
-	testVerificationTokenID  = "00000000-0000-0000-0000-000000000006"
+	fixedTime               = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	testCtx                 = context.Background()
+	testUserID              = "00000000-0000-0000-0000-000000000001"
+	testAccountID           = "00000000-0000-0000-0000-000000000002"
+	testOrganisationID      = "00000000-0000-0000-0000-000000000003"
+	testSessionID           = "00000000-0000-0000-0000-000000000004"
+	testVerificationTokenID = "00000000-0000-0000-0000-000000000006"
 )
 
 func newTestService(t *testing.T) (*Service, *MockStore) {
@@ -46,8 +46,10 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	clk := clock.Fixed(fixedTime)
 	noopMailer, err := email.NewMailer(email.NoopSender{}, "")
 	require.NoError(t, err)
-	sessionSvc := session.NewService(store, id.NewGenerator(), clk, config.DefaultSession(), config.DefaultCache(), nil)
-	svc, err := NewService(nil, store, sessionSvc, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestRedis(t), cache.NewKeyer("test"), noopMailer, nil)
+	base := features.ServiceDependencies{Clock: clk, IDGenerator: id.NewGenerator()}
+	sessionSvc, err := session.NewService(session.Dependencies{Base: base, Store: store, Config: config.DefaultSession(), CacheConfig: config.DefaultCache()})
+	require.NoError(t, err)
+	svc, err := NewService(Dependencies{Base: base, Store: store, Sessions: sessionSvc, AuthConfig: config.DefaultAuth(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: noopMailer})
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
@@ -67,6 +69,11 @@ func newTestRedis(t *testing.T) *goredis.Client {
 		_ = client.Close()
 	})
 	return client
+}
+
+func TestServiceName(t *testing.T) {
+	svc, _ := newTestService(t)
+	assert.Equal(t, "auth", svc.Name())
 }
 
 func HashPasswordForTest(t *testing.T, password string) string {
@@ -125,6 +132,7 @@ func TestSetupFirstUser_Success(t *testing.T) {
 	svc, store := newTestService(t)
 	publisher := &recordingPublisher{}
 	svc.publisher = publisher
+	var createdUserID string
 
 	store.EXPECT().
 		CountUsers(gomock.Any()).
@@ -136,6 +144,7 @@ func TestSetupFirstUser_Success(t *testing.T) {
 			assert.Equal(t, "Admin", in.DisplayName)
 			assert.NotEqual(t, uuid.Nil, in.ID)
 			assert.True(t, in.EmailVerifiedAt.Valid)
+			createdUserID = in.ID.String()
 			return nil
 		})
 	store.EXPECT().
@@ -160,7 +169,7 @@ func TestSetupFirstUser_Success(t *testing.T) {
 	require.Equal(t, events.AuthSecurityAuthSetupCompleted, publisher.event.Type())
 	envelope := publisher.event.EnvelopeData()
 	assert.Equal(t, "user", envelope.TargetType)
-	assert.Equal(t, testUserID, envelope.TargetID)
+	assert.Equal(t, createdUserID, envelope.TargetID)
 	assert.Equal(t, "Admin", envelope.TargetDisplay)
 }
 

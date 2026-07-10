@@ -6,17 +6,29 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/sidarth-23/dinchy/internal/features"
 )
 
 // API groups the health handlers and their shared dependencies.
 type API struct {
+	features.BaseFeature
 	db Pinger
 }
 
-// Register mounts the health operations on the given huma.API instance.
-func Register(h huma.API, db Pinger) {
-	a := &API{db: db}
+// Dependencies contains the dependencies required by the health API.
+type Dependencies struct {
+	Base features.FeatureDependencies
+	DB   Pinger
+}
 
+// NewAPI builds the health API.
+func NewAPI(dependencies Dependencies) *API {
+	return &API{BaseFeature: features.NewBaseFeature("health", dependencies.Base), db: dependencies.DB}
+}
+
+// Register mounts the health API operations on the given huma.API instance.
+func (a *API) Register(h huma.API) {
 	huma.Register(h, huma.Operation{
 		OperationID: "health-healthz",
 		Method:      http.MethodGet,
@@ -35,6 +47,8 @@ func Register(h huma.API, db Pinger) {
 		Tags:        []string{"Health"},
 	}, a.readyz)
 }
+
+var _ features.Feature = (*API)(nil)
 
 func (a *API) healthz(context.Context, *struct{}) (*HealthOut, error) {
 	return &HealthOut{

@@ -11,8 +11,8 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
-	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
@@ -36,26 +36,39 @@ type Store interface {
 
 // Service owns session token creation, resolution, revocation, and cookie naming.
 type Service struct {
+	features.BaseService
 	store         Store
-	idg           *id.Generator
-	clock         clock.Clock
 	config        config.SessionConfig
 	principals    cache.Entry[cachedPrincipal]
 	sessionTTLCap time.Duration
 }
 
+// Dependencies contains the dependencies required by the session Service.
+type Dependencies struct {
+	Base        features.ServiceDependencies
+	Store       Store
+	Config      config.SessionConfig
+	CacheConfig config.CacheConfig
+	Cache       cache.Cache
+}
+
 // NewService builds a session Service. A nil or disabled cache makes session
 // resolution read straight through to the store.
-func NewService(store Store, idg *id.Generator, clk clock.Clock, sessionConfig config.SessionConfig, cacheConfig config.CacheConfig, c cache.Cache) *Service {
-	return &Service{
-		store:         store,
-		idg:           idg,
-		clock:         clk,
-		config:        sessionConfig,
-		principals:    cache.NewEntry[cachedPrincipal](c, sessionCacheNamespace, cacheConfig.SessionTTLCap),
-		sessionTTLCap: cacheConfig.SessionTTLCap,
+func NewService(dependencies Dependencies) (*Service, error) {
+	base, err := features.NewBaseService("session", dependencies.Base)
+	if err != nil {
+		return nil, apperrors.Annotate(err)
 	}
+	return &Service{
+		BaseService:   base,
+		store:         dependencies.Store,
+		config:        dependencies.Config,
+		principals:    cache.NewEntry[cachedPrincipal](dependencies.Cache, sessionCacheNamespace, dependencies.CacheConfig.SessionTTLCap),
+		sessionTTLCap: dependencies.CacheConfig.SessionTTLCap,
+	}, nil
 }
+
+var _ features.Service = (*Service)(nil)
 
 // SessionCookieName returns the configured name of the session cookie.
 func (s *Service) SessionCookieName() string {
@@ -68,10 +81,10 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*Principal, err
 		return nil, nil
 	}
 	hash := security.HashToken(rawToken)
-	now := s.clock.Now()
+	now := s.Clock().Now()
 
 	if cached, hit, err := s.principals.Get(ctx, hash); err != nil {
-		logging.Warn(ctx, logging.LoggerFromContext(ctx), "Session cache read failed, falling back to database", slog.Any("error", err))
+		logging.Warn(ctx, s.Logger(ctx), "Session cache read failed, falling back to database", slog.Any("error", err))
 	} else if hit {
 		principal := cached.toPrincipal()
 		if s.expired(principal, now) {
@@ -93,7 +106,7 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*Principal, err
 	}
 	if ttl := s.cacheTTL(principal, now); ttl > 0 {
 		if err := s.principals.SetWithTTL(ctx, hash, principal.toCache(), ttl); err != nil {
-			logging.Warn(ctx, logging.LoggerFromContext(ctx), "Session cache write failed", slog.Any("error", err))
+			logging.Warn(ctx, s.Logger(ctx), "Session cache write failed", slog.Any("error", err))
 		}
 	}
 	return principal, nil
@@ -109,8 +122,8 @@ func (s *Service) cacheTTL(p *Principal, now time.Time) time.Duration {
 
 // Create issues a new session token for the given user and organization.
 func (s *Service) Create(ctx context.Context, userID, organisationID, ip, userAgent string) (string, error) {
-	token := s.idg.New()
-	now := s.clock.Now().UTC()
+	token := s.IDGenerator().New()
+	now := s.Clock().Now().UTC()
 	if err := s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{
 		ID:                   id.MustParse(token),
 		UserID:               id.MustParse(userID),
@@ -137,13 +150,13 @@ func (s *Service) Logout(ctx context.Context, rawToken string) (*Principal, erro
 	if err != nil {
 		return nil, err
 	}
-	now := s.clock.Now()
+	now := s.Clock().Now()
 	hash := security.HashToken(rawToken)
 	if err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now), TokenHash: hash}); err != nil {
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}
 	if err := s.principals.Delete(ctx, hash); err != nil {
-		logging.Warn(ctx, logging.LoggerFromContext(ctx), "Session cache invalidation failed after logout", slog.Any("error", err))
+		logging.Warn(ctx, s.Logger(ctx), "Session cache invalidation failed after logout", slog.Any("error", err))
 	}
 	return principal, nil
 }
@@ -154,12 +167,12 @@ func (s *Service) RevokeForUser(ctx context.Context, userID string) error {
 	hashes := s.activeHashesForInvalidation(ctx, func(ctx context.Context) ([]string, error) {
 		return s.store.GetActiveSessionTokenHashesForUser(ctx, uid)
 	})
-	now := s.clock.Now()
+	now := s.Clock().Now()
 	if err := s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: uid, RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithOperation(apperrors.OperationRevokeSessionsForUser), apperrors.WithStage(apperrors.StageRevokeSession))
 	}
 	if err := s.principals.Delete(ctx, hashes...); err != nil {
-		logging.Warn(ctx, logging.LoggerFromContext(ctx), "Session cache invalidation failed after user revocation", slog.Any("error", err))
+		logging.Warn(ctx, s.Logger(ctx), "Session cache invalidation failed after user revocation", slog.Any("error", err))
 	}
 	return nil
 }
@@ -201,7 +214,7 @@ func (s *Service) activeHashesForInvalidation(ctx context.Context, load func(con
 	}
 	hashes, err := load(ctx)
 	if err != nil {
-		logging.Warn(ctx, logging.LoggerFromContext(ctx), "Loading session token hashes for cache invalidation failed", slog.Any("error", err))
+		logging.Warn(ctx, s.Logger(ctx), "Loading session token hashes for cache invalidation failed", slog.Any("error", err))
 		return nil
 	}
 	return hashes

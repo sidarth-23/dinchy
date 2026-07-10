@@ -14,8 +14,12 @@ type Worker struct {
 	subscriberName string
 }
 
-// NewWorker returns a Worker that processes events for the named subscriber.
-func NewWorker(service *Service, subscriberName string) *Worker {
+// NewWorker returns a Worker that processes events for subscriber.
+func NewWorker(service *Service, subscriber Subscriber) *Worker {
+	subscriberName := ""
+	if subscriber != nil {
+		subscriberName = subscriber.Name()
+	}
 	return &Worker{service: service, subscriberName: subscriberName}
 }
 

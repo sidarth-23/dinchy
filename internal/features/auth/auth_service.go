@@ -12,9 +12,9 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
-	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -22,12 +22,11 @@ import (
 
 // Service handles authentication, sessions, TOTP, invitations, and SSO for the auth feature.
 type Service struct {
+	features.BaseService
 	db         *pgxpool.Pool
 	beginTx    func(context.Context) (*setupTransaction, error)
 	store      Store
 	sessions   *session.Service
-	idg        *id.Generator
-	clock      clock.Clock
 	authConfig config.AuthConfig
 	sso        *ssoRegistry
 	redis      *goredis.Client
@@ -35,22 +34,41 @@ type Service struct {
 	publisher  events.Publisher
 }
 
+// Dependencies contains the dependencies required by the auth Service.
+type Dependencies struct {
+	Base           features.ServiceDependencies
+	Database       *pgxpool.Pool
+	Store          Store
+	Sessions       *session.Service
+	AuthConfig     config.AuthConfig
+	Providers      []config.SSOProviderConfig
+	RedisClient    *goredis.Client
+	CacheKeyer     cache.Keyer
+	Mailer         *email.Mailer
+	EventPublisher events.Publisher
+}
+
 // NewService builds an auth Service, wiring the SSO registry and falling back to a no-op mailer when none is provided.
-func NewService(db *pgxpool.Pool, s Store, sessionSvc *session.Service, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer cache.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
-	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
+func NewService(dependencies Dependencies) (*Service, error) {
+	base, err := features.NewBaseService("auth", dependencies.Base)
+	if err != nil {
+		return nil, apperrors.Annotate(err)
+	}
+	registry, err := newSSORegistry(dependencies.AuthConfig, dependencies.Providers, dependencies.CacheKeyer)
 	if err != nil {
 		return nil, err
 	}
+	mailer := dependencies.Mailer
 	if mailer == nil {
 		mailer, err = email.NewMailer(email.NoopSender{}, "")
 		if err != nil {
 			return nil, err
 		}
 	}
-	service := &Service{db: db, store: s, sessions: sessionSvc, idg: idg, clock: clk, authConfig: authConfig, sso: registry, redis: redisClient, mailer: mailer, publisher: publisher}
-	if db != nil {
+	service := &Service{BaseService: base, db: dependencies.Database, store: dependencies.Store, sessions: dependencies.Sessions, authConfig: dependencies.AuthConfig, sso: registry, redis: dependencies.RedisClient, mailer: mailer, publisher: dependencies.EventPublisher}
+	if dependencies.Database != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
-			tx, err := db.Begin(ctx)
+			tx, err := dependencies.Database.Begin(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -59,6 +77,8 @@ func NewService(db *pgxpool.Pool, s Store, sessionSvc *session.Service, idg *id.
 	}
 	return service, nil
 }
+
+var _ features.Service = (*Service)(nil)
 
 // Bootstrap reports whether first-user setup is still required and the current instance name.
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {
