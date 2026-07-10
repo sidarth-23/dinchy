@@ -98,6 +98,8 @@ curl -fsS http://127.0.0.1:8080/auth/sso/providers  # enabled SSO providers (env
   (single-call reclaim of idle pending entries), an option introduced in Redis 8.4.
   Redis 8.0–8.3, Valkey, and DragonflyDB do not implement it, so the quadlet pins
   `redis:8.4`.
+- **Redis data persists across restarts.** The quadlet mounts a named volume at
+  `/data`, which holds Redis persistence files.
 - **Rootful alternative:** place the quadlets in `/etc/containers/systemd/` and
   `dinchy.service` in `/etc/systemd/system/` (with `User=dinchy`), swap
   `systemctl --user` for `systemctl`, and set `WantedBy=multi-user.target`.

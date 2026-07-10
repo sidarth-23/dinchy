@@ -7,4 +7,3 @@
 - let's create the class for features properly so that most of the features extend from a base feature class
 - check sso working with middleware properly in auth module
   - Also I'm thinking if I can remove the dependency of db for session management
-  - Make redis volume persistent to survive restarts

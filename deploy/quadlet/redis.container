@@ -10,6 +10,8 @@ ContainerName=dinchy-redis
 Network=dinchy.network
 # Published to loopback only; the host-native Dinchy binary connects on 127.0.0.1:6379.
 PublishPort=127.0.0.1:6379:6379
+# Persist Redis data across restarts.
+Volume=dinchy-redis-data:/data
 
 [Service]
 Restart=always
