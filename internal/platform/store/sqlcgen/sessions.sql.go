@@ -27,6 +27,56 @@ func (q *Queries) DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEn
 	return q.db.Exec(ctx, deleteEndedSessionsOlderThan, arg.ExpiresAt, arg.UpdatedAt)
 }
 
+const getActiveSessionTokenHashesForOrganisation = `-- name: GetActiveSessionTokenHashesForOrganisation :many
+SELECT token_hash FROM sessions
+WHERE active_organisation_id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getActiveSessionTokenHashesForOrganisation, activeOrganisationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var token_hash string
+		if err := rows.Scan(&token_hash); err != nil {
+			return nil, err
+		}
+		items = append(items, token_hash)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getActiveSessionTokenHashesForUser = `-- name: GetActiveSessionTokenHashesForUser :many
+SELECT token_hash FROM sessions
+WHERE user_id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) GetActiveSessionTokenHashesForUser(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getActiveSessionTokenHashesForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var token_hash string
+		if err := rows.Scan(&token_hash); err != nil {
+			return nil, err
+		}
+		items = append(items, token_hash)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
 SELECT s.id, s.user_id, u.email, u.display_name, s.active_organisation_id, o.name AS organisation_name, o.slug AS organisation_slug, m.role,
   COALESCE(array_agg(rp.permission) FILTER (WHERE rp.permission IS NOT NULL), '{}')::text[] AS permissions,

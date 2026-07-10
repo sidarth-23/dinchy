@@ -17,12 +17,12 @@ import (
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
-	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/store"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
@@ -58,7 +58,7 @@ func (a *App) Start() error {
 	}
 	a.closer = s
 	queries := sqlcgen.New(s.Pool())
-	redisClient, err := platformredis.Open(ctx, a.cfg.Redis)
+	redisClient, err := cache.OpenRedis(ctx, a.cfg.Redis)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
@@ -89,8 +89,10 @@ func (a *App) Start() error {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}
 	sessionIDGenerator := id.NewGenerator()
-	sessionSvc := session.NewService(queries, sessionIDGenerator, clk, a.cfg.Session)
-	authSvc, err := auth.NewService(s.Pool(), queries, sessionSvc, sessionIDGenerator, clk, a.cfg.Auth, a.cfg.SSOProviders, redisClient, platformredis.NewKeyer(a.cfg.Redis.KeyPrefix), mailer, eventBusSvc)
+	keyer := cache.NewKeyer(a.cfg.Redis.KeyPrefix)
+	sessionCache := cache.NewRedis(redisClient, keyer, a.cfg.Cache.Enabled)
+	sessionSvc := session.NewService(queries, sessionIDGenerator, clk, a.cfg.Session, a.cfg.Cache, sessionCache)
+	authSvc, err := auth.NewService(s.Pool(), queries, sessionSvc, sessionIDGenerator, clk, a.cfg.Auth, a.cfg.SSOProviders, redisClient, keyer, mailer, eventBusSvc)
 	if err != nil {
 		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	"github.com/sidarth-23/dinchy/internal/platform/redis"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
@@ -63,7 +63,7 @@ type ssoRegistry struct {
 	stateCookieName string
 	stateLifetime   time.Duration
 	envProviders    map[string]config.SSOProviderConfig
-	cacheKeyer      redis.Keyer
+	cacheKeyer      cache.Keyer
 }
 
 type ssoCacheState struct {

@@ -60,6 +60,54 @@ func FromGetSessionRow(row sqlcgen.GetSessionByTokenHashRow) *Principal {
 	return &principal
 }
 
+// cachedPrincipal is the JSON-serializable projection of a Principal stored in
+// the cache. It omits RevokedAt because only non-revoked principals are cached.
+type cachedPrincipal struct {
+	SessionID        string
+	UserID           string
+	Email            string
+	DisplayName      string
+	OrganisationID   string
+	OrganisationName string
+	OrganisationSlug string
+	Role             permission.Role
+	Permissions      []permission.Permission
+	IdleExpiresAt    time.Time
+	ExpiresAt        time.Time
+}
+
+func (p *Principal) toCache() cachedPrincipal {
+	return cachedPrincipal{
+		SessionID:        p.SessionID,
+		UserID:           p.UserID,
+		Email:            p.Email,
+		DisplayName:      p.DisplayName,
+		OrganisationID:   p.OrganisationID,
+		OrganisationName: p.OrganisationName,
+		OrganisationSlug: p.OrganisationSlug,
+		Role:             p.Role,
+		Permissions:      p.Permissions,
+		IdleExpiresAt:    p.IdleExpiresAt,
+		ExpiresAt:        p.ExpiresAt,
+	}
+}
+
+func (c cachedPrincipal) toPrincipal() *Principal {
+	return &Principal{
+		SessionID:        c.SessionID,
+		UserID:           c.UserID,
+		Email:            c.Email,
+		DisplayName:      c.DisplayName,
+		OrganisationID:   c.OrganisationID,
+		OrganisationName: c.OrganisationName,
+		OrganisationSlug: c.OrganisationSlug,
+		Role:             c.Role,
+		Permissions:      c.Permissions,
+		IdleExpiresAt:    c.IdleExpiresAt,
+		ExpiresAt:        c.ExpiresAt,
+	}
+}
+
 // HasPermission reports whether the principal has a granted permission.
 func (p *Principal) HasPermission(value permission.Permission) bool {
 	for _, granted := range p.Permissions {

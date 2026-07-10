@@ -31,6 +31,8 @@ type Querier interface {
 	FindUserByProviderAccount(ctx context.Context, arg FindUserByProviderAccountParams) (FindUserByProviderAccountRow, error)
 	FindVerificationToken(ctx context.Context, arg FindVerificationTokenParams) (FindVerificationTokenRow, error)
 	FinishTask(ctx context.Context, arg FinishTaskParams) error
+	GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error)
+	GetActiveSessionTokenHashesForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 	GetInstanceName(ctx context.Context) (string, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (GetSessionByTokenHashRow, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) error

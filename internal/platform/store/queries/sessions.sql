@@ -15,6 +15,14 @@ LEFT JOIN organisation_role_permissions rp ON rp.role_id = r.id
 WHERE s.token_hash = $1
 GROUP BY s.id, u.id, o.id, m.role;
 
+-- name: GetActiveSessionTokenHashesForUser :many
+SELECT token_hash FROM sessions
+WHERE user_id = $1 AND revoked_at IS NULL;
+
+-- name: GetActiveSessionTokenHashesForOrganisation :many
+SELECT token_hash FROM sessions
+WHERE active_organisation_id = $1 AND revoked_at IS NULL;
+
 -- name: RevokeSessionByTokenHash :exec
 UPDATE sessions
 SET revoked_at = $1, updated_at = $2

@@ -134,6 +134,14 @@ func (s *sessionStore) GetSessionByTokenHash(context.Context, string) (sqlcgen.G
 	return s.session, s.sessionErr
 }
 
+func (s *sessionStore) GetActiveSessionTokenHashesForUser(context.Context, uuid.UUID) ([]string, error) {
+	return nil, nil
+}
+
+func (s *sessionStore) GetActiveSessionTokenHashesForOrganisation(context.Context, uuid.UUID) ([]string, error) {
+	return nil, nil
+}
+
 func (s *sessionStore) RevokeSessionByTokenHash(context.Context, sqlcgen.RevokeSessionByTokenHashParams) error {
 	return nil
 }
@@ -145,7 +153,7 @@ func (s *sessionStore) GetInstanceName(context.Context) (string, error) { return
 
 func newSessionService(t *testing.T, store *sessionStore) *session.Service {
 	t.Helper()
-	return session.NewService(store, id.NewGenerator(), clock.Fixed(sessionFixedTime), config.DefaultSession())
+	return session.NewService(store, id.NewGenerator(), clock.Fixed(sessionFixedTime), config.DefaultSession(), config.DefaultCache(), nil)
 }
 
 // sessionCapture builds the Session middleware wrapping a handler that records

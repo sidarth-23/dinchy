@@ -40,6 +40,8 @@ type Config struct {
 	SMTP SMTPConfig
 	// Redis contains the shared Redis backend settings for ephemeral state and durable event streams.
 	Redis RedisConfig
+	// Cache contains the optional read-through cache settings.
+	Cache CacheConfig
 	// EventBus contains the Redis stream settings for durable in-app events.
 	EventBus EventBusConfig
 	// Logging controls application log formatting and level.
@@ -67,6 +69,7 @@ func Load() (Config, error) {
 		Auth:         DefaultAuth(),
 		SMTP:         DefaultSMTP(),
 		Redis:        DefaultRedis(),
+		Cache:        DefaultCache(),
 		EventBus:     DefaultEventBus(),
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),

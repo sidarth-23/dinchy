@@ -18,10 +18,10 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -45,8 +45,8 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	clk := clock.Fixed(fixedTime)
 	noopMailer, err := email.NewMailer(email.NoopSender{}, "")
 	require.NoError(t, err)
-	sessionSvc := session.NewService(store, id.NewGenerator(), clk, config.DefaultSession())
-	svc, err := NewService(nil, store, sessionSvc, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestRedis(t), platformredis.NewKeyer("test"), noopMailer, nil)
+	sessionSvc := session.NewService(store, id.NewGenerator(), clk, config.DefaultSession(), config.DefaultCache(), nil)
+	svc, err := NewService(nil, store, sessionSvc, id.NewGenerator(), clk, config.DefaultAuth(), nil, newTestRedis(t), cache.NewKeyer("test"), noopMailer, nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{

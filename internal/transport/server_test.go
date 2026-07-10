@@ -15,9 +15,9 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/platform/redis"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
@@ -25,8 +25,8 @@ var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler {
 	t.Helper()
-	sessionSvc := session.NewService(nil, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultSession())
-	svc, err := auth.NewService(nil, nil, sessionSvc, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, nil, redis.NewKeyer("test"), nil, nil)
+	sessionSvc := session.NewService(nil, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultSession(), config.DefaultCache(), nil)
+	svc, err := auth.NewService(nil, nil, sessionSvc, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, nil, cache.NewKeyer("test"), nil, nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
 	srv := transport.New(":0", dist, svc, sessionSvc, nil, nil, false, devMode, devProxyURL, nil)

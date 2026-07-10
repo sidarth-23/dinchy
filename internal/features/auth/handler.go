@@ -272,7 +272,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 			)
 		}
 		if principal != nil {
-			_ = a.auth.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: principal.UserID, ActorOrganisationID: principal.OrganisationID, TargetType: "session", TargetID: principal.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
+			_ = a.auth.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.NewEnvelope(ctx, principal.UserID, principal.OrganisationID, "session", principal.SessionID, ""), Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
 		}
 	}
 	out := &LogoutOut{}

@@ -114,6 +114,10 @@
 * Keep feature-local helpers, handlers, services, and types together under the same feature package when that reduces indirection.
   * Prefer a single feature package over splitting a concern across multiple packages unless the split materially improves ownership or clarity.
   * Keep package boundaries aligned with the feature surface, not with incidental implementation details.
+* Define API input validation and normalization at the transport boundary.
+  * Put validation tags on request input types so the API rejects malformed payloads before handlers run.
+  * Implement `Resolve` on input bodies to canonicalize user input with `internal/platform/transform` before validation reaches services.
+  * Keep handlers and services operating on validated, transformed values only; do not repeat ad hoc normalization in business logic.
 * All environment variables must come from `internal/config`.
   * Do not define environment variable names ad hoc in feature code, helpers, or startup glue.
   * Add new environment variables only through the config layer so defaults and validation stay centralized.

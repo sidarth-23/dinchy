@@ -13,10 +13,10 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -36,7 +36,7 @@ type Service struct {
 }
 
 // NewService builds an auth Service, wiring the SSO registry and falling back to a no-op mailer when none is provided.
-func NewService(db *pgxpool.Pool, s Store, sessionSvc *session.Service, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer platformredis.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
+func NewService(db *pgxpool.Pool, s Store, sessionSvc *session.Service, idg *id.Generator, clk clock.Clock, authConfig config.AuthConfig, providers []config.SSOProviderConfig, redisClient *goredis.Client, cacheKeyer cache.Keyer, mailer *email.Mailer, publisher events.Publisher) (*Service, error) {
 	registry, err := newSSORegistry(authConfig, providers, cacheKeyer)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 		return "", err
 	}
 	if loggedOutPrincipal != nil {
-		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: loggedOutPrincipal.UserID, ActorOrganisationID: loggedOutPrincipal.OrganisationID, TargetType: "session", TargetID: loggedOutPrincipal.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})
+		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.NewEnvelope(ctx, loggedOutPrincipal.UserID, loggedOutPrincipal.OrganisationID, "session", loggedOutPrincipal.SessionID, ""), Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})
 	}
 	return s.sessions.Create(ctx, principal.UserID, organization.ID, ip, userAgent)
 }

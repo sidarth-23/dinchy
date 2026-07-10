@@ -64,6 +64,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 	r.Use(mw.AccessLog(logger))
 
 	apiRouter := chi.NewRouter()
+	apiRouter.Use(mw.NoStore())
 	cfg := huma.DefaultConfig("Dinchy API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)

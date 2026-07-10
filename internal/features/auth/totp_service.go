@@ -58,12 +58,8 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, code string) error {
 	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorEnabledEvent{
 		EventType: events.AuthSecurityTwoFactorEnabled,
-		Envelope: events.Envelope{
-			ActorUserID: userID,
-			TargetType:  "user",
-			TargetID:    userID,
-		},
-		Metadata: events.NewAuthSecurityTwoFactorEnabledMetadata(),
+		Envelope:  events.NewEnvelope(ctx, userID, "", "user", userID, ""),
+		Metadata:  events.NewAuthSecurityTwoFactorEnabledMetadata(),
 	})
 }
 
@@ -95,12 +91,8 @@ func (s *Service) DisableTOTP(ctx context.Context, userID string) error {
 	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorDisabledEvent{
 		EventType: events.AuthSecurityTwoFactorDisabled,
-		Envelope: events.Envelope{
-			ActorUserID: userID,
-			TargetType:  "user",
-			TargetID:    userID,
-		},
-		Metadata: events.NewAuthSecurityTwoFactorDisabledMetadata(),
+		Envelope:  events.NewEnvelope(ctx, userID, "", "user", userID, ""),
+		Metadata:  events.NewAuthSecurityTwoFactorDisabledMetadata(),
 	})
 }
 

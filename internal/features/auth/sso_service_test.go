@@ -22,8 +22,8 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
-	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -130,7 +130,7 @@ func newSSOTestService(t *testing.T) (*Service, *MockStore) {
 				Enabled:     true,
 			},
 		},
-		cacheKeyer: platformredis.NewKeyer("test"),
+		cacheKeyer: cache.NewKeyer("test"),
 	}
 	originalProviderFactory := newGothProviderForSSO
 	newGothProviderForSSO = func(cfg config.SSOProviderConfig) (goth.Provider, error) {

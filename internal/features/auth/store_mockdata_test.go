@@ -263,6 +263,36 @@ func (mr *MockStoreMockRecorder) GetInstanceName(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceName", reflect.TypeOf((*MockStore)(nil).GetInstanceName), ctx)
 }
 
+// GetActiveSessionTokenHashesForOrganisation mocks base method.
+func (m *MockStore) GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveSessionTokenHashesForOrganisation", ctx, activeOrganisationID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveSessionTokenHashesForOrganisation indicates an expected call of GetActiveSessionTokenHashesForOrganisation.
+func (mr *MockStoreMockRecorder) GetActiveSessionTokenHashesForOrganisation(ctx, activeOrganisationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveSessionTokenHashesForOrganisation", reflect.TypeOf((*MockStore)(nil).GetActiveSessionTokenHashesForOrganisation), ctx, activeOrganisationID)
+}
+
+// GetActiveSessionTokenHashesForUser mocks base method.
+func (m *MockStore) GetActiveSessionTokenHashesForUser(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveSessionTokenHashesForUser", ctx, userID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveSessionTokenHashesForUser indicates an expected call of GetActiveSessionTokenHashesForUser.
+func (mr *MockStoreMockRecorder) GetActiveSessionTokenHashesForUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveSessionTokenHashesForUser", reflect.TypeOf((*MockStore)(nil).GetActiveSessionTokenHashesForUser), ctx, userID)
+}
+
 // GetSessionByTokenHash mocks base method.
 func (m *MockStore) GetSessionByTokenHash(ctx context.Context, tokenHash string) (sqlcgen.GetSessionByTokenHashRow, error) {
 	m.ctrl.T.Helper()
