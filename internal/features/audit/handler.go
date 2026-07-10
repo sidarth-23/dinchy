@@ -6,9 +6,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
 // API groups the audit handlers and their shared dependencies.
@@ -27,15 +29,16 @@ func Register(h huma.API, service *Service) {
 		Description: "Returns audit log entries filtered by the query parameters. Requires an owner or admin session.",
 		Tags:        []string{"Audit"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
+		Middlewares: huma.Middlewares{middleware.RequirePermissions(h, permission.AuditLogsRead)},
 	}, api.list)
 }
 
 func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
-	session := auth.SessionFrom(ctx)
-	if session == nil {
+	principal := session.PrincipalFrom(ctx)
+	if principal == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	if session.Role != auth.RoleOwner && session.Role != auth.RoleAdmin {
+	if !principal.HasPermission(permission.AuditLogsRead) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
 	logs, err := a.service.List(ctx, ListInput{

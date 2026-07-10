@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
@@ -20,7 +22,7 @@ import (
 	platformredis "github.com/sidarth-23/dinchy/internal/platform/redis"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
-	"github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 var sessionFixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -34,6 +36,14 @@ func (s *sessionStore) CountUsers(context.Context) (int64, error)               
 func (s *sessionStore) InsertUser(context.Context, sqlcgen.InsertUserParams) error       { return nil }
 func (s *sessionStore) InsertAccount(context.Context, sqlcgen.InsertAccountParams) error { return nil }
 func (s *sessionStore) InsertOrganisation(context.Context, sqlcgen.InsertOrganisationParams) error {
+	return nil
+}
+
+func (s *sessionStore) InsertOrganisationRole(context.Context, sqlcgen.InsertOrganisationRoleParams) error {
+	return nil
+}
+
+func (s *sessionStore) InsertOrganisationRolePermission(context.Context, sqlcgen.InsertOrganisationRolePermissionParams) error {
 	return nil
 }
 
@@ -155,12 +165,12 @@ func newSessionService(t *testing.T, store *sessionStore) *auth.Service {
 
 // sessionCapture builds the Session middleware wrapping a handler that records
 // whether it ran and the session it observed in context.
-func sessionCapture(svc *auth.Service) (http.Handler, *bool, **auth.SessionWithUser) {
+func sessionCapture(svc *auth.Service) (http.Handler, *bool, **session.Principal) {
 	ran := new(bool)
-	captured := new(*auth.SessionWithUser)
-	handler := middleware.Session(svc)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	captured := new(*session.Principal)
+	handler := session.RequestMiddleware(config.DefaultAuth().SessionCookieName, svc.Session)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		*ran = true
-		*captured = auth.SessionFrom(r.Context())
+		*captured = session.PrincipalFrom(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
 	return handler, ran, captured
@@ -175,7 +185,7 @@ func validSessionRow() sqlcgen.GetSessionByTokenHashRow {
 		ActiveOrganisationID: id.MustParse("00000000-0000-0000-0000-000000000003"),
 		OrganisationName:     "Default",
 		OrganisationSlug:     "default",
-		Role:                 string(auth.RoleAdmin),
+		Role:                 string(permission.RoleAdmin),
 		IdleExpiresAt:        sqltype.Timestamptz(sessionFixedTime.Add(30 * time.Minute)),
 		ExpiresAt:            sqltype.Timestamptz(sessionFixedTime.Add(7 * 24 * time.Hour)),
 		RevokedAt:            pgtype.Timestamptz{},
@@ -190,7 +200,8 @@ func TestSession_ValidCookieInjectsSession(t *testing.T) {
 	const token = "raw-token"
 	handler, ran, captured := sessionCapture(svc)
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
-	req.AddCookie(&http.Cookie{Name: svc.SessionCookieName(), Value: token})
+	req.AddCookie(&http.Cookie{Name: config.DefaultAuth().SessionCookieName, Value: token})
+	req = req.WithContext(support.WithRequestCookies(req.Context(), req.Cookies()))
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -220,7 +231,8 @@ func TestSession_InvalidCookieContinuesAnonymous(t *testing.T) {
 
 	handler, ran, captured := sessionCapture(svc)
 	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
-	req.AddCookie(&http.Cookie{Name: svc.SessionCookieName(), Value: "not-a-real-token"})
+	req.AddCookie(&http.Cookie{Name: config.DefaultAuth().SessionCookieName, Value: "not-a-real-token"})
+	req = req.WithContext(support.WithRequestCookies(req.Context(), req.Cookies()))
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)

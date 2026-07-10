@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
@@ -110,7 +111,7 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 }
 
 // Session resolves a raw token to its active session, returning nil when the token is empty, unknown, revoked, or expired.
-func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUser, error) {
+func (s *Service) Session(ctx context.Context, rawToken string) (*session.Principal, error) {
 	if rawToken == "" {
 		return nil, nil
 	}
@@ -121,12 +122,12 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*SessionWithUse
 		}
 		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
 	}
-	session := sessionFromGetSessionRow(row)
+	principal := session.FromGetSessionRow(row)
 	now := s.clock.Now()
-	if session.RevokedAt.Valid || now.After(session.IdleExpiresAt) || now.After(session.ExpiresAt) {
+	if principal.RevokedAt.Valid || now.After(principal.IdleExpiresAt) || now.After(principal.ExpiresAt) {
 		return nil, nil
 	}
-	return session, nil
+	return principal, nil
 }
 
 // Logout revokes the session identified by the raw token and emits a logout event.
@@ -134,7 +135,7 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return nil
 	}
-	session, err := s.Session(ctx, rawToken)
+	principal, err := s.Session(ctx, rawToken)
 	if err != nil {
 		return err
 	}
@@ -142,22 +143,22 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	if err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now), TokenHash: security.HashToken(rawToken)}); err != nil {
 		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
 	}
-	if session != nil {
-		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: session.UserID, ActorOrganisationID: session.OrganisationID, TargetType: "session", TargetID: session.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(session.Email)})
+	if principal != nil {
+		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: events.Envelope{ActorUserID: principal.UserID, ActorOrganisationID: principal.OrganisationID, TargetType: "session", TargetID: principal.SessionID}, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
 	}
 	return nil
 }
 
 // SelectOrganisation switches the current session to another organization the user belongs to, returning a fresh session token.
 func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisationSlug, ip, userAgent string) (string, error) {
-	session, err := s.Session(ctx, rawToken)
+	principal, err := s.Session(ctx, rawToken)
 	if err != nil {
 		return "", err
 	}
-	if session == nil {
+	if principal == nil {
 		return "", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	organisationRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(session.UserID), Slug: organisationSlug})
+	organisationRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(principal.UserID), Slug: organisationSlug})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
@@ -171,5 +172,5 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 	if err := s.Logout(ctx, rawToken); err != nil {
 		return "", err
 	}
-	return s.newSession(ctx, session.UserID, organization.ID, ip, userAgent)
+	return s.newSession(ctx, principal.UserID, organization.ID, ip, userAgent)
 }

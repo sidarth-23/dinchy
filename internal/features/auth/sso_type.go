@@ -71,7 +71,7 @@ type ssoCacheState struct {
 	ReturnTo         string `json:"return_to"`
 	OrganisationSlug string `json:"organization_slug"`
 	State            string `json:"state"`
-	Session          string `json:"session"`
+	ProviderSession  string `json:"provider_session"`
 }
 
 func (s ssoCacheState) MarshalBinary() ([]byte, error) { return json.Marshal(s) }

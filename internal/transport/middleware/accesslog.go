@@ -8,7 +8,7 @@ import (
 
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -29,8 +29,8 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.String("path", r.URL.Path),
 				slog.String("remote_ip", support.RemoteIPFrom(r.Context())),
 			}
-			if session := auth.SessionFrom(r.Context()); session != nil {
-				attrs = append(attrs, slog.String("actor_user_id", session.UserID), slog.String("actor_organization_id", session.OrganisationID))
+			if principal := session.PrincipalFrom(r.Context()); principal != nil {
+				attrs = append(attrs, slog.String("actor_user_id", principal.UserID), slog.String("actor_organization_id", principal.OrganisationID))
 			}
 			requestLogger := logger.With(attrs...)
 			ctx := logging.WithLogger(r.Context(), requestLogger)

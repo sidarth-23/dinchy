@@ -28,12 +28,17 @@ func (q *Queries) DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEn
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
-SELECT s.id, s.user_id, u.email, u.display_name, s.active_organisation_id, o.name AS organisation_name, o.slug AS organisation_slug, m.role, s.idle_expires_at, s.expires_at, s.revoked_at
+SELECT s.id, s.user_id, u.email, u.display_name, s.active_organisation_id, o.name AS organisation_name, o.slug AS organisation_slug, m.role,
+  COALESCE(array_agg(rp.permission) FILTER (WHERE rp.permission IS NOT NULL), '{}')::text[] AS permissions,
+  s.idle_expires_at, s.expires_at, s.revoked_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 JOIN organisations o ON o.id = s.active_organisation_id
 JOIN organisation_members m ON m.user_id = u.id AND m.organisation_id = o.id
+LEFT JOIN organisation_roles r ON r.organisation_id = o.id AND r.role_key = m.role
+LEFT JOIN organisation_role_permissions rp ON rp.role_id = r.id
 WHERE s.token_hash = $1
+GROUP BY s.id, u.id, o.id, m.role
 `
 
 type GetSessionByTokenHashRow struct {
@@ -45,6 +50,7 @@ type GetSessionByTokenHashRow struct {
 	OrganisationName     string             `db:"organisation_name" json:"organisation_name"`
 	OrganisationSlug     string             `db:"organisation_slug" json:"organisation_slug"`
 	Role                 string             `db:"role" json:"role"`
+	Permissions          []string           `db:"permissions" json:"permissions"`
 	IdleExpiresAt        pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
 	ExpiresAt            pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
 	RevokedAt            pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
@@ -62,6 +68,7 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 		&i.OrganisationName,
 		&i.OrganisationSlug,
 		&i.Role,
+		&i.Permissions,
 		&i.IdleExpiresAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,

@@ -18,6 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -165,7 +166,7 @@ func TestStartSSO_ReturnsMetadataAndTransactionCookie(t *testing.T) {
 	assert.Equal(t, "/projects/123?tab=activity", cached.ReturnTo)
 	assert.Equal(t, "default", cached.OrganisationSlug)
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 	assert.Contains(t, session.AuthURL, "state=")
 }
 
@@ -179,7 +180,7 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 	var cached ssoCacheState
 	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 
 	parsedAuthURL, err := url.Parse(session.AuthURL)
 	require.NoError(t, err)
@@ -201,7 +202,7 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 		})
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
@@ -231,7 +232,7 @@ func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
 	var cached ssoCacheState
 	require.NoError(t, svc.redis.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 
 	parsedAuthURL, err := url.Parse(session.AuthURL)
 	require.NoError(t, err)

@@ -19,6 +19,8 @@ func main() {
 		err = runI18n(os.Args[2:])
 	case "event":
 		err = runEvent(os.Args[2:])
+	case "permission":
+		err = runPermission(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -33,5 +35,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: codegen <error|i18n|event> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: codegen <error|i18n|event|permission> [flags]")
 }

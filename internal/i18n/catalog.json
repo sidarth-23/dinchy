@@ -293,6 +293,45 @@
       ]
     },
     {
+      "name": "access",
+      "description": "Access policy labels",
+      "modules": [
+        {
+          "name": "permissions",
+          "description": "Permission labels",
+          "modules": [
+            {
+              "name": "audit",
+              "description": "Audit permissions",
+              "modules": [
+                {
+                  "name": "logs",
+                  "description": "Audit log permissions",
+                  "messages": [{"name": "read", "translations": {"en": "View audit logs"}}]
+                }
+              ]
+            },
+            {
+              "name": "auth",
+              "description": "Authentication permissions",
+              "modules": [
+                {"name": "invitations", "description": "Invitation permissions", "messages": [{"name": "create", "translations": {"en": "Create invitations"}}]},
+                {"name": "roles", "description": "Role permissions", "messages": [{"name": "manage", "translations": {"en": "Manage roles"}}]}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "roles",
+          "description": "Role labels",
+          "messages": [
+            {"name": "admin", "translations": {"en": "Administrator"}},
+            {"name": "member", "translations": {"en": "Member"}}
+          ]
+        }
+      ]
+    },
+    {
       "name": "server",
       "description": "Process-level fallback messages",
       "messages": [

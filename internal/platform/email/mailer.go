@@ -75,11 +75,11 @@ func (m *Mailer) Configured() bool {
 
 // SendInvitation renders and sends an organization invitation email.
 func (m *Mailer) SendInvitation(ctx context.Context, data InvitationEmail) error {
-	organization := i18n.P("organization", data.OrganisationName)
+	organisation := i18n.P("organisation", data.OrganisationName)
 	return m.send(ctx, data.To, presentation{
-		Subject:  resolve(i18n.Msg(i18n.CodeEmailInvitationSubject, organization)),
-		Heading:  resolve(i18n.Msg(i18n.CodeEmailInvitationHeading, organization)),
-		Body:     resolve(i18n.Msg(i18n.CodeEmailInvitationBody, organization, i18n.P("role", data.Role))),
+		Subject:  resolve(i18n.Msg(i18n.CodeEmailInvitationSubject, organisation)),
+		Heading:  resolve(i18n.Msg(i18n.CodeEmailInvitationHeading, organisation)),
+		Body:     resolve(i18n.Msg(i18n.CodeEmailInvitationBody, organisation, i18n.P("role", data.Role))),
 		CTALabel: resolve(i18n.Msg(i18n.CodeEmailInvitationCta)),
 		CTAURL:   m.actionURL(pathAcceptInvitation, data.Token),
 		Footer:   resolve(i18n.Msg(i18n.CodeEmailFooter)),

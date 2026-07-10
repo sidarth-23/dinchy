@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -26,7 +28,7 @@ func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *In
 		ID:              row.ID.String(),
 		OrganisationID:  row.OrganisationID.String(),
 		Email:           row.Email,
-		Role:            Role(row.Role),
+		Role:            permission.Role(row.Role),
 		Status:          InvitationStatus(row.Status),
 		ExpiresAt:       sqltype.TimeValue(row.ExpiresAt),
 		InvitedByUserID: row.InvitedByUserID.String(),
@@ -38,15 +40,15 @@ func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *In
 	return invitation
 }
 
-// CreateInvitation issues and emails an organization invitation, requiring the inviter to be an owner or admin and rejecting duplicates.
-func (s *Service) CreateInvitation(ctx context.Context, inviter *SessionWithUser, emailAddress string, invitationRole Role, ip, userAgent string) (*Invitation, error) {
+// CreateInvitation issues and emails an organization invitation, requiring invitation permission and rejecting duplicates.
+func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Principal, emailAddress string, invitationRole permission.Role, ip, userAgent string) (*Invitation, error) {
 	if !s.mailer.Configured() {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
 	if inviter == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	if inviter.Role != RoleOwner && inviter.Role != RoleAdmin {
+	if !inviter.HasPermission(permission.AuthInvitationsCreate) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
 	}
 	now := s.clock.Now().UTC()

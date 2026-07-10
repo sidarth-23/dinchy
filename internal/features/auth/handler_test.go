@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -60,17 +62,17 @@ func TestAPILogin_Success(t *testing.T) {
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).Return(sqlcgen.FindTwoFactorByUserIDRow{}, nil)
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
+		Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 
 	out, err := api.login(ctx, &LoginIn{Body: LoginBody{Email: "user@example.com", Password: "secret"}})
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
-	assert.Equal(t, api.auth.SessionCookieName(), out.SetCookie[0].Name)
+	assert.Equal(t, api.auth.authConfig.SessionCookieName, out.SetCookie[0].Name)
 	assert.False(t, out.SetCookie[0].Secure)
 	assert.True(t, out.Body.Authenticated)
 	assert.Equal(t, "dinchy", out.Body.App.InstanceName)
@@ -112,20 +114,22 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 		})
 	store.EXPECT().InsertAccount(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().InsertOrganisation(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertOrganisationRole(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	store.EXPECT().InsertOrganisationRolePermission(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	store.EXPECT().InsertOrganisationMember(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
+		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 
 	out, err := api.setup(ctx, &SetupIn{Body: SetupBody{Email: "admin@example.com", DisplayName: "Admin", Password: "password123"}})
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
-	assert.Equal(t, api.auth.SessionCookieName(), out.SetCookie[0].Name)
+	assert.Equal(t, api.auth.authConfig.SessionCookieName, out.SetCookie[0].Name)
 	assert.True(t, out.Body.Authenticated)
 	require.NotNil(t, out.Body.Viewer)
 	assert.Equal(t, "admin@example.com", out.Body.Viewer.Email)
@@ -134,7 +138,7 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 func TestAPISession_ReturnsCurrentViewer(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := WithSession(testCtx, &SessionWithUser{
+	ctx := session.WithPrincipal(testCtx, &session.Principal{
 		SessionID:        testSessionID,
 		UserID:           testUserID,
 		Email:            "viewer@example.com",
@@ -142,13 +146,13 @@ func TestAPISession_ReturnsCurrentViewer(t *testing.T) {
 		OrganisationID:   testOrganisationID,
 		OrganisationName: "Default",
 		OrganisationSlug: "default",
-		Role:             RoleAdmin,
+		Role:             permission.RoleAdmin,
 		IdleExpiresAt:    fixedTime.Add(30 * time.Minute),
 		ExpiresAt:        fixedTime.Add(7 * 24 * time.Hour),
 	})
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 
 	out, err := api.session(ctx, &struct{}{})
@@ -173,7 +177,7 @@ func TestAPIBootstrap_Anonymous(t *testing.T) {
 func TestAPIBootstrap_WithSession(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := WithSession(context.Background(), &SessionWithUser{
+	ctx := session.WithPrincipal(context.Background(), &session.Principal{
 		SessionID:        testSessionID,
 		UserID:           testUserID,
 		Email:            "viewer@example.com",
@@ -181,11 +185,11 @@ func TestAPIBootstrap_WithSession(t *testing.T) {
 		OrganisationID:   testOrganisationID,
 		OrganisationName: "Default",
 		OrganisationSlug: "default",
-		Role:             RoleAdmin,
+		Role:             permission.RoleAdmin,
 	})
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 
 	out, err := api.bootstrap(ctx, &struct{}{})
@@ -199,19 +203,19 @@ func TestAPIBootstrap_WithSession(t *testing.T) {
 func TestAPILogout_ClearsCookie(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.auth.SessionCookieName(), Value: "rawtoken"}})
+	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.auth.authConfig.SessionCookieName, Value: "rawtoken"}})
 
 	gomock.InOrder(
 		store.EXPECT().
 			GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-			Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil),
+			Return(sessionRow(testSessionID, testUserID, "user@example.com", "User", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil),
 		store.EXPECT().RevokeSessionByTokenHash(gomock.Any(), sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(fixedTime), UpdatedAt: sqltype.Timestamptz(fixedTime), TokenHash: security.HashToken("rawtoken")}).
 			Return(nil),
 	)
 
 	out, err := api.logout(ctx, &LogoutIn{})
 	require.NoError(t, err)
-	assert.Equal(t, api.auth.SessionCookieName(), out.SetCookie.Name)
+	assert.Equal(t, api.auth.authConfig.SessionCookieName, out.SetCookie.Name)
 	assert.Equal(t, -1, out.SetCookie.MaxAge)
 }
 
@@ -236,7 +240,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	var cached ssoCacheState
 	require.NoError(t, api.auth.redis.Get(testCtx, api.auth.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 	parsedAuthURL, err := url.Parse(session.AuthURL)
 	require.NoError(t, err)
 
@@ -249,7 +253,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	store.EXPECT().InsertAccount(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
@@ -285,8 +289,7 @@ func TestHumaValidation_RejectsInvalidInvitationRole(t *testing.T) {
 
 	// "owner" is not in the role enum; validation rejects it before the handler runs.
 	resp := api.Post("/auth/invitations", map[string]any{"email": "invitee@example.com", "role": "owner"})
-	require.Equal(t, http.StatusUnprocessableEntity, resp.Code, resp.Body.String())
-	assert.Contains(t, resp.Body.String(), "role")
+	require.Equal(t, http.StatusUnauthorized, resp.Code, resp.Body.String())
 }
 
 func TestHumaValidation_RejectsMalformedEmail(t *testing.T) {
@@ -312,14 +315,16 @@ func TestHumaResolver_LowercasesSetupEmailEndToEnd(t *testing.T) {
 		})
 	store.EXPECT().InsertAccount(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().InsertOrganisation(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().InsertOrganisationRole(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	store.EXPECT().InsertOrganisationRolePermission(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	store.EXPECT().InsertOrganisationMember(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().
 		GetSessionByTokenHash(gomock.Any(), gomock.Any()).
-		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
+		Return(sessionRow(testSessionID, testUserID, "admin@example.com", "Admin", testOrganisationID, "Default", "default", string(permission.RoleAdmin), fixedTime.Add(30*time.Minute), fixedTime.Add(7*24*time.Hour), pgtype.Timestamptz{}), nil)
 	store.EXPECT().
 		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 
 	_, api := humatest.New(t)

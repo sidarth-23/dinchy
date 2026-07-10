@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/sidarth-23/dinchy/internal/access/permission"
 )
 
 // Request resolvers normalize input at the transport boundary before validation
@@ -37,10 +39,10 @@ func TestForgotPasswordBodyResolve_NormalizesEmail(t *testing.T) {
 
 func TestCreateInvitationBodyResolve_NormalizesEmail(t *testing.T) {
 	t.Parallel()
-	body := CreateInvitationBody{Email: "  INVITEE@EXAMPLE.COM  ", Role: RoleMember}
+	body := CreateInvitationBody{Email: "  INVITEE@EXAMPLE.COM  ", Role: permission.RoleMember}
 	require.Nil(t, body.Resolve(nil))
 	assert.Equal(t, "invitee@example.com", body.Email)
-	assert.Equal(t, RoleMember, body.Role)
+	assert.Equal(t, permission.RoleMember, body.Role)
 }
 
 func TestAcceptInvitationBodyResolve_TrimsDisplayName(t *testing.T) {

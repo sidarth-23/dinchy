@@ -31,7 +31,7 @@ func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler 
 	svc, err := auth.NewService(db.Pool(), queries, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, nil, redis.NewKeyer("test"), nil, nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
-	srv := transport.New(":0", dist, svc, nil, db, false, devMode, devProxyURL, nil)
+	srv := transport.New(":0", dist, svc, config.DefaultAuth().SessionCookieName, nil, db, false, devMode, devProxyURL, nil)
 	return srv.Handler
 }
 

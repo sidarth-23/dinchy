@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -38,27 +40,28 @@ func TestCreateInvitation_SendsEmailAndStoresToken(t *testing.T) {
 	sender := &fakeSender{configured: true}
 	svc, store := newServiceWithSender(t, sender)
 
-	session := &SessionWithUser{
+	principal := &session.Principal{
 		UserID:           testUserID,
 		Email:            "owner@example.com",
 		OrganisationID:   testOrganisationID,
 		OrganisationName: "Default",
 		OrganisationSlug: "default",
-		Role:             RoleOwner,
+		Role:             permission.RoleAdmin,
+		Permissions:      []permission.Permission{permission.AuthInvitationsCreate},
 	}
 
 	store.EXPECT().FindUserByEmail(gomock.Any(), "invitee@example.com").Return(sqlcgen.FindUserByEmailRow{}, pgx.ErrNoRows)
 	store.EXPECT().FindPendingOrganisationInvitationByEmail(gomock.Any(), gomock.Any()).Return(sqlcgen.FindPendingOrganisationInvitationByEmailRow{}, pgx.ErrNoRows)
 	store.EXPECT().InsertOrganisationInvitation(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in sqlcgen.InsertOrganisationInvitationParams) error {
 		assert.Equal(t, "invitee@example.com", in.Email)
-		assert.Equal(t, string(RoleMember), in.Role)
+		assert.Equal(t, string(permission.RoleMember), in.Role)
 		assert.Equal(t, testUserID, in.InvitedByUserID.String())
 		assert.True(t, sqltype.TimeValue(in.ExpiresAt).After(fixedTime))
 		assert.NotEmpty(t, in.TokenHash)
 		return nil
 	})
 
-	invitation, err := svc.CreateInvitation(testCtx, session, "invitee@example.com", "member", "127.0.0.1", "ua")
+	invitation, err := svc.CreateInvitation(testCtx, principal, "invitee@example.com", permission.RoleMember, "127.0.0.1", "ua")
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
 	assert.Equal(t, "invitee@example.com", invitation.Email)
@@ -79,7 +82,7 @@ func TestAcceptInvitation_CreatesUserAndSession(t *testing.T) {
 
 	store.EXPECT().
 		FindOrganisationInvitationByToken(gomock.Any(), tokenHash).
-		Return(invitationRow(invitationID, testOrganisationID, "invitee@example.com", string(RoleAdmin), string(InvitationStatusPending), tokenHash, testUserID, fixedTime.Add(time.Hour), pgtype.Timestamptz{}), nil)
+		Return(invitationRow(invitationID, testOrganisationID, "invitee@example.com", string(permission.RoleAdmin), string(InvitationStatusPending), tokenHash, testUserID, fixedTime.Add(time.Hour), pgtype.Timestamptz{}), nil)
 	store.EXPECT().FindUserByEmail(gomock.Any(), "invitee@example.com").Return(sqlcgen.FindUserByEmailRow{}, pgx.ErrNoRows)
 	store.EXPECT().InsertUser(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in sqlcgen.InsertUserParams) error {
 		assert.Equal(t, "invitee@example.com", in.Email)

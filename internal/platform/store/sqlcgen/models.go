@@ -84,6 +84,19 @@ type OrganisationMember struct {
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type OrganisationRole struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganisationID uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	RoleKey        string             `db:"role_key" json:"role_key"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type OrganisationRolePermission struct {
+	RoleID     uuid.UUID `db:"role_id" json:"role_id"`
+	Permission string    `db:"permission" json:"permission"`
+}
+
 type ScheduledTask struct {
 	ID                      uuid.UUID          `db:"id" json:"id"`
 	TaskName                string             `db:"task_name" json:"task_name"`

@@ -64,7 +64,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
 	}
-	cacheState := ssoCacheState{ProviderID: providerID, ReturnTo: internalReturnPath(returnTo), OrganisationSlug: organisationSlug, State: stateToken, Session: session.Marshal()}
+	cacheState := ssoCacheState{ProviderID: providerID, ReturnTo: internalReturnPath(returnTo), OrganisationSlug: organisationSlug, State: stateToken, ProviderSession: session.Marshal()}
 	if err := s.redis.Set(ctx, s.sso.cacheKey(transactionID), cacheState, s.sso.stateLifetime).Err(); err != nil {
 		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
 	}
@@ -90,7 +90,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if err != nil {
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}
-	session, err := provider.UnmarshalSession(cached.Session)
+	session, err := provider.UnmarshalSession(cached.ProviderSession)
 	if err != nil {
 		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
 	}

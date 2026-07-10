@@ -7,23 +7,13 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 //go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
-
-// Role is a member's role within an organization.
-type Role string
-
-// Recognized organization roles, from most to least privileged.
-const (
-	RoleOwner  Role = "owner"
-	RoleAdmin  Role = "admin"
-	RoleMember Role = "member"
-)
 
 // AccountProvider identifies the authentication provider backing an account.
 type AccountProvider string
@@ -47,7 +37,7 @@ type Organization struct {
 	ID   string
 	Name string
 	Slug string
-	Role Role
+	Role permission.Role
 }
 
 // InvitationStatus is the lifecycle state of an organization invitation.
@@ -66,7 +56,7 @@ type Invitation struct {
 	ID              string
 	OrganisationID  string
 	Email           string
-	Role            Role
+	Role            permission.Role
 	Status          InvitationStatus
 	ExpiresAt       time.Time
 	InvitedByUserID string
@@ -94,6 +84,8 @@ type CreateUserInput struct {
 	AccountID            string
 	OrganisationID       string
 	OrganisationMemberID string
+	AdminRoleID          string
+	MemberRoleID         string
 	Email                string
 	PasswordHash         string
 	DisplayName          string
@@ -102,32 +94,14 @@ type CreateUserInput struct {
 	Now                  time.Time
 }
 
-// Session identifies an authenticated session.
-type Session struct {
-	ID string
-}
-
-// SessionWithUser is a session joined with its user and active-organization context.
-type SessionWithUser struct {
-	SessionID        string
-	UserID           string
-	Email            string
-	DisplayName      string
-	OrganisationID   string
-	OrganisationName string
-	OrganisationSlug string
-	Role             Role
-	IdleExpiresAt    time.Time
-	ExpiresAt        time.Time
-	RevokedAt        pgtype.Timestamptz
-}
-
 // Store is the persistence surface the auth feature depends on.
 type Store interface {
 	CountUsers(ctx context.Context) (int64, error)
 	InsertUser(ctx context.Context, arg sqlcgen.InsertUserParams) error
 	InsertAccount(ctx context.Context, arg sqlcgen.InsertAccountParams) error
 	InsertOrganisation(ctx context.Context, arg sqlcgen.InsertOrganisationParams) error
+	InsertOrganisationRole(ctx context.Context, arg sqlcgen.InsertOrganisationRoleParams) error
+	InsertOrganisationRolePermission(ctx context.Context, arg sqlcgen.InsertOrganisationRolePermissionParams) error
 	InsertOrganisationMember(ctx context.Context, arg sqlcgen.InsertOrganisationMemberParams) error
 	FindUserByEmail(ctx context.Context, email string) (sqlcgen.FindUserByEmailRow, error)
 	UpdateUserEmailVerifiedAt(ctx context.Context, arg sqlcgen.UpdateUserEmailVerifiedAtParams) error
@@ -278,8 +252,8 @@ type ForgotPasswordOut struct {
 
 // CreateInvitationBody carries the invitee email and the role to grant them.
 type CreateInvitationBody struct {
-	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to invite"`
-	Role  Role   `json:"role" enum:"member,admin" example:"member" doc:"Role granted to the invited member"`
+	Email string          `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to invite"`
+	Role  permission.Role `json:"role" enum:"member,admin" example:"member" doc:"Role granted to the invited member"`
 }
 
 // Resolve normalizes the invitee email; the role is validated by its enum.

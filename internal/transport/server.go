@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/text/language"
 
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
@@ -28,7 +29,7 @@ import (
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string, logger *slog.Logger) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, sessionCookieName string, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string, logger *slog.Logger) *http.Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -58,7 +59,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 	r.Use(mw.SecureHeaders(devMode))
 	r.Use(mw.CORS(devMode, devProxyURL))
 	r.Use(mw.CSRF())
-	r.Use(mw.Session(authSvc))
+	r.Use(session.RequestMiddleware(sessionCookieName, authSvc.Session))
 	r.Use(mw.Timeout(30 * time.Second))
 	r.Use(mw.AccessLog(logger))
 
@@ -66,6 +67,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 	cfg := huma.DefaultConfig("Dinchy API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
+	api.UseMiddleware(mw.SessionResolutionGuard(api))
 	auth.Register(api, authSvc, sr, requireHTTPS)
 	if auditSvc != nil {
 		audit.Register(api, auditSvc)

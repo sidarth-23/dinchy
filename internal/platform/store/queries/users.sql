@@ -13,6 +13,14 @@ VALUES ($1, $2, $3, $4, $5, $6, $7);
 INSERT INTO organisations (id, name, slug, logo, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6);
 
+-- name: InsertOrganisationRole :exec
+INSERT INTO organisation_roles (id, organisation_id, role_key, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5);
+
+-- name: InsertOrganisationRolePermission :exec
+INSERT INTO organisation_role_permissions (role_id, permission)
+VALUES ($1, $2);
+
 -- name: InsertOrganisationMember :exec
 INSERT INTO organisation_members (id, organisation_id, user_id, role, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6);

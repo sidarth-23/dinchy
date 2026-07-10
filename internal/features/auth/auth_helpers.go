@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
@@ -23,7 +24,7 @@ func userFromFindUserRow(row sqlcgen.FindUserByEmailRow) *User {
 }
 
 func organisationFromListOrganisationRow(row sqlcgen.ListOrganisationsForUserRow) Organization {
-	return Organization{ID: row.ID.String(), Name: row.Name, Slug: row.Slug, Role: Role(row.Role)}
+	return Organization{ID: row.ID.String(), Name: row.Name, Slug: row.Slug, Role: permission.Role(row.Role)}
 }
 
 func organisationFromFindOrganisationRow(row sqlcgen.FindOrganisationBySlugForUserRow) *Organization {
@@ -32,11 +33,6 @@ func organisationFromFindOrganisationRow(row sqlcgen.FindOrganisationBySlugForUs
 	}
 	org := organisationFromListOrganisationRow(sqlcgen.ListOrganisationsForUserRow(row))
 	return &org
-}
-
-func sessionFromGetSessionRow(row sqlcgen.GetSessionByTokenHashRow) *SessionWithUser {
-	s := SessionWithUser{SessionID: row.ID.String(), UserID: row.UserID.String(), Email: row.Email, DisplayName: row.DisplayName, OrganisationID: row.ActiveOrganisationID.String(), OrganisationName: row.OrganisationName, OrganisationSlug: row.OrganisationSlug, Role: Role(row.Role), IdleExpiresAt: sqltype.TimeValue(row.IdleExpiresAt), ExpiresAt: sqltype.TimeValue(row.ExpiresAt), RevokedAt: row.RevokedAt}
-	return &s
 }
 
 func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, password string) (*User, error) {
@@ -96,23 +92,4 @@ func (s *Service) newSession(ctx context.Context, userID, organisationID, ip, us
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowNewSession), apperrors.WithStage(apperrors.StageCreateSession))
 	}
 	return token, nil
-}
-
-func (s *Service) sessionFromContext(ctx context.Context, rawToken string) (*SessionWithUser, error) {
-	if rawToken == "" {
-		return nil, nil
-	}
-	row, err := s.store.GetSessionByTokenHash(ctx, security.HashToken(rawToken))
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
-	}
-	session := sessionFromGetSessionRow(row)
-	now := s.clock.Now()
-	if session.RevokedAt.Valid || now.After(session.IdleExpiresAt) || now.After(session.ExpiresAt) {
-		return nil, nil
-	}
-	return session, nil
 }

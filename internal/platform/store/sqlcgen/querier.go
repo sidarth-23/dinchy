@@ -39,6 +39,8 @@ type Querier interface {
 	InsertOrganisation(ctx context.Context, arg InsertOrganisationParams) error
 	InsertOrganisationInvitation(ctx context.Context, arg InsertOrganisationInvitationParams) error
 	InsertOrganisationMember(ctx context.Context, arg InsertOrganisationMemberParams) error
+	InsertOrganisationRole(ctx context.Context, arg InsertOrganisationRoleParams) error
+	InsertOrganisationRolePermission(ctx context.Context, arg InsertOrganisationRolePermissionParams) error
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) error

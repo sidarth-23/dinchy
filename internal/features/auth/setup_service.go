@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
@@ -34,7 +35,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err != nil {
 		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationBeginTx))
 	}
-	user, err := createFirstUser(ctx, tx.queries, CreateUserInput{ID: s.idg.New(), AccountID: s.idg.New(), OrganisationID: organisationID, OrganisationMemberID: s.idg.New(), Email: emailAddress, PasswordHash: hash, DisplayName: displayName, OrganisationName: s.authConfig.DefaultOrganisationName, OrganisationSlug: s.authConfig.DefaultOrganisationSlug, Now: now})
+	user, err := createFirstUser(ctx, tx.queries, CreateUserInput{ID: s.idg.New(), AccountID: s.idg.New(), OrganisationID: organisationID, OrganisationMemberID: s.idg.New(), AdminRoleID: s.idg.New(), MemberRoleID: s.idg.New(), Email: emailAddress, PasswordHash: hash, DisplayName: displayName, OrganisationName: s.authConfig.DefaultOrganisationName, OrganisationSlug: s.authConfig.DefaultOrganisationSlug, Now: now})
 	if err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser)), apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationRollback)))
@@ -68,7 +69,19 @@ func createFirstUser(ctx context.Context, q Store, in CreateUserInput) (User, er
 	if err := q.InsertOrganisation(ctx, sqlcgen.InsertOrganisationParams{ID: id.MustParse(in.OrganisationID), Name: in.OrganisationName, Slug: in.OrganisationSlug, Logo: sqltype.Text(""), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisation))
 	}
-	if err := q.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{ID: id.MustParse(in.OrganisationMemberID), OrganisationID: id.MustParse(in.OrganisationID), UserID: id.MustParse(in.ID), Role: string(RoleOwner), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
+	roleIDs := map[permission.Role]string{permission.RoleAdmin: in.AdminRoleID, permission.RoleMember: in.MemberRoleID}
+	for _, role := range permission.BuiltInRoles() {
+		roleID := id.MustParse(roleIDs[role])
+		if err := q.InsertOrganisationRole(ctx, sqlcgen.InsertOrganisationRoleParams{ID: roleID, OrganisationID: id.MustParse(in.OrganisationID), RoleKey: string(role), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
+			return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
+		}
+		for _, granted := range permission.DefaultRolePermissions(role) {
+			if err := q.InsertOrganisationRolePermission(ctx, sqlcgen.InsertOrganisationRolePermissionParams{RoleID: roleID, Permission: string(granted)}); err != nil {
+				return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser))
+			}
+		}
+	}
+	if err := q.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{ID: id.MustParse(in.OrganisationMemberID), OrganisationID: id.MustParse(in.OrganisationID), UserID: id.MustParse(in.ID), Role: string(permission.RoleAdmin), CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
 		return User{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSetupFirstUser), apperrors.WithStage(apperrors.StageSetupFirstUser), apperrors.WithOperation(apperrors.OperationInsertOrganisationMember))
 	}
 	return User{ID: in.ID, Email: in.Email, DisplayName: in.DisplayName, EmailVerified: true}, nil

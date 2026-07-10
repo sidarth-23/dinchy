@@ -534,6 +534,45 @@ func (q *Queries) InsertOrganisationMember(ctx context.Context, arg InsertOrgani
 	return err
 }
 
+const insertOrganisationRole = `-- name: InsertOrganisationRole :exec
+INSERT INTO organisation_roles (id, organisation_id, role_key, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type InsertOrganisationRoleParams struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganisationID uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	RoleKey        string             `db:"role_key" json:"role_key"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) InsertOrganisationRole(ctx context.Context, arg InsertOrganisationRoleParams) error {
+	_, err := q.db.Exec(ctx, insertOrganisationRole,
+		arg.ID,
+		arg.OrganisationID,
+		arg.RoleKey,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const insertOrganisationRolePermission = `-- name: InsertOrganisationRolePermission :exec
+INSERT INTO organisation_role_permissions (role_id, permission)
+VALUES ($1, $2)
+`
+
+type InsertOrganisationRolePermissionParams struct {
+	RoleID     uuid.UUID `db:"role_id" json:"role_id"`
+	Permission string    `db:"permission" json:"permission"`
+}
+
+func (q *Queries) InsertOrganisationRolePermission(ctx context.Context, arg InsertOrganisationRolePermissionParams) error {
+	_, err := q.db.Exec(ctx, insertOrganisationRolePermission, arg.RoleID, arg.Permission)
+	return err
+}
+
 const insertUser = `-- name: InsertUser :exec
 INSERT INTO users (id, email, display_name, email_verified_at, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)

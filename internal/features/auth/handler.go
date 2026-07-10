@@ -8,8 +8,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/access/session"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -111,6 +114,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Description: "Invites a member to the current organization. Requires an owner or admin session.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h, permission.AuthInvitationsCreate)},
 	}, a.createInvitation)
 
 	huma.Register(h, huma.Operation{
@@ -151,6 +155,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Description: "Generates a TOTP secret and provisioning URL for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
 		Errors:      []int{http.StatusUnauthorized},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h)},
 	}, a.totpEnroll)
 
 	huma.Register(h, huma.Operation{
@@ -161,6 +166,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Description: "Verifies a TOTP code and enables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusUnprocessableEntity, http.StatusTooManyRequests},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h)},
 	}, a.totpConfirm)
 
 	huma.Register(h, huma.Operation{
@@ -171,6 +177,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Description: "Disables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
 		Errors:      []int{http.StatusUnauthorized},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h)},
 	}, a.totpDisable)
 
 	huma.Register(h, huma.Operation{
@@ -239,7 +246,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &LoginOut{}
-	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -253,7 +260,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
-	sessionToken := support.CookieValueFrom(ctx, a.auth.SessionCookieName())
+	sessionToken := support.CookieValueFrom(ctx, a.auth.authConfig.SessionCookieName)
 	if sessionToken != "" {
 		if err := a.auth.Logout(ctx, sessionToken); err != nil {
 			return nil, apperrors.Annotate(err,
@@ -263,7 +270,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 		}
 	}
 	out := &LogoutOut{}
-	out.SetCookie = *a.auth.ClearSessionCookie(support.IsSecure(ctx))
+	out.SetCookie = *session.ClearSessionCookie(a.auth.authConfig.SessionCookieName, support.IsSecure(ctx))
 	return out, nil
 }
 
@@ -326,7 +333,7 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 		in.ProviderID,
 		in.State,
 		in.Code,
-		support.CookieValueFrom(ctx, a.auth.SSOStateCookieName()),
+		support.CookieValueFrom(ctx, a.auth.authConfig.SSOStateCookieName),
 		support.RemoteIPFrom(ctx),
 		support.UserAgentFrom(ctx),
 	)
@@ -343,13 +350,13 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 	out := &SSOCallbackOut{
 		Status:    http.StatusFound,
 		Location:  returnTo,
-		SetCookie: append([]http.Cookie{*a.auth.SessionCookie(token, secure)}, clearCookie...),
+		SetCookie: append([]http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}, clearCookie...),
 	}
 	return out, nil
 }
 
 func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) (*SelectOrganisationOut, error) {
-	token, err := a.auth.SelectOrganisation(ctx, support.CookieValueFrom(ctx, a.auth.SessionCookieName()), in.Body.OrganisationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+	token, err := a.auth.SelectOrganisation(ctx, support.CookieValueFrom(ctx, a.auth.authConfig.SessionCookieName), in.Body.OrganisationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +368,7 @@ func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) 
 	if err != nil {
 		return nil, err
 	}
-	out := &SelectOrganisationOut{SetCookie: []http.Cookie{*a.auth.SessionCookie(token, support.IsSecure(ctx))}}
+	out := &SelectOrganisationOut{SetCookie: []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, support.IsSecure(ctx))}}
 	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
 		return nil, err
 	}
@@ -372,11 +379,11 @@ func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*Cr
 	if a.requireHTTPS && !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
 	}
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
-	if sess.Role != RoleOwner && sess.Role != RoleAdmin {
+	if !sess.HasPermission(permission.AuthInvitationsCreate) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
 	}
 	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
@@ -425,7 +432,7 @@ func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*Ac
 	}
 	secure := support.IsSecure(ctx)
 	out := &AcceptInvitationOut{}
-	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -454,7 +461,7 @@ func (a *API) resetPassword(ctx context.Context, in *ResetPasswordIn) (*ResetPas
 }
 
 func (a *API) totpEnroll(ctx context.Context, _ *struct{}) (*TOTPEnrollOut, error) {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
@@ -469,7 +476,7 @@ func (a *API) totpEnroll(ctx context.Context, _ *struct{}) (*TOTPEnrollOut, erro
 }
 
 func (a *API) totpConfirm(ctx context.Context, in *TOTPConfirmIn) (*TOTPConfirmOut, error) {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
@@ -482,7 +489,7 @@ func (a *API) totpConfirm(ctx context.Context, in *TOTPConfirmIn) (*TOTPConfirmO
 }
 
 func (a *API) totpDisable(ctx context.Context, _ *struct{}) (*TOTPConfirmOut, error) {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
 	}
@@ -528,7 +535,7 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}
-	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*session.SessionCookie(a.auth.authConfig.SessionCookieName, token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -539,14 +546,14 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 }
 
 func (a *API) attachSession(ctx context.Context, body *BootstrapBody) error {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
 		return nil
 	}
 	return a.populateAuthenticatedBody(ctx, body, sess, body.App.InstanceName)
 }
 
-func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody, sess *SessionWithUser, instanceName string) error {
+func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody, sess *session.Principal, instanceName string) error {
 	orgs, err := a.auth.OrganisationsForUser(ctx, sess.UserID)
 	if err != nil {
 		return err

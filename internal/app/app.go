@@ -99,7 +99,7 @@ func (a *App) Start() error {
 		}
 		dist = distFS
 	}
-	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, a.cfg.Auth.SessionCookieName, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
 	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc.Name())}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, registeredWorkers...)
