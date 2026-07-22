@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"io"
-	"os"
 	"sort"
 	"strings"
 
@@ -13,21 +12,19 @@ import (
 func runPermission(args []string) error {
 	fs := flag.NewFlagSet("permission", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	input := fs.String("input", "catalog.json", "permission manifest input path")
-	i18nInput := fs.String("i18n-input", "internal/i18n/catalog", "i18n manifest input path (directory of fragments or single file)")
-	output := fs.String("output", "permission_type.go", "generated Go output path")
+	permissionsInput := fs.String("permissions-input", "permissions.json", "permissions manifest input path")
+	rolesInput := fs.String("roles-input", "roles.json", "roles manifest input path")
+	i18nInput := fs.String("i18n-input", "../../i18n/catalog", "i18n manifest input path (directory of fragments or single file)")
+	permissionsOutput := fs.String("permissions-output", "permission_generated.go", "generated permissions Go output path")
+	rolesOutput := fs.String("roles-output", "role_generated.go", "generated roles Go output path")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return generatePermission(*input, *i18nInput, *output)
+	return generatePermission(*permissionsInput, *rolesInput, *i18nInput, *permissionsOutput, *rolesOutput)
 }
 
-func generatePermission(inputPath, i18nPath, outputPath string) error {
-	raw, err := os.ReadFile(inputPath)
-	if err != nil {
-		return err
-	}
-	catalog, err := manifest.DecodePermissionCatalog(raw)
+func generatePermission(permissionsPath, rolesPath, i18nPath, permissionsOutput, rolesOutput string) error {
+	catalog, err := manifest.LoadPermissionCatalog(permissionsPath, rolesPath)
 	if err != nil {
 		return err
 	}
@@ -38,32 +35,51 @@ func generatePermission(inputPath, i18nPath, outputPath string) error {
 	if err := manifest.ValidatePermissionCatalog(catalog, i18nCatalog); err != nil {
 		return err
 	}
-	source, err := renderPermissionManifest(catalog)
+	permissionsSource, err := renderPermissionsFile(catalog)
 	if err != nil {
 		return err
 	}
-	return writeGeneratedFile(outputPath, source)
+	if err := writeGeneratedFile(permissionsOutput, permissionsSource); err != nil {
+		return err
+	}
+	rolesSource, err := renderRolesFile(catalog)
+	if err != nil {
+		return err
+	}
+	return writeGeneratedFile(rolesOutput, rolesSource)
 }
 
-type permissionFileView struct {
-	Permissions []permissionView
-	Roles       []roleView
-	RoleNames   string
-}
+type (
+	permissionsFileView struct{ Permissions []permissionView }
+	rolesFileView       struct {
+		Roles     []roleView
+		RoleNames string
+	}
+)
+
 type (
 	permissionView struct{ ConstantName, Key, Module, Resource, Action, Description, I18nCode string }
 	roleView       struct{ ConstantName, ID, Description, I18nCode, Permissions string }
 )
 
-func renderPermissionManifest(catalog manifest.PermissionCatalog) ([]byte, error) {
-	view := permissionFileView{}
+func permissionViews(catalog manifest.PermissionCatalog) []permissionView {
+	views := make([]permissionView, 0)
 	for _, module := range catalog.Modules {
 		for _, entry := range module.Entries {
 			key := manifest.PermissionKey(module.ID, entry.Resource, entry.Action)
-			view.Permissions = append(view.Permissions, permissionView{manifest.GoName(key), key, module.ID, entry.Resource, entry.Action, entry.Description, entry.I18nCode})
+			views = append(views, permissionView{manifest.GoName(key), key, module.ID, entry.Resource, entry.Action, entry.Description, entry.I18nCode})
 		}
 	}
-	sort.Slice(view.Permissions, func(i, j int) bool { return view.Permissions[i].Key < view.Permissions[j].Key })
+	sort.Slice(views, func(i, j int) bool { return views[i].Key < views[j].Key })
+	return views
+}
+
+func renderPermissionsFile(catalog manifest.PermissionCatalog) ([]byte, error) {
+	return renderTemplate("permission.go.tmpl", permissionsFileView{Permissions: permissionViews(catalog)})
+}
+
+func renderRolesFile(catalog manifest.PermissionCatalog) ([]byte, error) {
+	view := rolesFileView{}
 	roles := append([]manifest.PermissionRole(nil), catalog.Roles...)
 	sort.Slice(roles, func(i, j int) bool { return roles[i].ID < roles[j].ID })
 	names := make([]string, 0, len(roles))
@@ -76,5 +92,5 @@ func renderPermissionManifest(catalog manifest.PermissionCatalog) ([]byte, error
 		names = append(names, "Role"+manifest.GoName(role.ID))
 	}
 	view.RoleNames = strings.Join(names, ", ")
-	return renderTemplate("permission.go.tmpl", view)
+	return renderTemplate("role.go.tmpl", view)
 }

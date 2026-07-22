@@ -2,13 +2,25 @@ package manifest
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
-// PermissionCatalog is the root of the access-policy manifest.
+// PermissionCatalog is the combined access-policy manifest assembled from the
+// permissions and roles source documents.
 type PermissionCatalog struct {
+	Modules []PermissionModule
+	Roles   []PermissionRole
+}
+
+// PermissionModulesDocument is the root of the permissions source file.
+type PermissionModulesDocument struct {
 	Modules []PermissionModule `json:"modules"`
-	Roles   []PermissionRole   `json:"roles"`
+}
+
+// PermissionRolesDocument is the root of the roles source file.
+type PermissionRolesDocument struct {
+	Roles []PermissionRole `json:"roles"`
 }
 
 // PermissionModule groups permission entries under a stable module ID.
@@ -34,13 +46,45 @@ type PermissionRole struct {
 	Permissions []string `json:"permissions"`
 }
 
-// DecodePermissionCatalog strictly decodes a permission manifest.
-func DecodePermissionCatalog(raw []byte) (PermissionCatalog, error) {
-	var catalog PermissionCatalog
-	if err := decodeStrict(raw, &catalog); err != nil {
-		return PermissionCatalog{}, err
+// DecodePermissionModules strictly decodes the permissions source document.
+func DecodePermissionModules(raw []byte) ([]PermissionModule, error) {
+	var document PermissionModulesDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return nil, err
 	}
-	return catalog, nil
+	return document.Modules, nil
+}
+
+// DecodePermissionRoles strictly decodes the roles source document.
+func DecodePermissionRoles(raw []byte) ([]PermissionRole, error) {
+	var document PermissionRolesDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return nil, err
+	}
+	return document.Roles, nil
+}
+
+// LoadPermissionCatalog reads the permissions and roles source files and returns
+// the combined catalog. It decodes but does not validate; callers validate the
+// result with ValidatePermissionCatalog.
+func LoadPermissionCatalog(permissionsPath, rolesPath string) (PermissionCatalog, error) {
+	permissionsRaw, err := os.ReadFile(permissionsPath)
+	if err != nil {
+		return PermissionCatalog{}, fmt.Errorf("read permissions %q: %w", permissionsPath, err)
+	}
+	modules, err := DecodePermissionModules(permissionsRaw)
+	if err != nil {
+		return PermissionCatalog{}, fmt.Errorf("decode permissions %q: %w", permissionsPath, err)
+	}
+	rolesRaw, err := os.ReadFile(rolesPath)
+	if err != nil {
+		return PermissionCatalog{}, fmt.Errorf("read roles %q: %w", rolesPath, err)
+	}
+	roles, err := DecodePermissionRoles(rolesRaw)
+	if err != nil {
+		return PermissionCatalog{}, fmt.Errorf("decode roles %q: %w", rolesPath, err)
+	}
+	return PermissionCatalog{Modules: modules, Roles: roles}, nil
 }
 
 // ValidatePermissionCatalog validates IDs, entries, role grants, and i18n references.

@@ -5,25 +5,16 @@ package permission
 import "github.com/sidarth-23/dinchy/internal/i18n"
 
 type Permission string
-type Role string
 type Definition struct {
 	Permission                            Permission
 	Module, Resource, Action, Description string
 	MessageCode                           i18n.Code
-}
-type RoleDefinition struct {
-	Role        Role
-	Description string
-	MessageCode i18n.Code
-	Permissions []Permission
 }
 
 const (
 	AuditLogsRead         Permission = "audit.logs.read"
 	AuthInvitationsCreate Permission = "auth.invitations.create"
 	AuthRolesManage       Permission = "auth.roles.manage"
-	RoleAdmin             Role       = "admin"
-	RoleMember            Role       = "member"
 )
 
 var definitions = map[Permission]Definition{
@@ -31,16 +22,8 @@ var definitions = map[Permission]Definition{
 	AuthInvitationsCreate: {Permission: AuthInvitationsCreate, Module: "auth", Resource: "invitations", Action: "create", Description: "Invite organization members", MessageCode: i18n.Code("account.access.permissions.auth.invitations.create")},
 	AuthRolesManage:       {Permission: AuthRolesManage, Module: "auth", Resource: "roles", Action: "manage", Description: "Manage organization roles", MessageCode: i18n.Code("account.access.permissions.auth.roles.manage")},
 }
-var roles = map[Role]RoleDefinition{
-	RoleAdmin:  {Role: RoleAdmin, Description: "Organization administrator", MessageCode: i18n.Code("account.access.roles.admin"), Permissions: []Permission{AuditLogsRead, AuthInvitationsCreate, AuthRolesManage}},
-	RoleMember: {Role: RoleMember, Description: "Organization member", MessageCode: i18n.Code("account.access.roles.member"), Permissions: []Permission{}},
-}
 
 func DefinitionFor(value Permission) (Definition, bool) {
 	definition, ok := definitions[value]
 	return definition, ok
-}
-func BuiltInRoles() []Role { return []Role{RoleAdmin, RoleMember} }
-func DefaultRolePermissions(role Role) []Permission {
-	return append([]Permission(nil), roles[role].Permissions...)
 }

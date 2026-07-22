@@ -13,13 +13,17 @@ pre-commit:
                     glob: "internal/i18n/catalog/**/*.json"
                     run: go run ./cmd/validate i18n -input internal/i18n/catalog
 
+                  - name: validate permission catalog
+                    glob: "internal/access/permission/{permissions,roles}.json"
+                    run: go run ./cmd/validate permission
+
                   - name: coderules logreturn
                     glob: "*.go"
                     run: go run ./cmd/coderules logreturn ./...
 
                   - name: generate catalogs
-                    glob: "internal/{events/catalog*.json,i18n/catalog/**/*.json}"
-                    run: go generate ./internal/i18n ./internal/events && git add internal/events/generated.go internal/i18n/generated.go
+                    glob: "internal/{events/catalog*.json,i18n/catalog/**/*.json,access/permission/{permissions,roles}.json}"
+                    run: go generate ./internal/i18n ./internal/events ./internal/access/permission && git add internal/events/generated.go internal/i18n/generated.go internal/access/permission/permission_generated.go internal/access/permission/role_generated.go
 
                   - name: generate sqlc
                     glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"

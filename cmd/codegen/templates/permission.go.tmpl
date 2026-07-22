@@ -5,16 +5,11 @@ package permission
 import "github.com/sidarth-23/dinchy/internal/i18n"
 
 type Permission string
-type Role string
 type Definition struct { Permission Permission; Module, Resource, Action, Description string; MessageCode i18n.Code }
-type RoleDefinition struct { Role Role; Description string; MessageCode i18n.Code; Permissions []Permission }
 
 const (
 {{- range .Permissions}}
 	{{.ConstantName}} Permission = {{.Key | quote}}
-{{- end}}
-{{- range .Roles}}
-	Role{{.ConstantName}} Role = {{.ID | quote}}
 {{- end}}
 )
 
@@ -23,11 +18,4 @@ var definitions = map[Permission]Definition{
 	{{.ConstantName}}: {Permission: {{.ConstantName}}, Module: {{.Module | quote}}, Resource: {{.Resource | quote}}, Action: {{.Action | quote}}, Description: {{.Description | quote}}, MessageCode: i18n.Code({{.I18nCode | quote}})},
 {{- end}}
 }
-var roles = map[Role]RoleDefinition{
-{{- range .Roles}}
-	Role{{.ConstantName}}: {Role: Role{{.ConstantName}}, Description: {{.Description | quote}}, MessageCode: i18n.Code({{.I18nCode | quote}}), Permissions: []Permission{ {{.Permissions}} }},
-{{- end}}
-}
 func DefinitionFor(value Permission) (Definition, bool) { definition, ok := definitions[value]; return definition, ok }
-func BuiltInRoles() []Role { return []Role{ {{.RoleNames}} } }
-func DefaultRolePermissions(role Role) []Permission { return append([]Permission(nil), roles[role].Permissions...) }

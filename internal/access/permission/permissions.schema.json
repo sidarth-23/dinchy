@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sidarth-23/dinchy/internal/access/permission/permissions.schema.json",
+  "title": "Dinchy Permission Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["modules"],
+  "properties": {
+    "modules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/module" }
+    }
+  },
+  "$defs": {
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "entries"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/entry" }
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "action", "description", "i18n_code"],
+      "properties": {
+        "resource": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "action": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "i18n_code": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

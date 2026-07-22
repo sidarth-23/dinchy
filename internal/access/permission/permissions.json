@@ -30,14 +30,5 @@
         }
       ]
     }
-  ],
-  "roles": [
-    {
-      "id": "admin",
-      "description": "Organization administrator",
-      "i18n_code": "account.access.roles.admin",
-      "permissions": ["audit.logs.read", "auth.invitations.create", "auth.roles.manage"]
-    },
-    { "id": "member", "description": "Organization member", "i18n_code": "account.access.roles.member", "permissions": [] }
   ]
 }
