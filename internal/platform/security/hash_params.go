@@ -1,4 +1,4 @@
-package config
+package security
 
 // PasswordHashVersion identifies the encoded password hash format version.
 type PasswordHashVersion string

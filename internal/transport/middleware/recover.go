@@ -10,6 +10,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
+	"github.com/sidarth-23/dinchy/internal/platform/requestcontext"
 	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -36,7 +37,7 @@ func Recover(logger *slog.Logger, renderer *render.Renderer) func(http.Handler) 
 				ctx := r.Context()
 				logging.Panic(
 					ctx, logger, "Recovered handler panic", recovered, debug.Stack(),
-					slog.String("request_id", support.RequestIDFrom(ctx)),
+					slog.String("request_id", requestcontext.RequestIDFrom(ctx)),
 					slog.String("method", r.Method),
 					slog.String("path", r.URL.Path),
 				)

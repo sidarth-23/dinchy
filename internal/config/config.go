@@ -10,7 +10,6 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/validation"
 )
 
 // Config holds all startup configuration values for the Dinchy server.
@@ -93,8 +92,7 @@ func Load() (Config, error) {
 	}
 	cfg.SSOProviders = configuredSSOProviders(cfg)
 
-	v := validation.New()
-	if err := v.Struct(cfg); err != nil {
+	if err := validateStruct(cfg); err != nil {
 		return Config{}, err
 	}
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/transport/support"
+	"github.com/sidarth-23/dinchy/internal/platform/requestcontext"
 )
 
 // Type is the catalog identifier for an event.
@@ -147,11 +147,11 @@ func NewEnvelope(ctx context.Context, actorUserID, actorOrganizationID string, t
 		TargetType:          target.targetType,
 		TargetID:            target.targetID,
 		TargetDisplay:       target.targetDisplay,
-		RequestID:           support.RequestIDFrom(ctx),
-		TraceID:             support.TraceIDFrom(ctx),
-		SpanID:              support.SpanIDFrom(ctx),
-		IPAddress:           support.RemoteIPFrom(ctx),
-		UserAgent:           support.UserAgentFrom(ctx),
+		RequestID:           requestcontext.RequestIDFrom(ctx),
+		TraceID:             requestcontext.TraceIDFrom(ctx),
+		SpanID:              requestcontext.SpanIDFrom(ctx),
+		IPAddress:           requestcontext.RemoteIPFrom(ctx),
+		UserAgent:           requestcontext.UserAgentFrom(ctx),
 	}, nil
 }
 

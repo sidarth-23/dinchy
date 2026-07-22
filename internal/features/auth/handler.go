@@ -13,6 +13,7 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/requestcontext"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -220,8 +221,8 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 		in.Body.Password,
 		in.Body.OrganizationSlug,
 		in.Body.TOTPCode,
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		requestcontext.RemoteIPFrom(ctx),
+		requestcontext.UserAgentFrom(ctx),
 	)
 	if err != nil {
 		return nil, err
@@ -324,8 +325,8 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 		in.State,
 		in.Code,
 		support.CookieValueFrom(ctx, a.auth.authConfig.SSOStateCookieName),
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		requestcontext.RemoteIPFrom(ctx),
+		requestcontext.UserAgentFrom(ctx),
 	)
 	if err != nil {
 		return nil, err
@@ -343,7 +344,7 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 }
 
 func (a *API) selectOrganization(ctx context.Context, in *SelectOrganizationIn) (*SelectOrganizationOut, error) {
-	token, err := a.auth.SelectOrganization(ctx, support.CookieValueFrom(ctx, a.sessions.SessionCookieName()), in.Body.OrganizationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+	token, err := a.auth.SelectOrganization(ctx, support.CookieValueFrom(ctx, a.sessions.SessionCookieName()), in.Body.OrganizationSlug, requestcontext.RemoteIPFrom(ctx), requestcontext.UserAgentFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +374,7 @@ func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*Cr
 	if !sess.HasPermission(permission.AuthInvitationsCreate) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAccountAuthForbidden))
 	}
-	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, requestcontext.RemoteIPFrom(ctx), requestcontext.UserAgentFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -391,8 +392,8 @@ func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*Ac
 		in.Token,
 		in.Body.DisplayName,
 		in.Body.Password,
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		requestcontext.RemoteIPFrom(ctx),
+		requestcontext.UserAgentFrom(ctx),
 	)
 	if err != nil {
 		return nil, err
@@ -485,8 +486,8 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 		in.Body.Email,
 		in.Body.DisplayName,
 		in.Body.Password,
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		requestcontext.RemoteIPFrom(ctx),
+		requestcontext.UserAgentFrom(ctx),
 	)
 	if err != nil {
 		return nil, err

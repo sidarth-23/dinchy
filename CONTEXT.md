@@ -32,6 +32,18 @@ tests, and design discussion. Keep entries terse and intent-focused.
   failure detail is exposed. Rendering lives in transport, not in `internal/errors`:
   the errors package stays foundational and free of the HTTP framework.
 
+## Foundation
+
+- **requestcontext** (`internal/platform/requestcontext`) — a foundation leaf
+  carrying request-scoped observability values (client IP, user agent, and
+  request/trace/span IDs) across layers via the context. Transport middleware
+  populates it; any layer reads it, including non-transport code (e.g. the events
+  envelope). It replaced the reach from `internal/events` into
+  `internal/transport/support`, so the event layer no longer depends on transport.
+- **Password hashing** lives entirely in `internal/platform/security` (algorithm
+  *and* its Argon2id parameters/format constants); `security` depends on nothing
+  in `config`. **Config validation** is private to `internal/config`.
+
 ## Ownership principle
 
 Shared platform modules own the *machinery* (email delivery, event transport),

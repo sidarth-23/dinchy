@@ -10,7 +10,7 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
-	"github.com/sidarth-23/dinchy/internal/transport/support"
+	"github.com/sidarth-23/dinchy/internal/platform/requestcontext"
 )
 
 // AccessLog returns middleware that binds a request-scoped logger and logs each completed request.
@@ -24,10 +24,10 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 
 			attrs := []any{
-				slog.String("request_id", support.RequestIDFrom(r.Context())),
+				slog.String("request_id", requestcontext.RequestIDFrom(r.Context())),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.String("remote_ip", support.RemoteIPFrom(r.Context())),
+				slog.String("remote_ip", requestcontext.RemoteIPFrom(r.Context())),
 			}
 			if principal := session.PrincipalFrom(r.Context()); principal != nil {
 				attrs = append(attrs, slog.String("actor_user_id", principal.UserID), slog.String("actor_organization_id", principal.OrganizationID))
