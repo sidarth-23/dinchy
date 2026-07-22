@@ -1,6 +1,9 @@
 package manifest
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 var goAcronyms = map[string]string{
 	"csrf":  "CSRF",
@@ -33,7 +36,8 @@ func GoName(value string) string {
 			b.WriteString(segment)
 			continue
 		}
-		b.WriteString(strings.ToUpper(segment[:1]) + strings.ToLower(segment[1:]))
+		b.WriteString(strings.ToUpper(segment[:1]))
+		b.WriteString(strings.ToLower(segment[1:]))
 	}
 	return b.String()
 }
@@ -41,6 +45,17 @@ func GoName(value string) string {
 // GoNameFromPath converts a path of manifest segments into a Go export name.
 func GoNameFromPath(segments ...string) string {
 	return GoName(strings.Join(segments, "_"))
+}
+
+// LowerCamel lowercases the leading rune of a Go identifier, returning "value"
+// for the empty string. It is used to derive receiver and parameter names.
+func LowerCamel(name string) string {
+	if name == "" {
+		return "value"
+	}
+	runes := []rune(name)
+	runes[0] = unicode.ToLower(runes[0])
+	return string(runes)
 }
 
 // DisplayPath renders a path for diagnostics.

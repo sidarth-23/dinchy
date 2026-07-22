@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // ErrorCatalog is the root of the error manifest.
@@ -152,18 +154,18 @@ func validateErrorNode(node ErrorNode, path []string, seenSiblings, seenTypes, s
 
 	seenNames := map[string]struct{}{}
 	for _, value := range node.Values {
-		valueName, _, err := validateAndRenderErrorValue(goType, value)
+		rendered, err := RenderErrorValue(goType, value)
 		if err != nil {
 			return fmt.Errorf("node %q value %v: %w", DisplayPath(currentPath), value, err)
 		}
-		if _, ok := seenNames[valueName]; ok {
-			return fmt.Errorf("node %q has duplicate value name %q", DisplayPath(currentPath), valueName)
+		if _, ok := seenNames[rendered.Suffix]; ok {
+			return fmt.Errorf("node %q has duplicate value name %q", DisplayPath(currentPath), rendered.Suffix)
 		}
-		seenNames[valueName] = struct{}{}
-		if _, ok := seenValueNames[typeName+valueName]; ok {
-			return fmt.Errorf("duplicate generated value name %q", typeName+valueName)
+		seenNames[rendered.Suffix] = struct{}{}
+		if _, ok := seenValueNames[typeName+rendered.Suffix]; ok {
+			return fmt.Errorf("duplicate generated value name %q", typeName+rendered.Suffix)
 		}
-		seenValueNames[typeName+valueName] = struct{}{}
+		seenValueNames[typeName+rendered.Suffix] = struct{}{}
 	}
 
 	return nil
@@ -192,30 +194,39 @@ func ErrorGoType(goType string) string {
 	return goType
 }
 
-func validateAndRenderErrorValue(goType string, value any) (string, string, error) {
+// ErrorValue is a manifest value rendered to Go source: its literal form and
+// the identifier suffix used to name its generated constant.
+type ErrorValue struct {
+	Literal string
+	Suffix  string
+}
+
+// RenderErrorValue validates value against goType and returns its Go literal
+// and constant-name suffix.
+func RenderErrorValue(goType string, value any) (ErrorValue, error) {
 	switch goType {
 	case "string":
 		text, ok := value.(string)
 		if !ok {
-			return "", "", fmt.Errorf("expected string value, got %T", value)
+			return ErrorValue{}, fmt.Errorf("expected string value, got %T", value)
 		}
 		if text == "" {
-			return "", "", fmt.Errorf("string value cannot be empty")
+			return ErrorValue{}, fmt.Errorf("string value cannot be empty")
 		}
-		valueName := GoName(text)
-		if valueName == "" {
-			valueName = "Value"
+		suffix := GoName(text)
+		if suffix == "" {
+			suffix = "Value"
 		}
-		return strconv.Quote(text), valueName, nil
+		return ErrorValue{Literal: strconv.Quote(text), Suffix: suffix}, nil
 	case "bool":
 		flag, ok := value.(bool)
 		if !ok {
-			return "", "", fmt.Errorf("expected bool value, got %T", value)
+			return ErrorValue{}, fmt.Errorf("expected bool value, got %T", value)
 		}
 		if flag {
-			return "true", "True", nil
+			return ErrorValue{Literal: "true", Suffix: "True"}, nil
 		}
-		return "false", "False", nil
+		return ErrorValue{Literal: "false", Suffix: "False"}, nil
 	case "int":
 		return renderIntegerValue(value, 0)
 	case "int64":
@@ -223,44 +234,42 @@ func validateAndRenderErrorValue(goType string, value any) (string, string, erro
 	case "float64":
 		number, ok := value.(json.Number)
 		if !ok {
-			return "", "", fmt.Errorf("expected JSON number, got %T", value)
+			return ErrorValue{}, fmt.Errorf("expected JSON number, got %T", value)
 		}
 		text := number.String()
 		if _, err := strconv.ParseFloat(text, 64); err != nil {
-			return "", "", fmt.Errorf("invalid float literal %q", text)
+			return ErrorValue{}, fmt.Errorf("invalid float literal %q", text)
 		}
-		valueName := strings.NewReplacer("-", "Neg", ".", "Point", "+", "", "e", "E").Replace(text)
+		suffix := strings.NewReplacer("-", "Neg", ".", "Point", "+", "", "e", "E").Replace(text)
+		first, _ := utf8.DecodeRuneInString(suffix)
 		switch {
-		case valueName == "":
-			valueName = "Value"
-		case valueName[0] >= '0' && valueName[0] <= '9':
-			valueName = "Value" + valueName
+		case suffix == "":
+			suffix = "Value"
+		case unicode.IsDigit(first):
+			suffix = "Value" + suffix
 		default:
-			valueName = GoName(valueName)
+			suffix = GoName(suffix)
 		}
-		return text, valueName, nil
+		return ErrorValue{Literal: text, Suffix: suffix}, nil
 	default:
-		return "", "", fmt.Errorf("unsupported go type %q", goType)
+		return ErrorValue{}, fmt.Errorf("unsupported go type %q", goType)
 	}
 }
 
-func renderIntegerValue(value any, bitSize int) (string, string, error) {
+func renderIntegerValue(value any, bitSize int) (ErrorValue, error) {
 	number, ok := value.(json.Number)
 	if !ok {
-		return "", "", fmt.Errorf("expected JSON number, got %T", value)
+		return ErrorValue{}, fmt.Errorf("expected JSON number, got %T", value)
 	}
 	text := number.String()
-	if strings.ContainsAny(text, ".eE") {
-		return "", "", fmt.Errorf("expected integer value, got %q", text)
-	}
 	parsed, err := strconv.ParseInt(text, 10, bitSize)
 	if err != nil {
-		return "", "", fmt.Errorf("invalid integer literal %q", text)
+		return ErrorValue{}, fmt.Errorf("invalid integer literal %q", text)
 	}
 	literal := strconv.FormatInt(parsed, 10)
-	valueName := literal
+	suffix := literal
 	if parsed < 0 {
-		valueName = "Neg" + strconv.FormatInt(-parsed, 10)
+		suffix = "Neg" + strconv.FormatInt(-parsed, 10)
 	}
-	return literal, valueName, nil
+	return ErrorValue{Literal: literal, Suffix: suffix}, nil
 }

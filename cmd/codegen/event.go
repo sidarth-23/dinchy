@@ -4,6 +4,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -102,7 +103,7 @@ func eventViewFor(event flattenedEvent) eventView {
 		ConstantName:     event.ConstantName,
 		Type:             event.Type,
 		ID:               event.ID,
-		PathLiteral:      renderStringSlice(event.Path),
+		PathLiteral:      quoteJoin(event.Path),
 		Category:         eventCategory(event.Path),
 		Subcategory:      eventSubcategory(event.Path),
 		Action:           event.Action,
@@ -127,7 +128,7 @@ func eventRecordViewFor(typeName, keyTypeName, constructorName string, keys []ev
 			RawName:      key.Name,
 			GoName:       goName,
 			GoType:       eventKeyGoType(key.Type),
-			ParamName:    parameterName(key.Name),
+			ParamName:    manifest.LowerCamel(goName),
 			KeyConstName: keyTypeName + goName,
 		})
 	}
@@ -162,8 +163,8 @@ func flattenEventDefinitions(modules []eventModule, modulePath []string) []flatt
 				Action:       event.Action,
 				Outcome:      event.Outcome,
 				Description:  event.Description,
-				MetadataKeys: normalizeTypedFields(event.MetadataKeys),
-				ChangeKeys:   normalizeTypedFields(event.ChangeKeys),
+				MetadataKeys: slices.Clone(event.MetadataKeys),
+				ChangeKeys:   slices.Clone(event.ChangeKeys),
 				ConstantName: manifest.EventConstantName(currentPath, event.ID),
 			})
 		}
@@ -172,21 +173,12 @@ func flattenEventDefinitions(modules []eventModule, modulePath []string) []flatt
 	return out
 }
 
-func normalizeTypedFields(fields []eventField) []eventField {
-	if len(fields) == 0 {
-		return nil
-	}
-	out := make([]eventField, len(fields))
-	copy(out, fields)
-	return out
-}
-
 func renderStringNames(keys []eventField) string {
-	parts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		parts = append(parts, strconv.Quote(key.Name))
+	names := make([]string, len(keys))
+	for i, key := range keys {
+		names[i] = key.Name
 	}
-	return strings.Join(parts, ", ")
+	return quoteJoin(names)
 }
 
 func eventCategory(path []string) string {
@@ -203,41 +195,18 @@ func eventSubcategory(path []string) string {
 	return ""
 }
 
-func renderStringSlice(values []string) string {
-	parts := make([]string, 0, len(values))
-	for _, value := range values {
-		parts = append(parts, strconv.Quote(value))
+func quoteJoin(values []string) string {
+	parts := make([]string, len(values))
+	for i, value := range values {
+		parts[i] = strconv.Quote(value)
 	}
 	return strings.Join(parts, ", ")
 }
 
-func eventImports(events []flattenedEvent) []string {
-	imports := map[string]struct{}{}
-	imports["time"] = struct{}{}
-	for _, event := range events {
-		for _, key := range append(append([]eventField{}, event.MetadataKeys...), event.ChangeKeys...) {
-			if key.Type == "time.Time" {
-				imports["time"] = struct{}{}
-			}
-		}
-	}
-	if len(imports) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(imports))
-	for imp := range imports {
-		out = append(out, imp)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func parameterName(value string) string {
-	name := manifest.GoName(value)
-	if name == "" {
-		return "value"
-	}
-	return strings.ToLower(name[:1]) + name[1:]
+// eventImports lists the imports the generated events file needs. The Envelope
+// type always carries a time.Time, so time is always required.
+func eventImports([]flattenedEvent) []string {
+	return []string{"time"}
 }
 
 func eventKeyGoType(value string) string {

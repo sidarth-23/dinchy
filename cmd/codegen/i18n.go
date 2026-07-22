@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"io"
+	"maps"
 	"os"
 	"sort"
 
@@ -85,23 +86,12 @@ func flattenI18nMessages(modules []i18nModule, modulePath []string) []flattenedI
 			out = append(out, flattenedI18nMessage{
 				Code:         manifest.I18nCodeFor(currentPath, message.Name),
 				ConstantName: manifest.I18nConstantName(currentPath, message.Name),
-				Translations: cloneStringMap(message.Translations),
+				Translations: maps.Clone(message.Translations),
 			})
 		}
 		if len(module.Modules) > 0 {
 			out = append(out, flattenI18nMessages(module.Modules, currentPath)...)
 		}
-	}
-	return out
-}
-
-func cloneStringMap(values map[string]string) map[string]string {
-	if len(values) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(values))
-	for key, value := range values {
-		out[key] = value
 	}
 	return out
 }
