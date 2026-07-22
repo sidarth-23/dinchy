@@ -93,7 +93,7 @@
   * HTTP handlers log only the final 5xx failure at the transport boundary.
 * Error logging goes only through `internal/platform/logging.Error` and `logging.HTTPError`; never call `slog` error methods directly with an error value outside that package.
   * `AppError` carries a log-once marker: the logging helpers skip errors already marked and mark on emit, so a failure is recorded at most once even when it crosses multiple boundaries.
-  * `go run ./cmd/validate logreturn ./...` (mise task `validate:logreturn`) enforces that no function both logs an error and returns one.
+  * `go run ./cmd/coderules logreturn ./...` enforces that no function both logs an error and returns one.
   * Exempt a deliberate dual-failure path (log cleanup failure, return primary) with `//dinchy:allow-logreturn <reason>` on the function; the reason is mandatory.
 * Treat warnings as recoverable signals, not soft errors.
   * A warning should explain what was skipped, degraded, or fell back.

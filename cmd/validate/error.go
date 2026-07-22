@@ -1,4 +1,4 @@
-// Package main implements the validate binary that checks manifest catalogs and codebase invariants.
+// Package main implements the validate binary that checks manifest catalogs.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Package main implements the coderules binary that enforces Dinchy codebase invariants via static analysis.
 package main
 
 import (
@@ -13,12 +14,8 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
-	case "error":
-		err = runValidateError(os.Args[2:])
-	case "event":
-		err = runValidateEvent(os.Args[2:])
-	case "i18n":
-		err = runValidateI18n(os.Args[2:])
+	case "logreturn":
+		err = runLogReturn(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -27,11 +24,11 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "validate: %v\n", err)
+		fmt.Fprintf(os.Stderr, "coderules: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: validate <error|event|i18n> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: coderules <logreturn> [flags]")
 }

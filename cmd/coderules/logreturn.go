@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"go/types"
 	"os"
@@ -31,20 +30,10 @@ type functionUnit struct {
 }
 
 //dinchy:allow-logreturn validator entrypoint reports violations by returning an error
-func runValidateLogReturn(args []string) error {
+func runLogReturn(args []string) error {
 	patterns := args
 	if len(patterns) == 0 {
 		patterns = []string{"./..."}
-	}
-
-	if target, recursive, ok := syntaxFallbackTarget(patterns[0]); ok && len(patterns) == 1 {
-		if recursive {
-			return runValidateLogReturnDir(target)
-		}
-		if info, err := os.Stat(target); err == nil && info.IsDir() {
-			return runValidateLogReturnDir(target)
-		}
-		return runValidateLogReturnFile(target)
 	}
 
 	dir, patterns := loadDirAndPatterns(patterns)
@@ -83,24 +72,6 @@ func runValidateLogReturn(args []string) error {
 	return errors.New(strings.Join(violations, "\n"))
 }
 
-func syntaxFallbackTarget(pattern string) (target string, recursive, ok bool) {
-	if pattern == "" {
-		return "", false, false
-	}
-	if strings.HasSuffix(pattern, "/...") || strings.HasSuffix(pattern, `\...`) {
-		base := strings.TrimSuffix(pattern, "/...")
-		base = strings.TrimSuffix(base, `\...`)
-		if filepath.IsAbs(base) {
-			return base, true, true
-		}
-		return "", false, false
-	}
-	if !filepath.IsAbs(pattern) {
-		return "", false, false
-	}
-	return pattern, false, true
-}
-
 func loadDirAndPatterns(patterns []string) (string, []string) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -129,56 +100,6 @@ func loadDirAndPatterns(patterns []string) (string, []string) {
 		return pattern, []string{"."}
 	}
 	return filepath.Dir(pattern), []string{"."}
-}
-
-func runValidateLogReturnFile(path string) error {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-	if err != nil {
-		return err
-	}
-	violations := make([]string, 0)
-	for _, unit := range collectSyntaxFunctionUnits(file) {
-		violations = append(violations, analyzeFunctionUnit(fset, path, unit)...)
-	}
-	if len(violations) == 0 {
-		return nil
-	}
-	return errors.New(strings.Join(violations, "\n"))
-}
-
-func runValidateLogReturnDir(dir string) error {
-	fset := token.NewFileSet()
-	violations := make([]string, 0)
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if info.IsDir() {
-			if shouldSkipPath(path) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || shouldSkipPath(path) {
-			return nil
-		}
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
-		if parseErr != nil {
-			return parseErr
-		}
-		for _, unit := range collectSyntaxFunctionUnits(file) {
-			violations = append(violations, analyzeFunctionUnit(fset, path, unit)...)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if len(violations) == 0 {
-		return nil
-	}
-	return errors.New(strings.Join(violations, "\n"))
 }
 
 func shouldSkipPackage(pkg *packages.Package) bool {
@@ -212,10 +133,6 @@ func fileNameForSyntax(pkg *packages.Package, index int, file *ast.File) string 
 		return pkg.Fset.Position(file.Pos()).Filename
 	}
 	return ""
-}
-
-func shouldSkipPath(path string) bool {
-	return strings.Contains(filepath.ToSlash(path), sqlcGeneratedDirMarker)
 }
 
 func collectTypedFunctionUnits(pkg *packages.Package, file *ast.File) []functionUnit {
@@ -259,45 +176,6 @@ func collectTypedFunctionUnits(pkg *packages.Package, file *ast.File) []function
 	return units
 }
 
-func collectSyntaxFunctionUnits(file *ast.File) []functionUnit {
-	if file == nil {
-		return nil
-	}
-	units := make([]functionUnit, 0)
-	ast.Inspect(file, func(n ast.Node) bool {
-		switch fn := n.(type) {
-		case *ast.FuncDecl:
-			if fn.Body == nil {
-				return true
-			}
-			units = append(units, functionUnit{
-				name:               funcDeclDisplayName(fn),
-				pos:                fn.Pos(),
-				body:               fn.Body,
-				doc:                fn.Doc,
-				comments:           file.Comments,
-				errorResultIndexes: errorResultIndexesFromFieldList(fn.Type.Results),
-			})
-			return true
-		case *ast.FuncLit:
-			if fn.Body == nil {
-				return true
-			}
-			units = append(units, functionUnit{
-				name:               "func literal",
-				pos:                fn.Type.Func,
-				body:               fn.Body,
-				comments:           file.Comments,
-				errorResultIndexes: errorResultIndexesFromFieldList(fn.Type.Results),
-			})
-			return true
-		default:
-			return true
-		}
-	})
-	return units
-}
-
 func errorResultIndexesFromSignature(sig *types.Signature) []int {
 	if sig == nil || sig.Results() == nil {
 		return nil
@@ -311,32 +189,6 @@ func errorResultIndexesFromSignature(sig *types.Signature) []int {
 		}
 	}
 	return indexes
-}
-
-func errorResultIndexesFromFieldList(fields *ast.FieldList) []int {
-	if fields == nil {
-		return nil
-	}
-	indexes := make([]int, 0)
-	position := 0
-	for _, field := range fields.List {
-		count := len(field.Names)
-		if count == 0 {
-			count = 1
-		}
-		if isErrorTypeExpr(field.Type) {
-			for i := 0; i < count; i++ {
-				indexes = append(indexes, position+i)
-			}
-		}
-		position += count
-	}
-	return indexes
-}
-
-func isErrorTypeExpr(expr ast.Expr) bool {
-	ident, ok := expr.(*ast.Ident)
-	return ok && ident.Name == "error"
 }
 
 func signatureForFuncDecl(info *types.Info, decl *ast.FuncDecl) *types.Signature {
@@ -514,12 +366,7 @@ func isNilIdent(expr ast.Expr) bool {
 }
 
 func isLoggingCall(unit functionUnit, call *ast.CallExpr) bool {
-	if unit.info != nil {
-		if isLoggingCallTyped(unit, call) {
-			return true
-		}
-	}
-	return isLoggingCallSyntax(call)
+	return isLoggingCallTyped(unit, call)
 }
 
 func isLoggingCallTyped(unit functionUnit, call *ast.CallExpr) bool {
@@ -545,22 +392,6 @@ func isLoggingCallTyped(unit functionUnit, call *ast.CallExpr) bool {
 		}
 	}
 	return false
-}
-
-func isLoggingCallSyntax(call *ast.CallExpr) bool {
-	if call == nil {
-		return false
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	switch sel.Sel.Name {
-	case "Error", "HTTPError", "ErrorContext", "Panic":
-		return true
-	default:
-		return false
-	}
 }
 
 func isSlogLoggerPointer(t types.Type) bool {

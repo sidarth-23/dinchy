@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunValidateLogReturnFlagsLoggingAndReturningFunction(t *testing.T) {
+func TestRunLogReturnFlagsLoggingAndReturningFunction(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -28,12 +28,12 @@ func flagged(ctx context.Context, logger *slog.Logger, err error) error {
 }
 `)
 
-	err := runValidateLogReturn([]string{filepath.Join(dir, "fixture.go")})
+	err := runLogReturn([]string{filepath.Join(dir, "fixture.go")})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "function \"flagged\" logs an error and also returns one")
 }
 
-func TestRunValidateLogReturnFlagsSlogErrorContext(t *testing.T) {
+func TestRunLogReturnFlagsSlogErrorContext(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -51,12 +51,12 @@ func flagged(ctx context.Context, logger *slog.Logger, err error) error {
 }
 `)
 
-	err := runValidateLogReturn([]string{filepath.Join(dir, "fixture.go")})
+	err := runLogReturn([]string{filepath.Join(dir, "fixture.go")})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "function \"flagged\" logs an error and also returns one")
 }
 
-func TestRunValidateLogReturnAcceptsBoundaryAndReturnOnlyFunctions(t *testing.T) {
+func TestRunLogReturnAcceptsBoundaryAndReturnOnlyFunctions(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -77,10 +77,10 @@ func service(err error) error {
 }
 `)
 
-	require.NoError(t, runValidateLogReturn([]string{filepath.Join(dir, "fixture.go")}))
+	require.NoError(t, runLogReturn([]string{filepath.Join(dir, "fixture.go")}))
 }
 
-func TestRunValidateLogReturnAllowsAnnotatedCleanupFunction(t *testing.T) {
+func TestRunLogReturnAllowsAnnotatedCleanupFunction(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -99,10 +99,10 @@ func allowed(ctx context.Context, logger *slog.Logger, err error) error {
 }
 `)
 
-	require.NoError(t, runValidateLogReturn([]string{filepath.Join(dir, "fixture.go")}))
+	require.NoError(t, runLogReturn([]string{filepath.Join(dir, "fixture.go")}))
 }
 
-func TestRunValidateLogReturnRejectsDirectiveWithoutReason(t *testing.T) {
+func TestRunLogReturnRejectsDirectiveWithoutReason(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -121,15 +121,15 @@ func flagged(ctx context.Context, logger *slog.Logger, err error) error {
 }
 `)
 
-	err := runValidateLogReturn([]string{filepath.Join(dir, "fixture.go")})
+	err := runLogReturn([]string{filepath.Join(dir, "fixture.go")})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "allow-logreturn directive requires a reason")
 }
 
-func TestRunValidateLogReturnAcceptsRealTree(t *testing.T) {
+func TestRunLogReturnAcceptsRealTree(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, runValidateLogReturn([]string{"./..."}))
+	require.NoError(t, runLogReturn([]string{"./..."}))
 }
 
 func writeModuleFixture(t *testing.T, dir string) {
