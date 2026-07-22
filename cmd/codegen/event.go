@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"io"
-	"os"
 	"slices"
 	"sort"
 
@@ -20,7 +19,7 @@ type (
 func runEvent(args []string) error {
 	fs := flag.NewFlagSet("event", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	input := fs.String("input", "catalog.json", "manifest input path")
+	input := fs.String("input", "catalog", "manifest input path (directory of fragments or single file)")
 	output := fs.String("output", "generated.go", "generated Go output path")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -29,12 +28,7 @@ func runEvent(args []string) error {
 }
 
 func generateEvent(inputPath, outputPath string) error {
-	raw, err := os.ReadFile(inputPath)
-	if err != nil {
-		return err
-	}
-
-	mf, err := manifest.DecodeEventCatalog(raw)
+	mf, err := manifest.LoadEventCatalog(inputPath)
 	if err != nil {
 		return err
 	}
@@ -54,14 +48,19 @@ func renderEventManifest(mf eventManifest) ([]byte, error) {
 	sort.Slice(events, func(i, j int) bool { return events[i].Type < events[j].Type })
 
 	view := eventFileView{}
-	for _, event := range events {
-		view.Events = append(view.Events, eventViewFor(event))
+	for i := range events {
+		ev := eventViewFor(events[i])
+		view.Events = append(view.Events, ev)
+		if eventViewNeedsTime(ev) {
+			view.NeedsTime = true
+		}
 	}
 	return renderTemplate("event.go.tmpl", view)
 }
 
 type eventFileView struct {
-	Events []eventView
+	Events    []eventView
+	NeedsTime bool
 }
 
 type eventView struct {
@@ -76,21 +75,23 @@ type eventView struct {
 	Description  string
 	Metadata     eventRecordView
 	Changes      eventRecordView
+	HasChanges   bool
+	ChangesType  string
 }
 
 type eventRecordView struct {
-	KeyTypeName     string
 	TypeName        string
 	ConstructorName string
 	Fields          []eventFieldView
 }
 
 type eventFieldView struct {
-	RawName      string
-	GoName       string
-	GoType       string
-	ParamName    string
-	KeyConstName string
+	RawName       string
+	GoName        string
+	GoType        string
+	ParamName     string
+	ParamPrevious string
+	ParamCurrent  string
 }
 
 func eventViewFor(event flattenedEvent) eventView {
@@ -100,6 +101,11 @@ func eventViewFor(event flattenedEvent) eventView {
 	}
 	if len(event.Path) > 2 {
 		subcategory = event.Path[2]
+	}
+	hasChanges := len(event.ChangeKeys) > 0
+	changesType := "NoChanges"
+	if hasChanges {
+		changesType = event.ConstantName + "Changes"
 	}
 	return eventView{
 		ConstantName: event.ConstantName,
@@ -111,28 +117,47 @@ func eventViewFor(event flattenedEvent) eventView {
 		Action:       event.Action,
 		Outcome:      event.Outcome,
 		Description:  event.Description,
-		Metadata:     eventRecordViewFor(event.ConstantName+"Metadata", event.ConstantName+"MetadataKey", "New"+event.ConstantName+"Metadata", event.MetadataKeys),
-		Changes:      eventRecordViewFor(event.ConstantName+"Changes", event.ConstantName+"ChangesKey", "New"+event.ConstantName+"Changes", event.ChangeKeys),
+		Metadata:     eventRecordViewFor(event.ConstantName+"Metadata", "New"+event.ConstantName+"Metadata", event.MetadataKeys),
+		Changes:      eventRecordViewFor(event.ConstantName+"Changes", "New"+event.ConstantName+"Changes", event.ChangeKeys),
+		HasChanges:   hasChanges,
+		ChangesType:  changesType,
 	}
 }
 
-func eventRecordViewFor(typeName, keyTypeName, constructorName string, keys []eventField) eventRecordView {
+func eventRecordViewFor(typeName, constructorName string, keys []eventField) eventRecordView {
 	record := eventRecordView{
-		KeyTypeName:     keyTypeName,
 		TypeName:        typeName,
 		ConstructorName: constructorName,
 	}
 	for _, key := range keys {
 		goName := manifest.GoName(key.Name)
+		paramName := manifest.LowerCamel(goName)
 		record.Fields = append(record.Fields, eventFieldView{
-			RawName:      key.Name,
-			GoName:       goName,
-			GoType:       key.Type,
-			ParamName:    manifest.LowerCamel(goName),
-			KeyConstName: keyTypeName + goName,
+			RawName:       key.Name,
+			GoName:        goName,
+			GoType:        key.Type,
+			ParamName:     paramName,
+			ParamPrevious: paramName + "Previous",
+			ParamCurrent:  paramName + "Current",
 		})
 	}
 	return record
+}
+
+func eventViewNeedsTime(event eventView) bool {
+	for _, field := range event.Metadata.Fields {
+		if field.GoType == "time.Time" {
+			return true
+		}
+	}
+	if event.HasChanges {
+		for _, field := range event.Changes.Fields {
+			if field.GoType == "time.Time" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type flattenedEvent struct {

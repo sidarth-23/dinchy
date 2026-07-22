@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"io"
-	"os"
 
 	manifest "github.com/sidarth-23/dinchy/internal/manifest"
 )
@@ -11,15 +10,11 @@ import (
 func runValidateEvent(args []string) error {
 	fs := flag.NewFlagSet("event", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	input := fs.String("input", "catalog.json", "manifest input path")
+	input := fs.String("input", "catalog", "manifest input path (directory of fragments or single file)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(*input)
-	if err != nil {
-		return err
-	}
-	catalog, err := manifest.DecodeEventCatalog(raw)
+	catalog, err := manifest.LoadEventCatalog(*input)
 	if err != nil {
 		return err
 	}

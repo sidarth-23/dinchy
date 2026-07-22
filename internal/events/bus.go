@@ -178,25 +178,9 @@ func (s *Service) consumerGroupName(subscriberName string) string {
 	return s.cfg.ConsumerGroupPrefix + ":" + subscriberName
 }
 
-func sanitizeMap(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return map[string]any{}
-	}
-	out := make(map[string]any, len(in))
-	for key, value := range in {
-		switch key {
-		case "password", "token", "secret", "client_secret", "cookie", "session", "totp_secret", "smtp_password":
-			out[key] = map[string]any{"redacted": true}
-		default:
-			out[key] = value
-		}
-	}
-	return out
-}
-
 func newRecord(event Event, definition Definition) Record {
 	envelope := event.EnvelopeData()
-	return Record{ID: envelope.ID, EventType: string(event.Type()), Category: definition.Category, Subcategory: definition.Subcategory, Action: definition.Action, Outcome: definition.Outcome, ActorUserID: envelope.ActorUserID, ActorOrganisationID: envelope.ActorOrganisationID, TargetType: envelope.TargetType, TargetID: envelope.TargetID, TargetDisplay: envelope.TargetDisplay, RequestID: envelope.RequestID, TraceID: envelope.TraceID, SpanID: envelope.SpanID, IPAddress: envelope.IPAddress, UserAgent: envelope.UserAgent, Metadata: sanitizeMap(event.MetadataMap()), Changes: sanitizeMap(event.ChangesMap()), CreatedAt: envelope.CreatedAt}
+	return Record{ID: envelope.ID, EventType: string(event.Type()), Category: definition.Category, Subcategory: definition.Subcategory, Action: definition.Action, Outcome: definition.Outcome, ActorUserID: envelope.ActorUserID, ActorOrganisationID: envelope.ActorOrganisationID, TargetType: envelope.TargetType, TargetID: envelope.TargetID, TargetDisplay: envelope.TargetDisplay, RequestID: envelope.RequestID, TraceID: envelope.TraceID, SpanID: envelope.SpanID, IPAddress: envelope.IPAddress, UserAgent: envelope.UserAgent, Metadata: event.MetadataMap(), Changes: event.ChangesMap(), CreatedAt: envelope.CreatedAt}
 }
 
 var _ Publisher = (*Service)(nil)

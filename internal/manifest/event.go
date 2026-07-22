@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -44,6 +47,117 @@ func DecodeEventCatalog(raw []byte) (EventCatalog, error) {
 		return EventCatalog{}, err
 	}
 	return catalog, nil
+}
+
+// LoadEventCatalog loads a catalog from path, which may be either a directory of
+// *.json fragments or a single fragment file. It decodes and merges but does not
+// validate; callers validate the result.
+func LoadEventCatalog(path string) (EventCatalog, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return EventCatalog{}, fmt.Errorf("stat event catalog %q: %w", path, err)
+	}
+	if info.IsDir() {
+		return LoadEventCatalogDir(path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return EventCatalog{}, fmt.Errorf("read event catalog %q: %w", path, err)
+	}
+	return DecodeEventCatalog(raw)
+}
+
+// LoadEventCatalogDir reads every *.json fragment in dir (in sorted filename
+// order), strictly decodes each, and deep-merges them into one catalog. It does
+// not validate the result; callers validate the merged catalog. It errors if dir
+// contains no fragments so an empty directory fails loudly at its source.
+func LoadEventCatalogDir(dir string) (EventCatalog, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	if err != nil {
+		return EventCatalog{}, fmt.Errorf("scan event catalog directory %q: %w", dir, err)
+	}
+	if len(matches) == 0 {
+		return EventCatalog{}, fmt.Errorf("no event fragments found in %q", dir)
+	}
+	sort.Strings(matches)
+
+	catalogs := make([]EventCatalog, 0, len(matches))
+	for _, path := range matches {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return EventCatalog{}, fmt.Errorf("read event fragment %q: %w", path, err)
+		}
+		catalog, err := DecodeEventCatalog(raw)
+		if err != nil {
+			return EventCatalog{}, fmt.Errorf("decode event fragment %q: %w", path, err)
+		}
+		catalogs = append(catalogs, catalog)
+	}
+	return MergeEventCatalogs(catalogs...)
+}
+
+// MergeEventCatalogs deep-merges catalogs by module ID at each level. Modules
+// sharing an ID under the same parent are merged recursively; events are only
+// concatenated, leaving duplicate detection to ValidateEventCatalog so its precise
+// errors are preserved. Conflicting non-empty descriptions for the same module
+// are an error.
+func MergeEventCatalogs(catalogs ...EventCatalog) (EventCatalog, error) {
+	var merged EventCatalog
+	for _, catalog := range catalogs {
+		modules, err := mergeEventModules(merged.Modules, catalog.Modules)
+		if err != nil {
+			return EventCatalog{}, err
+		}
+		merged.Modules = modules
+	}
+	return merged, nil
+}
+
+func mergeEventModules(dst, src []EventModule) ([]EventModule, error) {
+	index := make(map[string]int, len(dst))
+	for i, module := range dst {
+		index[module.ID] = i
+	}
+	for _, module := range src {
+		pos, ok := index[module.ID]
+		if !ok {
+			dst = append(dst, module)
+			index[module.ID] = len(dst) - 1
+			continue
+		}
+		combined, err := mergeEventModule(dst[pos], module)
+		if err != nil {
+			return nil, err
+		}
+		dst[pos] = combined
+	}
+	return dst, nil
+}
+
+func mergeEventModule(dst, src EventModule) (EventModule, error) {
+	description, err := mergeEventDescription(dst.ID, dst.Description, src.Description)
+	if err != nil {
+		return EventModule{}, err
+	}
+	dst.Description = description
+	dst.Events = append(append([]EventDefinition{}, dst.Events...), src.Events...)
+	children, err := mergeEventModules(dst.Modules, src.Modules)
+	if err != nil {
+		return EventModule{}, err
+	}
+	dst.Modules = children
+	return dst, nil
+}
+
+func mergeEventDescription(id, existing, incoming string) (string, error) {
+	switch {
+	case existing == "":
+		return incoming, nil
+	case incoming == "" || incoming == existing:
+		return existing, nil
+	default:
+		return "", fmt.Errorf("conflicting descriptions for module %q", id)
+	}
 }
 
 // ValidateEventCatalog reports whether the catalog is well-formed and free of

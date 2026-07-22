@@ -50,8 +50,10 @@ type permissionFileView struct {
 	Roles       []roleView
 	RoleNames   string
 }
-type permissionView struct{ ConstantName, Key, Module, Resource, Action, Description, I18nCode string }
-type roleView struct{ ConstantName, ID, Description, I18nCode, Permissions string }
+type (
+	permissionView struct{ ConstantName, Key, Module, Resource, Action, Description, I18nCode string }
+	roleView       struct{ ConstantName, ID, Description, I18nCode, Permissions string }
+)
 
 func renderPermissionManifest(catalog manifest.PermissionCatalog) ([]byte, error) {
 	view := permissionFileView{}
