@@ -34,7 +34,8 @@ func Recover(logger *slog.Logger, renderer *apperrors.Renderer) func(http.Handle
 				}
 
 				ctx := r.Context()
-				logging.Panic(ctx, logger, "Recovered handler panic", recovered, debug.Stack(),
+				logging.Panic(
+					ctx, logger, "Recovered handler panic", recovered, debug.Stack(),
 					slog.String("request_id", support.RequestIDFrom(ctx)),
 					slog.String("method", r.Method),
 					slog.String("path", r.URL.Path),

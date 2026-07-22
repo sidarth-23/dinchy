@@ -103,9 +103,11 @@ func TestLoadEventCatalogDirMergesSortedFragments(t *testing.T) {
 
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "auth.json"), []byte(
-		`{"modules":[{"id":"auth","modules":[{"id":"security","events":[{"id":"login_succeeded","action":"login","outcome":"succeeded"}]}]}]}`), 0o644))
+		`{"modules":[{"id":"auth","modules":[{"id":"security","events":[{"id":"login_succeeded","action":"login","outcome":"succeeded"}]}]}]}`,
+	), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "billing.json"), []byte(
-		`{"modules":[{"id":"billing","events":[{"id":"invoice_paid","action":"pay_invoice","outcome":"succeeded"}]}]}`), 0o644))
+		`{"modules":[{"id":"billing","events":[{"id":"invoice_paid","action":"pay_invoice","outcome":"succeeded"}]}]}`,
+	), 0o644))
 
 	catalog, err := LoadEventCatalogDir(dir)
 	require.NoError(t, err)

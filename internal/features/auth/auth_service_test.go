@@ -44,7 +44,7 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
 	clk := clock.Fixed(fixedTime)
-	noopMailer, err := email.NewMailer(email.NoopSender{}, "")
+	noopMailer, err := email.NewMailer(nil, "", false)
 	require.NoError(t, err)
 	publisher := &recordingPublisher{}
 	sharedService := module.Service{Clock: clk, IDGenerator: id.NewGenerator(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: noopMailer, EventPublisher: publisher}

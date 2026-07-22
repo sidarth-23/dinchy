@@ -50,6 +50,8 @@ type Config struct {
 	EventBus EventBusConfig
 	// Worker contains the background job scheduler settings.
 	Worker WorkerConfig
+	// Jobs contains the durable background job queue settings.
+	Jobs JobsConfig
 	// Logging controls application log formatting and level.
 	Logging LoggingConfig
 	// Telemetry controls OpenTelemetry logs and traces.
@@ -78,6 +80,7 @@ func Load() (Config, error) {
 		Cache:        DefaultCache(),
 		EventBus:     DefaultEventBus(),
 		Worker:       DefaultWorker(),
+		Jobs:         DefaultJobs(),
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),
 	}

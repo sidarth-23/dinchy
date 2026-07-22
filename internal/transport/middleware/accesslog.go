@@ -35,7 +35,8 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			requestLogger := logger.With(attrs...)
 			ctx := logging.WithLogger(r.Context(), requestLogger)
 			next.ServeHTTP(ww, r.WithContext(ctx))
-			requestLogger.InfoContext(ctx, "HTTP request completed",
+			requestLogger.InfoContext(
+				ctx, "HTTP request completed",
 				slog.Int("status", ww.Status()),
 				slog.Duration("duration", time.Since(startedAt)),
 			)

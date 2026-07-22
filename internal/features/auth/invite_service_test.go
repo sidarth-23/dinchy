@@ -15,6 +15,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -65,11 +66,14 @@ func TestCreateInvitation_SendsEmailAndStoresToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
 	assert.Equal(t, "invitee@example.com", invitation.Email)
-	assert.Len(t, sender.sent, 1)
-	assert.Equal(t, "invitee@example.com", sender.sent[0].To)
-	assert.Contains(t, sender.sent[0].Text, "Default")
-	assert.Contains(t, sender.sent[0].Text, "https://app.test/accept-invitation?token=")
-	assert.NotEmpty(t, sender.sent[0].HTML)
+	enqueuer := svc.Jobs.(*fakeEnqueuer)
+	require.Len(t, enqueuer.enqueued, 1)
+	args, ok := enqueuer.enqueued[0].(email.SendEmailArgs)
+	require.True(t, ok)
+	assert.Equal(t, "invitee@example.com", args.To)
+	assert.Contains(t, args.Text, "Default")
+	assert.Contains(t, args.Text, "https://app.test/accept-invitation?token=")
+	assert.NotEmpty(t, args.HTML)
 }
 
 func TestAcceptInvitation_CreatesUserAndSession(t *testing.T) {

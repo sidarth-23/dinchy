@@ -145,9 +145,11 @@ func TestLoadI18nCatalogDirMergesSortedFragments(t *testing.T) {
 
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "account.json"), []byte(
-		`{"modules":[{"name":"account","modules":[{"name":"auth","messages":[{"name":"forbidden","translations":{"en":"no"}}]}]}]}`), 0o644))
+		`{"modules":[{"name":"account","modules":[{"name":"auth","messages":[{"name":"forbidden","translations":{"en":"no"}}]}]}]}`,
+	), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "platform.json"), []byte(
-		`{"modules":[{"name":"platform","modules":[{"name":"config","messages":[{"name":"load_failed","translations":{"en":"boom"}}]}]}]}`), 0o644))
+		`{"modules":[{"name":"platform","modules":[{"name":"config","messages":[{"name":"load_failed","translations":{"en":"boom"}}]}]}]}`,
+	), 0o644))
 
 	catalog, err := LoadI18nCatalogDir(dir)
 	require.NoError(t, err)

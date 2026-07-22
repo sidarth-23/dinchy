@@ -16,6 +16,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/jobs"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 )
 
@@ -36,6 +37,7 @@ type Service struct {
 	CacheKeyer     cache.Keyer
 	Mailer         *email.Mailer
 	EventPublisher events.Publisher
+	Jobs           jobs.Enqueuer
 }
 
 // Named returns a named copy of the Service that shares its configured clients.
@@ -63,7 +65,7 @@ func (s *Service) Initialize() error {
 	}
 	if s.Mailer == nil {
 		var err error
-		s.Mailer, err = email.NewMailer(email.NoopSender{}, "")
+		s.Mailer, err = email.NewMailer(nil, "", false)
 		if err != nil {
 			return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("create default mailer for module %q: %w", s.ModuleName, err)))
 		}

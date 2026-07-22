@@ -79,7 +79,8 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 	if devMode {
 		target, err := url.Parse(devProxyURL)
 		if err != nil {
-			logging.Warn(context.Background(), logger, "Invalid dev proxy URL",
+			logging.Warn(
+				context.Background(), logger, "Invalid dev proxy URL",
 				slog.String("url", devProxyURL),
 				slog.Any("error", err),
 			)

@@ -9,6 +9,7 @@ import (
 	texttemplate "text/template"
 
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/jobs"
 )
 
 const (
@@ -16,14 +17,15 @@ const (
 	pathResetPassword    = "/reset-password"
 )
 
-// Mailer renders branded emails from the shared templates and hands them to a
-// Sender. It is the single typed entrypoint consumers use; they never assemble
-// a raw Message.
+// Mailer renders branded emails from the shared templates and enqueues them for
+// durable delivery via the job queue. It is the single typed entrypoint consumers
+// use; they never assemble a raw Message and never send inline.
 type Mailer struct {
-	sender  Sender
-	html    *htmltemplate.Template
-	text    *texttemplate.Template
-	baseURL *url.URL
+	enqueuer   jobs.Enqueuer
+	html       *htmltemplate.Template
+	text       *texttemplate.Template
+	baseURL    *url.URL
+	configured bool
 }
 
 // InvitationEmail is the typed input for an organization invitation email.
@@ -41,12 +43,10 @@ type PasswordResetEmail struct {
 }
 
 // NewMailer parses the email templates once and validates the public base URL
-// used to build call-to-action links. It fails fast when a configured sender
-// has no base URL to build links from.
-func NewMailer(sender Sender, publicBaseURL string) (*Mailer, error) {
-	if sender == nil {
-		sender = NoopSender{}
-	}
+// used to build call-to-action links. It fails fast when email delivery is
+// configured but there is no base URL to build links from. Delivery is durable:
+// rendered messages are enqueued through enqueuer and sent by SendEmailWorker.
+func NewMailer(enqueuer jobs.Enqueuer, publicBaseURL string, configured bool) (*Mailer, error) {
 	html, err := htmltemplate.ParseFS(templateFS, "templates/"+htmlLayoutName)
 	if err != nil {
 		return nil, fmt.Errorf("parse HTML email layout: %w", err)
@@ -55,22 +55,22 @@ func NewMailer(sender Sender, publicBaseURL string) (*Mailer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse text email layout: %w", err)
 	}
-	m := &Mailer{sender: sender, html: html, text: text}
+	m := &Mailer{enqueuer: enqueuer, html: html, text: text, configured: configured}
 	if publicBaseURL != "" {
 		base, err := url.Parse(publicBaseURL)
 		if err != nil {
 			return nil, fmt.Errorf("parse public base URL %q: %w", publicBaseURL, err)
 		}
 		m.baseURL = base
-	} else if sender.Configured() {
+	} else if configured {
 		return nil, fmt.Errorf("public base URL is required when email delivery is configured")
 	}
 	return m, nil
 }
 
-// Configured reports whether the underlying sender can deliver mail.
+// Configured reports whether email delivery is configured.
 func (m *Mailer) Configured() bool {
-	return m.sender.Configured()
+	return m.configured
 }
 
 // SendInvitation renders and sends an organization invitation email.
@@ -107,8 +107,12 @@ func (m *Mailer) send(ctx context.Context, to string, content presentation) erro
 	if err := m.html.ExecuteTemplate(&htmlBuilder, htmlLayoutName, content); err != nil {
 		return fmt.Errorf("render HTML body for subject %q: %w", content.Subject, err)
 	}
-	if err := m.sender.Send(ctx, Message{To: to, Subject: content.Subject, Text: textBuilder.String(), HTML: htmlBuilder.String()}); err != nil {
-		return fmt.Errorf("deliver email to %q: %w", to, err)
+	if m.enqueuer == nil {
+		return fmt.Errorf("enqueue email to %q: %w", to, ErrNotConfigured)
+	}
+	args := SendEmailArgs{To: to, Subject: content.Subject, Text: textBuilder.String(), HTML: htmlBuilder.String()}
+	if err := m.enqueuer.Enqueue(ctx, args, nil); err != nil {
+		return fmt.Errorf("enqueue email to %q: %w", to, err)
 	}
 	return nil
 }

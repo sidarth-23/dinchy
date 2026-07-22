@@ -10,7 +10,9 @@ import (
 	"net/http"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/jackc/pgx/v5"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/riverqueue/river"
 
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
@@ -26,6 +28,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/jobs"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/platform/store"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -41,6 +44,7 @@ type App struct {
 	public   *http.Server
 	internal *http.Server
 	workers  gocron.Scheduler
+	jobs     *river.Client[pgx.Tx]
 	errCh    chan error
 	logger   *slog.Logger
 }
@@ -61,6 +65,9 @@ func (a *App) Start() error {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppOpenStore), apperrors.WithCause(err))
 	}
 	a.closer = s
+	if err := jobs.Migrate(ctx, s.Pool(), a.logger); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
 	queries := sqlcgen.New(s.Pool())
 	redisClient, err := cache.OpenRedis(ctx, a.cfg.Redis)
 	if err != nil {
@@ -80,12 +87,20 @@ func (a *App) Start() error {
 		}
 		sender = smtpSender
 	}
-	mailer, err := email.NewMailer(sender, a.cfg.PublicBaseURL)
+	riverWorkers := river.NewWorkers()
+	river.AddWorker(riverWorkers, email.NewSendEmailWorker(sender))
+	riverClient, err := jobs.New(s.Pool(), a.logger, a.cfg.Jobs, riverWorkers)
+	if err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
+	a.jobs = riverClient
+	enqueuer := jobs.NewEnqueuer(riverClient)
+	mailer, err := email.NewMailer(enqueuer, a.cfg.PublicBaseURL, a.cfg.SMTP.Enabled())
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
 	keyer := cache.NewKeyer(a.cfg.Redis.KeyPrefix)
-	sharedService := module.Service{BaseLogger: a.logger, Clock: clk, IDGenerator: id.NewGenerator(), Database: s.Pool(), RedisClient: redisClient, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc}
+	sharedService := module.Service{BaseLogger: a.logger, Clock: clk, IDGenerator: id.NewGenerator(), Database: s.Pool(), RedisClient: redisClient, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc, Jobs: enqueuer}
 	auditSvc, err := audit.NewService(sharedService.Named("audit"), queries)
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
@@ -128,6 +143,9 @@ func (a *App) Start() error {
 	}
 	scheduler.Start()
 	a.workers = scheduler
+	if err := riverClient.Start(ctx); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
 	go func() { a.errCh <- a.public.ListenAndServe() }()
 	go func() { a.errCh <- a.internal.ListenAndServe() }()
 	logging.Info(ctx, a.logger, "Application started", slog.String("public_addr", a.cfg.Addr), slog.String("internal_addr", a.cfg.InternalAddr), slog.Bool("dev_mode", a.cfg.DevMode))
@@ -140,6 +158,11 @@ func (a *App) Shutdown(ctx context.Context) error {
 	logging.Info(ctx, a.logger, "Application stopping")
 	if a.workers != nil {
 		if err := a.workers.ShutdownWithContext(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
+	}
+	if a.jobs != nil {
+		if err := a.jobs.Stop(ctx); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}

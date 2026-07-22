@@ -26,6 +26,8 @@ import (
 // the cache namespace literal appears.
 const sessionCacheNamespace = "session"
 
+//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/access/session -destination=store_mockdata_test.go -package=session . Store
+
 // Store is the persistence surface the session service depends on.
 type Store interface {
 	InsertSession(ctx context.Context, arg sqlcgen.InsertSessionParams) error

@@ -5,40 +5,57 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
-type captureSender struct {
-	configured bool
-	sent       []Message
+type captureEnqueuer struct {
+	enqueued []river.JobArgs
 }
 
-func (c *captureSender) Configured() bool { return c.configured }
-
-func (c *captureSender) Send(_ context.Context, msg Message) error {
-	c.sent = append(c.sent, msg)
+func (c *captureEnqueuer) Enqueue(_ context.Context, args river.JobArgs, _ *river.InsertOpts) error {
+	c.enqueued = append(c.enqueued, args)
 	return nil
+}
+
+func (c *captureEnqueuer) EnqueueTx(_ context.Context, _ pgx.Tx, args river.JobArgs, _ *river.InsertOpts) error {
+	c.enqueued = append(c.enqueued, args)
+	return nil
+}
+
+func (c *captureEnqueuer) only(t *testing.T) SendEmailArgs {
+	t.Helper()
+	if len(c.enqueued) != 1 {
+		t.Fatalf("expected 1 enqueued email, got %d", len(c.enqueued))
+	}
+	args, ok := c.enqueued[0].(SendEmailArgs)
+	if !ok {
+		t.Fatalf("enqueued job is %T, want SendEmailArgs", c.enqueued[0])
+	}
+	return args
 }
 
 func TestNewMailer_RequiresBaseURLWhenConfigured(t *testing.T) {
 	t.Parallel()
 
-	if _, err := NewMailer(&captureSender{configured: true}, ""); err == nil {
-		t.Fatal("expected error when a configured sender has no public base URL")
+	if _, err := NewMailer(&captureEnqueuer{}, "", true); err == nil {
+		t.Fatal("expected error when email is configured but has no public base URL")
 	}
-	if _, err := NewMailer(NoopSender{}, ""); err != nil {
-		t.Fatalf("noop sender should not require a base URL: %v", err)
+	if _, err := NewMailer(&captureEnqueuer{}, "", false); err != nil {
+		t.Fatalf("unconfigured mailer should not require a base URL: %v", err)
 	}
 }
 
 func TestMailer_Configured(t *testing.T) {
 	t.Parallel()
 
-	mailer, err := NewMailer(NoopSender{}, "")
+	mailer, err := NewMailer(nil, "", false)
 	if err != nil {
 		t.Fatalf("NewMailer: %v", err)
 	}
 	if mailer.Configured() {
-		t.Fatal("noop-backed mailer must report not configured")
+		t.Fatal("unconfigured mailer must report not configured")
 	}
 	if err := mailer.SendPasswordReset(context.Background(), PasswordResetEmail{To: "user@example.com", Token: "tok"}); !errors.Is(err, ErrNotConfigured) {
 		t.Fatalf("expected ErrNotConfigured, got %v", err)
@@ -48,8 +65,8 @@ func TestMailer_Configured(t *testing.T) {
 func TestMailer_SendInvitation(t *testing.T) {
 	t.Parallel()
 
-	sender := &captureSender{configured: true}
-	mailer, err := NewMailer(sender, "https://app.test")
+	enqueuer := &captureEnqueuer{}
+	mailer, err := NewMailer(enqueuer, "https://app.test", true)
 	if err != nil {
 		t.Fatalf("NewMailer: %v", err)
 	}
@@ -63,10 +80,7 @@ func TestMailer_SendInvitation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendInvitation: %v", err)
 	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(sender.sent))
-	}
-	msg := sender.sent[0]
+	msg := enqueuer.only(t)
 	if msg.To != "invitee@example.com" {
 		t.Errorf("unexpected recipient %q", msg.To)
 	}
@@ -88,8 +102,8 @@ func TestMailer_SendInvitation(t *testing.T) {
 func TestMailer_SendPasswordReset(t *testing.T) {
 	t.Parallel()
 
-	sender := &captureSender{configured: true}
-	mailer, err := NewMailer(sender, "https://app.test")
+	enqueuer := &captureEnqueuer{}
+	mailer, err := NewMailer(enqueuer, "https://app.test", true)
 	if err != nil {
 		t.Fatalf("NewMailer: %v", err)
 	}
@@ -97,10 +111,7 @@ func TestMailer_SendPasswordReset(t *testing.T) {
 	if err := mailer.SendPasswordReset(context.Background(), PasswordResetEmail{To: "user@example.com", Token: "reset-token"}); err != nil {
 		t.Fatalf("SendPasswordReset: %v", err)
 	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(sender.sent))
-	}
-	msg := sender.sent[0]
+	msg := enqueuer.only(t)
 	wantLink := "https://app.test/reset-password?token=reset-token"
 	if !strings.Contains(msg.Text, wantLink) {
 		t.Errorf("plaintext body missing CTA link %q:\n%s", wantLink, msg.Text)

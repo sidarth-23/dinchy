@@ -28,9 +28,11 @@ func TestLoadPermissionCatalogCombinesFiles(t *testing.T) {
 	permissionsPath := filepath.Join(dir, "permissions.json")
 	rolesPath := filepath.Join(dir, "roles.json")
 	require.NoError(t, os.WriteFile(permissionsPath, []byte(
-		`{"modules":[{"id":"audit","description":"Audit","entries":[{"resource":"logs","action":"read","description":"View logs","i18n_code":"perm.audit.logs.read"}]}]}`), 0o644))
+		`{"modules":[{"id":"audit","description":"Audit","entries":[{"resource":"logs","action":"read","description":"View logs","i18n_code":"perm.audit.logs.read"}]}]}`,
+	), 0o644))
 	require.NoError(t, os.WriteFile(rolesPath, []byte(
-		`{"roles":[{"id":"admin","description":"Admin","i18n_code":"role.admin","permissions":["audit.logs.read"]}]}`), 0o644))
+		`{"roles":[{"id":"admin","description":"Admin","i18n_code":"role.admin","permissions":["audit.logs.read"]}]}`,
+	), 0o644))
 
 	catalog, err := LoadPermissionCatalog(permissionsPath, rolesPath)
 	require.NoError(t, err)

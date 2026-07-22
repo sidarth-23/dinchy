@@ -42,7 +42,8 @@ func logError(ctx context.Context, logger *slog.Logger, message string, err erro
 		if appErr.Status() < http.StatusInternalServerError {
 			return
 		}
-		attrs = append(attrs,
+		attrs = append(
+			attrs,
 			slog.Int("status", appErr.Status()),
 			slog.String("code", string(appErr.Code())),
 		)
@@ -77,7 +78,8 @@ func codePathAttrs(code string) []any {
 	case 2:
 		return append(attrs, slog.String("operation", segments[1]))
 	default:
-		return append(attrs,
+		return append(
+			attrs,
 			slog.String("area", segments[1]),
 			slog.String("operation", strings.Join(segments[2:], ".")),
 		)
@@ -90,7 +92,8 @@ func Panic(ctx context.Context, logger *slog.Logger, message string, recovered a
 	if logger == nil {
 		logger = slog.Default()
 	}
-	attrs = append(attrs,
+	attrs = append(
+		attrs,
 		slog.Any("panic", recovered),
 		slog.String("stack", string(stack)),
 	)
