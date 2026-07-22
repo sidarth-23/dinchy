@@ -54,7 +54,7 @@ const (
 // Invitation is a pending or resolved invitation for a user to join an organization.
 type Invitation struct {
 	ID              string
-	OrganisationID  string
+	OrganizationID  string
 	Email           string
 	Role            permission.Role
 	Status          InvitationStatus
@@ -82,15 +82,15 @@ type TwoFactor struct {
 type CreateUserInput struct {
 	ID                   string
 	AccountID            string
-	OrganisationID       string
-	OrganisationMemberID string
+	OrganizationID       string
+	OrganizationMemberID string
 	AdminRoleID          string
 	MemberRoleID         string
 	Email                string
 	PasswordHash         string
 	DisplayName          string
-	OrganisationName     string
-	OrganisationSlug     string
+	OrganizationName     string
+	OrganizationSlug     string
 	Now                  time.Time
 }
 
@@ -99,25 +99,25 @@ type Store interface {
 	CountUsers(ctx context.Context) (int64, error)
 	InsertUser(ctx context.Context, arg sqlcgen.InsertUserParams) error
 	InsertAccount(ctx context.Context, arg sqlcgen.InsertAccountParams) error
-	InsertOrganisation(ctx context.Context, arg sqlcgen.InsertOrganisationParams) error
-	InsertOrganisationRole(ctx context.Context, arg sqlcgen.InsertOrganisationRoleParams) error
-	InsertOrganisationRolePermission(ctx context.Context, arg sqlcgen.InsertOrganisationRolePermissionParams) error
-	InsertOrganisationMember(ctx context.Context, arg sqlcgen.InsertOrganisationMemberParams) error
+	InsertOrganization(ctx context.Context, arg sqlcgen.InsertOrganizationParams) error
+	InsertOrganizationRole(ctx context.Context, arg sqlcgen.InsertOrganizationRoleParams) error
+	InsertOrganizationRolePermission(ctx context.Context, arg sqlcgen.InsertOrganizationRolePermissionParams) error
+	InsertOrganizationMember(ctx context.Context, arg sqlcgen.InsertOrganizationMemberParams) error
 	FindUserByEmail(ctx context.Context, email string) (sqlcgen.FindUserByEmailRow, error)
 	UpdateUserEmailVerifiedAt(ctx context.Context, arg sqlcgen.UpdateUserEmailVerifiedAtParams) error
 	FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindPasswordAccountByUserIDRow, error)
 	FindUserByProviderAccount(ctx context.Context, arg sqlcgen.FindUserByProviderAccountParams) (sqlcgen.FindUserByProviderAccountRow, error)
-	ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganisationsForUserRow, error)
-	FindOrganisationBySlugForUser(ctx context.Context, arg sqlcgen.FindOrganisationBySlugForUserParams) (sqlcgen.FindOrganisationBySlugForUserRow, error)
-	FindOrganisationByIDForUser(ctx context.Context, arg sqlcgen.FindOrganisationByIDForUserParams) (sqlcgen.FindOrganisationByIDForUserRow, error)
+	ListOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganizationsForUserRow, error)
+	FindOrganizationBySlugForUser(ctx context.Context, arg sqlcgen.FindOrganizationBySlugForUserParams) (sqlcgen.FindOrganizationBySlugForUserRow, error)
+	FindOrganizationByIDForUser(ctx context.Context, arg sqlcgen.FindOrganizationByIDForUserParams) (sqlcgen.FindOrganizationByIDForUserRow, error)
 	UpdateUserPasswordHash(ctx context.Context, arg sqlcgen.UpdateUserPasswordHashParams) error
 	InsertVerificationToken(ctx context.Context, arg sqlcgen.InsertVerificationTokenParams) error
 	FindVerificationToken(ctx context.Context, arg sqlcgen.FindVerificationTokenParams) (sqlcgen.FindVerificationTokenRow, error)
 	ConsumeVerificationToken(ctx context.Context, arg sqlcgen.ConsumeVerificationTokenParams) error
-	InsertOrganisationInvitation(ctx context.Context, arg sqlcgen.InsertOrganisationInvitationParams) error
-	FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganisationInvitationByTokenRow, error)
-	FindPendingOrganisationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganisationInvitationByEmailParams) (sqlcgen.FindPendingOrganisationInvitationByEmailRow, error)
-	ConsumeOrganisationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganisationInvitationParams) error
+	InsertOrganizationInvitation(ctx context.Context, arg sqlcgen.InsertOrganizationInvitationParams) error
+	FindOrganizationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganizationInvitationByTokenRow, error)
+	FindPendingOrganizationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganizationInvitationByEmailParams) (sqlcgen.FindPendingOrganizationInvitationByEmailRow, error)
+	ConsumeOrganizationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganizationInvitationParams) error
 	InsertOrReplaceTwoFactor(ctx context.Context, arg sqlcgen.InsertOrReplaceTwoFactorParams) error
 	FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error)
 	ConfirmTwoFactor(ctx context.Context, arg sqlcgen.ConfirmTwoFactorParams) error
@@ -145,8 +145,8 @@ type ViewerOut struct {
 	Role        string `json:"role" doc:"User role"`
 }
 
-// OrganisationOut is an organization projection returned in bootstrap responses.
-type OrganisationOut struct {
+// OrganizationOut is an organization projection returned in bootstrap responses.
+type OrganizationOut struct {
 	ID   string `json:"id" doc:"Organization identifier"`
 	Name string `json:"name" doc:"Organization display name"`
 	Slug string `json:"slug" doc:"Organization slug"`
@@ -164,8 +164,8 @@ type BootstrapBody struct {
 	Authenticated      bool              `json:"authenticated" doc:"True when the request carries a valid session cookie"`
 	App                AppOut            `json:"app" doc:"Application-level metadata"`
 	Viewer             *ViewerOut        `json:"viewer" doc:"Current authenticated user, or null when not authenticated"`
-	ActiveOrganisation *OrganisationOut  `json:"active_organization,omitempty"`
-	Organizations      []OrganisationOut `json:"organizations,omitempty"`
+	ActiveOrganization *OrganizationOut  `json:"active_organization,omitempty"`
+	Organizations      []OrganizationOut `json:"organizations,omitempty"`
 }
 
 // BootstrapOut is the response type for the bootstrap endpoint.
@@ -177,7 +177,7 @@ type BootstrapOut struct {
 type LoginBody struct {
 	Email            string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"User email address"`
 	Password         string `json:"password" minLength:"1" maxLength:"128" example:"correct horse battery staple" doc:"User password"`
-	OrganisationSlug string `json:"organization_slug,omitempty" maxLength:"64" example:"acme" doc:"Organization slug when the user has multiple memberships"`
+	OrganizationSlug string `json:"organization_slug,omitempty" maxLength:"64" example:"acme" doc:"Organization slug when the user has multiple memberships"`
 	TOTPCode         string `json:"totp_code,omitempty" maxLength:"8" example:"123456" doc:"TOTP code when two-factor authentication is enabled"`
 }
 
@@ -185,7 +185,7 @@ type LoginBody struct {
 // so downstream services receive canonical values.
 func (b *LoginBody) Resolve(huma.Context) []error {
 	transform.ApplyTo(transform.SpecEmail, &b.Email)
-	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+	transform.ApplyTo(transform.SpecTrim, &b.OrganizationSlug)
 	transform.ApplyTo(transform.SpecTrim, &b.TOTPCode)
 	return nil
 }
@@ -201,24 +201,24 @@ type LoginOut struct {
 	Body      BootstrapBody
 }
 
-// SelectOrganisationBody names the organization to make active for the session.
-type SelectOrganisationBody struct {
-	OrganisationSlug string `json:"organization_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organization to make active"`
+// SelectOrganizationBody names the organization to make active for the session.
+type SelectOrganizationBody struct {
+	OrganizationSlug string `json:"organization_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organization to make active"`
 }
 
 // Resolve trims the organization slug before it reaches the service.
-func (b *SelectOrganisationBody) Resolve(huma.Context) []error {
-	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+func (b *SelectOrganizationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.OrganizationSlug)
 	return nil
 }
 
-// SelectOrganisationIn is the huma input type for selecting the active organization.
-type SelectOrganisationIn struct {
-	Body SelectOrganisationBody
+// SelectOrganizationIn is the huma input type for selecting the active organization.
+type SelectOrganizationIn struct {
+	Body SelectOrganizationBody
 }
 
-// SelectOrganisationOut returns the refreshed bootstrap state and updates the session cookie.
-type SelectOrganisationOut struct {
+// SelectOrganizationOut returns the refreshed bootstrap state and updates the session cookie.
+type SelectOrganizationOut struct {
 	SetCookie []http.Cookie `header:"Set-Cookie"`
 	Body      BootstrapBody
 }

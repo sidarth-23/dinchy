@@ -32,7 +32,7 @@ var Definitions = map[Type]Definition{
 		Action:       "login",
 		Outcome:      "succeeded",
 		Description:  "A login attempt was accepted",
-		MetadataKeys: []string{"email", "organisation_slug"},
+		MetadataKeys: []string{"email", "organization_slug"},
 	},
 	AuthSecurityAuthLogoutSucceeded: {
 		ID:           "logout_succeeded",
@@ -101,20 +101,20 @@ type AuthSecurityAuthLoginFailedEvent = TypedEvent[AuthSecurityAuthLoginFailedMe
 
 type AuthSecurityAuthLoginSucceededMetadata struct {
 	Email            string
-	OrganisationSlug string
+	OrganizationSlug string
 }
 
 func (value AuthSecurityAuthLoginSucceededMetadata) Map() map[string]any {
 	return map[string]any{
 		"email":             value.Email,
-		"organisation_slug": value.OrganisationSlug,
+		"organization_slug": value.OrganizationSlug,
 	}
 }
 
-func NewAuthSecurityAuthLoginSucceededMetadata(email string, organisationSlug string) AuthSecurityAuthLoginSucceededMetadata {
+func NewAuthSecurityAuthLoginSucceededMetadata(email string, organizationSlug string) AuthSecurityAuthLoginSucceededMetadata {
 	return AuthSecurityAuthLoginSucceededMetadata{
 		Email:            email,
-		OrganisationSlug: organisationSlug,
+		OrganizationSlug: organizationSlug,
 	}
 }
 

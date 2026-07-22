@@ -20,13 +20,13 @@ import (
 
 const invitationStatusPending = "pending"
 
-func invitationFromFindRow(row sqlcgen.FindOrganisationInvitationByTokenRow) *Invitation {
+func invitationFromFindRow(row sqlcgen.FindOrganizationInvitationByTokenRow) *Invitation {
 	if row.ID == uuid.Nil {
 		return nil
 	}
 	invitation := &Invitation{
 		ID:              row.ID.String(),
-		OrganisationID:  row.OrganisationID.String(),
+		OrganizationID:  row.OrganizationID.String(),
 		Email:           row.Email,
 		Role:            permission.Role(row.Role),
 		Status:          InvitationStatus(row.Status),
@@ -52,28 +52,28 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAccountAuthForbidden))
 	}
 	now := s.Clock.Now().UTC()
-	organisationID := id.MustParse(inviter.OrganisationID)
+	organizationID := id.MustParse(inviter.OrganizationID)
 
 	if userRow, err := s.store.FindUserByEmail(ctx, emailAddress); err == nil {
 		if user := userFromFindUserRow(userRow); user != nil {
-			if _, membershipErr := s.store.FindOrganisationByIDForUser(ctx, sqlcgen.FindOrganisationByIDForUserParams{
+			if _, membershipErr := s.store.FindOrganizationByIDForUser(ctx, sqlcgen.FindOrganizationByIDForUserParams{
 				UserID: id.MustParse(user.ID),
-				ID:     organisationID,
+				ID:     organizationID,
 			}); membershipErr == nil {
 				return nil, apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthInvitationExists))
 			} else if !errors.Is(membershipErr, pgx.ErrNoRows) {
-				return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindOrganisation), apperrors.WithCause(membershipErr))
+				return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindOrganization), apperrors.WithCause(membershipErr))
 			}
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindUser), apperrors.WithCause(err))
 	}
 
-	if pendingInvitation, err := s.store.FindPendingOrganisationInvitationByEmail(ctx, sqlcgen.FindPendingOrganisationInvitationByEmailParams{
-		OrganisationID: organisationID,
+	if pendingInvitation, err := s.store.FindPendingOrganizationInvitationByEmail(ctx, sqlcgen.FindPendingOrganizationInvitationByEmailParams{
+		OrganizationID: organizationID,
 		Email:          emailAddress,
 	}); err == nil {
-		if invitationFromFindRow(sqlcgen.FindOrganisationInvitationByTokenRow(pendingInvitation)) != nil {
+		if invitationFromFindRow(sqlcgen.FindOrganizationInvitationByTokenRow(pendingInvitation)) != nil {
 			return nil, apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthInvitationExists))
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -86,9 +86,9 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 	}
 	invitationID := s.IDGenerator.New()
 	expiresAt := now.Add(s.authConfig.InviteLifetime)
-	if err := s.store.InsertOrganisationInvitation(ctx, sqlcgen.InsertOrganisationInvitationParams{
+	if err := s.store.InsertOrganizationInvitation(ctx, sqlcgen.InsertOrganizationInvitationParams{
 		ID:              id.MustParse(invitationID),
-		OrganisationID:  organisationID,
+		OrganizationID:  organizationID,
 		Email:           emailAddress,
 		Role:            string(invitationRole),
 		Status:          invitationStatusPending,
@@ -100,12 +100,12 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 	}); err != nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationCreateInvitation), apperrors.WithCause(err))
 	}
-	if err := s.Mailer.Send(ctx, emailAddress, s.invitationContent(inviter.OrganisationName, string(invitationRole), rawToken)); err != nil {
+	if err := s.Mailer.Send(ctx, emailAddress, s.invitationContent(inviter.OrganizationName, string(invitationRole), rawToken)); err != nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationSendEmail), apperrors.WithCause(err))
 	}
 	return &Invitation{
 		ID:              invitationID,
-		OrganisationID:  organisationID.String(),
+		OrganizationID:  organizationID.String(),
 		Email:           emailAddress,
 		Role:            invitationRole,
 		Status:          InvitationStatusPending,
@@ -124,7 +124,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationBeginTx), apperrors.WithCause(err))
 	}
 	now := s.Clock.Now().UTC()
-	invitationRow, err := tx.queries.FindOrganisationInvitationByToken(ctx, security.HashToken(token))
+	invitationRow, err := tx.queries.FindOrganizationInvitationByToken(ctx, security.HashToken(token))
 	if err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
@@ -264,15 +264,15 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindAccount), apperrors.WithCause(err))
 	}
 
-	if memberRow, err := tx.queries.FindOrganisationByIDForUser(ctx, sqlcgen.FindOrganisationByIDForUserParams{
+	if memberRow, err := tx.queries.FindOrganizationByIDForUser(ctx, sqlcgen.FindOrganizationByIDForUserParams{
 		UserID: id.MustParse(user.ID),
-		ID:     id.MustParse(invitation.OrganisationID),
+		ID:     id.MustParse(invitation.OrganizationID),
 	}); err == nil {
 		_ = memberRow
 	} else if errors.Is(err, pgx.ErrNoRows) {
-		if err := tx.queries.InsertOrganisationMember(ctx, sqlcgen.InsertOrganisationMemberParams{
+		if err := tx.queries.InsertOrganizationMember(ctx, sqlcgen.InsertOrganizationMemberParams{
 			ID:             id.MustParse(s.IDGenerator.New()),
-			OrganisationID: id.MustParse(invitation.OrganisationID),
+			OrganizationID: id.MustParse(invitation.OrganizationID),
 			UserID:         id.MustParse(user.ID),
 			Role:           string(invitation.Role),
 			CreatedAt:      sqltype.Timestamptz(now),
@@ -289,14 +289,14 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	} else {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
-				apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindOrganisation), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindOrganization), apperrors.WithCause(err)),
 				apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
-		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindOrganisation), apperrors.WithCause(err))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationFindOrganization), apperrors.WithCause(err))
 	}
 
-	if err := tx.queries.ConsumeOrganisationInvitation(ctx, sqlcgen.ConsumeOrganisationInvitationParams{
+	if err := tx.queries.ConsumeOrganizationInvitation(ctx, sqlcgen.ConsumeOrganizationInvitationParams{
 		ID:         id.MustParse(invitation.ID),
 		AcceptedAt: sqltype.Timestamptz(now),
 		UpdatedAt:  sqltype.Timestamptz(now),
@@ -313,7 +313,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationCommit), apperrors.WithCause(err))
 	}
 
-	token, sessionErr := s.sessions.Create(ctx, user.ID, invitation.OrganisationID, ip, userAgent)
+	token, sessionErr := s.sessions.Create(ctx, user.ID, invitation.OrganizationID, ip, userAgent)
 	if sessionErr != nil {
 		return "", sessionErr
 	}

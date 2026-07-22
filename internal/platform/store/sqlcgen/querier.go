@@ -13,38 +13,38 @@ import (
 
 type Querier interface {
 	ConfirmTwoFactor(ctx context.Context, arg ConfirmTwoFactorParams) error
-	ConsumeOrganisationInvitation(ctx context.Context, arg ConsumeOrganisationInvitationParams) error
+	ConsumeOrganizationInvitation(ctx context.Context, arg ConsumeOrganizationInvitationParams) error
 	ConsumeVerificationToken(ctx context.Context, arg ConsumeVerificationTokenParams) error
 	CountUsers(ctx context.Context) (int64, error)
 	DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEndedSessionsOlderThanParams) (pgconn.CommandTag, error)
 	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
 	EnsureDefaultSettings(ctx context.Context, arg EnsureDefaultSettingsParams) error
-	FindOrganisationByIDForUser(ctx context.Context, arg FindOrganisationByIDForUserParams) (FindOrganisationByIDForUserRow, error)
-	FindOrganisationBySlugForUser(ctx context.Context, arg FindOrganisationBySlugForUserParams) (FindOrganisationBySlugForUserRow, error)
-	FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (FindOrganisationInvitationByTokenRow, error)
+	FindOrganizationByIDForUser(ctx context.Context, arg FindOrganizationByIDForUserParams) (FindOrganizationByIDForUserRow, error)
+	FindOrganizationBySlugForUser(ctx context.Context, arg FindOrganizationBySlugForUserParams) (FindOrganizationBySlugForUserRow, error)
+	FindOrganizationInvitationByToken(ctx context.Context, tokenHash string) (FindOrganizationInvitationByTokenRow, error)
 	FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (FindPasswordAccountByUserIDRow, error)
-	FindPendingOrganisationInvitationByEmail(ctx context.Context, arg FindPendingOrganisationInvitationByEmailParams) (FindPendingOrganisationInvitationByEmailRow, error)
+	FindPendingOrganizationInvitationByEmail(ctx context.Context, arg FindPendingOrganizationInvitationByEmailParams) (FindPendingOrganizationInvitationByEmailRow, error)
 	FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (FindTwoFactorByUserIDRow, error)
 	FindUserByEmail(ctx context.Context, email string) (FindUserByEmailRow, error)
 	FindUserByProviderAccount(ctx context.Context, arg FindUserByProviderAccountParams) (FindUserByProviderAccountRow, error)
 	FindVerificationToken(ctx context.Context, arg FindVerificationTokenParams) (FindVerificationTokenRow, error)
-	GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error)
+	GetActiveSessionTokenHashesForOrganization(ctx context.Context, activeOrganizationID uuid.UUID) ([]string, error)
 	GetActiveSessionTokenHashesForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 	GetInstanceName(ctx context.Context) (string, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (GetSessionByTokenHashRow, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) error
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
 	InsertOrReplaceTwoFactor(ctx context.Context, arg InsertOrReplaceTwoFactorParams) error
-	InsertOrganisation(ctx context.Context, arg InsertOrganisationParams) error
-	InsertOrganisationInvitation(ctx context.Context, arg InsertOrganisationInvitationParams) error
-	InsertOrganisationMember(ctx context.Context, arg InsertOrganisationMemberParams) error
-	InsertOrganisationRole(ctx context.Context, arg InsertOrganisationRoleParams) error
-	InsertOrganisationRolePermission(ctx context.Context, arg InsertOrganisationRolePermissionParams) error
+	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) error
+	InsertOrganizationInvitation(ctx context.Context, arg InsertOrganizationInvitationParams) error
+	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) error
+	InsertOrganizationRole(ctx context.Context, arg InsertOrganizationRoleParams) error
+	InsertOrganizationRolePermission(ctx context.Context, arg InsertOrganizationRolePermissionParams) error
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertVerificationToken(ctx context.Context, arg InsertVerificationTokenParams) error
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AppAuditLog, error)
-	ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]ListOrganisationsForUserRow, error)
+	ListOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]ListOrganizationsForUserRow, error)
 	MarkTwoFactorUsed(ctx context.Context, arg MarkTwoFactorUsedParams) error
 	RegisterTwoFactorFailure(ctx context.Context, arg RegisterTwoFactorFailureParams) error
 	RevokeSessionByTokenHash(ctx context.Context, arg RevokeSessionByTokenHashParams) error

@@ -27,13 +27,13 @@ func (q *Queries) DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEn
 	return q.db.Exec(ctx, deleteEndedSessionsOlderThan, arg.ExpiresAt, arg.UpdatedAt)
 }
 
-const getActiveSessionTokenHashesForOrganisation = `-- name: GetActiveSessionTokenHashesForOrganisation :many
+const getActiveSessionTokenHashesForOrganization = `-- name: GetActiveSessionTokenHashesForOrganization :many
 SELECT token_hash FROM sessions
-WHERE active_organisation_id = $1 AND revoked_at IS NULL
+WHERE active_organization_id = $1 AND revoked_at IS NULL
 `
 
-func (q *Queries) GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, getActiveSessionTokenHashesForOrganisation, activeOrganisationID)
+func (q *Queries) GetActiveSessionTokenHashesForOrganization(ctx context.Context, activeOrganizationID uuid.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getActiveSessionTokenHashesForOrganization, activeOrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -78,15 +78,15 @@ func (q *Queries) GetActiveSessionTokenHashesForUser(ctx context.Context, userID
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
-SELECT s.id, s.user_id, u.email, u.display_name, s.active_organisation_id, o.name AS organisation_name, o.slug AS organisation_slug, m.role,
+SELECT s.id, s.user_id, u.email, u.display_name, s.active_organization_id, o.name AS organization_name, o.slug AS organization_slug, m.role,
   COALESCE(array_agg(rp.permission) FILTER (WHERE rp.permission IS NOT NULL), '{}')::text[] AS permissions,
   s.idle_expires_at, s.expires_at, s.revoked_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-JOIN organisations o ON o.id = s.active_organisation_id
-JOIN organisation_members m ON m.user_id = u.id AND m.organisation_id = o.id
-LEFT JOIN organisation_roles r ON r.organisation_id = o.id AND r.role_key = m.role
-LEFT JOIN organisation_role_permissions rp ON rp.role_id = r.id
+JOIN organizations o ON o.id = s.active_organization_id
+JOIN organization_members m ON m.user_id = u.id AND m.organization_id = o.id
+LEFT JOIN organization_roles r ON r.organization_id = o.id AND r.role_key = m.role
+LEFT JOIN organization_role_permissions rp ON rp.role_id = r.id
 WHERE s.token_hash = $1
 GROUP BY s.id, u.id, o.id, m.role
 `
@@ -96,9 +96,9 @@ type GetSessionByTokenHashRow struct {
 	UserID               uuid.UUID          `db:"user_id" json:"user_id"`
 	Email                string             `db:"email" json:"email"`
 	DisplayName          string             `db:"display_name" json:"display_name"`
-	ActiveOrganisationID uuid.UUID          `db:"active_organisation_id" json:"active_organisation_id"`
-	OrganisationName     string             `db:"organisation_name" json:"organisation_name"`
-	OrganisationSlug     string             `db:"organisation_slug" json:"organisation_slug"`
+	ActiveOrganizationID uuid.UUID          `db:"active_organization_id" json:"active_organization_id"`
+	OrganizationName     string             `db:"organization_name" json:"organization_name"`
+	OrganizationSlug     string             `db:"organization_slug" json:"organization_slug"`
 	Role                 string             `db:"role" json:"role"`
 	Permissions          []string           `db:"permissions" json:"permissions"`
 	IdleExpiresAt        pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
@@ -114,9 +114,9 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 		&i.UserID,
 		&i.Email,
 		&i.DisplayName,
-		&i.ActiveOrganisationID,
-		&i.OrganisationName,
-		&i.OrganisationSlug,
+		&i.ActiveOrganizationID,
+		&i.OrganizationName,
+		&i.OrganizationSlug,
 		&i.Role,
 		&i.Permissions,
 		&i.IdleExpiresAt,
@@ -127,14 +127,14 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 }
 
 const insertSession = `-- name: InsertSession :exec
-INSERT INTO sessions (id, user_id, active_organisation_id, token_hash, ip_address, user_agent, last_seen_at, idle_expires_at, expires_at, created_at, updated_at)
+INSERT INTO sessions (id, user_id, active_organization_id, token_hash, ip_address, user_agent, last_seen_at, idle_expires_at, expires_at, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertSessionParams struct {
 	ID                   uuid.UUID          `db:"id" json:"id"`
 	UserID               uuid.UUID          `db:"user_id" json:"user_id"`
-	ActiveOrganisationID uuid.UUID          `db:"active_organisation_id" json:"active_organisation_id"`
+	ActiveOrganizationID uuid.UUID          `db:"active_organization_id" json:"active_organization_id"`
 	TokenHash            string             `db:"token_hash" json:"token_hash"`
 	IpAddress            string             `db:"ip_address" json:"ip_address"`
 	UserAgent            string             `db:"user_agent" json:"user_agent"`
@@ -149,7 +149,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 	_, err := q.db.Exec(ctx, insertSession,
 		arg.ID,
 		arg.UserID,
-		arg.ActiveOrganisationID,
+		arg.ActiveOrganizationID,
 		arg.TokenHash,
 		arg.IpAddress,
 		arg.UserAgent,

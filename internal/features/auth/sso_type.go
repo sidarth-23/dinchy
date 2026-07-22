@@ -27,12 +27,12 @@ type SSOProvidersOut struct {
 type SSOStartIn struct {
 	ProviderID       string `path:"provider_id" minLength:"1" example:"google" doc:"Configured SSO provider identifier"`
 	ReturnTo         string `query:"return_to" doc:"Relative path to return to after login"`
-	OrganisationSlug string `query:"organization_slug" maxLength:"64" doc:"Organization slug to scope the login to"`
+	OrganizationSlug string `query:"organization_slug" maxLength:"64" doc:"Organization slug to scope the login to"`
 }
 
 // Resolve trims the organization slug; ReturnTo is left for the open-redirect guard.
 func (in *SSOStartIn) Resolve(huma.Context) []error {
-	transform.ApplyTo(transform.SpecTrim, &in.OrganisationSlug)
+	transform.ApplyTo(transform.SpecTrim, &in.OrganizationSlug)
 	return nil
 }
 
@@ -69,7 +69,7 @@ type ssoRegistry struct {
 type ssoCacheState struct {
 	ProviderID       string `json:"provider_id"`
 	ReturnTo         string `json:"return_to"`
-	OrganisationSlug string `json:"organization_slug"`
+	OrganizationSlug string `json:"organization_slug"`
 	State            string `json:"state"`
 	ProviderSession  string `json:"provider_session"`
 }

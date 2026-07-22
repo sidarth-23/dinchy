@@ -56,18 +56,18 @@ func (mr *MockStoreMockRecorder) ConfirmTwoFactor(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmTwoFactor", reflect.TypeOf((*MockStore)(nil).ConfirmTwoFactor), ctx, arg)
 }
 
-// ConsumeOrganisationInvitation mocks base method.
-func (m *MockStore) ConsumeOrganisationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganisationInvitationParams) error {
+// ConsumeOrganizationInvitation mocks base method.
+func (m *MockStore) ConsumeOrganizationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganizationInvitationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConsumeOrganisationInvitation", ctx, arg)
+	ret := m.ctrl.Call(m, "ConsumeOrganizationInvitation", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ConsumeOrganisationInvitation indicates an expected call of ConsumeOrganisationInvitation.
-func (mr *MockStoreMockRecorder) ConsumeOrganisationInvitation(ctx, arg any) *gomock.Call {
+// ConsumeOrganizationInvitation indicates an expected call of ConsumeOrganizationInvitation.
+func (mr *MockStoreMockRecorder) ConsumeOrganizationInvitation(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeOrganisationInvitation", reflect.TypeOf((*MockStore)(nil).ConsumeOrganisationInvitation), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeOrganizationInvitation", reflect.TypeOf((*MockStore)(nil).ConsumeOrganizationInvitation), ctx, arg)
 }
 
 // ConsumeVerificationToken mocks base method.
@@ -113,49 +113,49 @@ func (mr *MockStoreMockRecorder) DisableTwoFactor(ctx, userID any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableTwoFactor", reflect.TypeOf((*MockStore)(nil).DisableTwoFactor), ctx, userID)
 }
 
-// FindOrganisationByIDForUser mocks base method.
-func (m *MockStore) FindOrganisationByIDForUser(ctx context.Context, arg sqlcgen.FindOrganisationByIDForUserParams) (sqlcgen.FindOrganisationByIDForUserRow, error) {
+// FindOrganizationByIDForUser mocks base method.
+func (m *MockStore) FindOrganizationByIDForUser(ctx context.Context, arg sqlcgen.FindOrganizationByIDForUserParams) (sqlcgen.FindOrganizationByIDForUserRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOrganisationByIDForUser", ctx, arg)
-	ret0, _ := ret[0].(sqlcgen.FindOrganisationByIDForUserRow)
+	ret := m.ctrl.Call(m, "FindOrganizationByIDForUser", ctx, arg)
+	ret0, _ := ret[0].(sqlcgen.FindOrganizationByIDForUserRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FindOrganisationByIDForUser indicates an expected call of FindOrganisationByIDForUser.
-func (mr *MockStoreMockRecorder) FindOrganisationByIDForUser(ctx, arg any) *gomock.Call {
+// FindOrganizationByIDForUser indicates an expected call of FindOrganizationByIDForUser.
+func (mr *MockStoreMockRecorder) FindOrganizationByIDForUser(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganisationByIDForUser", reflect.TypeOf((*MockStore)(nil).FindOrganisationByIDForUser), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganizationByIDForUser", reflect.TypeOf((*MockStore)(nil).FindOrganizationByIDForUser), ctx, arg)
 }
 
-// FindOrganisationBySlugForUser mocks base method.
-func (m *MockStore) FindOrganisationBySlugForUser(ctx context.Context, arg sqlcgen.FindOrganisationBySlugForUserParams) (sqlcgen.FindOrganisationBySlugForUserRow, error) {
+// FindOrganizationBySlugForUser mocks base method.
+func (m *MockStore) FindOrganizationBySlugForUser(ctx context.Context, arg sqlcgen.FindOrganizationBySlugForUserParams) (sqlcgen.FindOrganizationBySlugForUserRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOrganisationBySlugForUser", ctx, arg)
-	ret0, _ := ret[0].(sqlcgen.FindOrganisationBySlugForUserRow)
+	ret := m.ctrl.Call(m, "FindOrganizationBySlugForUser", ctx, arg)
+	ret0, _ := ret[0].(sqlcgen.FindOrganizationBySlugForUserRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FindOrganisationBySlugForUser indicates an expected call of FindOrganisationBySlugForUser.
-func (mr *MockStoreMockRecorder) FindOrganisationBySlugForUser(ctx, arg any) *gomock.Call {
+// FindOrganizationBySlugForUser indicates an expected call of FindOrganizationBySlugForUser.
+func (mr *MockStoreMockRecorder) FindOrganizationBySlugForUser(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganisationBySlugForUser", reflect.TypeOf((*MockStore)(nil).FindOrganisationBySlugForUser), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganizationBySlugForUser", reflect.TypeOf((*MockStore)(nil).FindOrganizationBySlugForUser), ctx, arg)
 }
 
-// FindOrganisationInvitationByToken mocks base method.
-func (m *MockStore) FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganisationInvitationByTokenRow, error) {
+// FindOrganizationInvitationByToken mocks base method.
+func (m *MockStore) FindOrganizationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganizationInvitationByTokenRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOrganisationInvitationByToken", ctx, tokenHash)
-	ret0, _ := ret[0].(sqlcgen.FindOrganisationInvitationByTokenRow)
+	ret := m.ctrl.Call(m, "FindOrganizationInvitationByToken", ctx, tokenHash)
+	ret0, _ := ret[0].(sqlcgen.FindOrganizationInvitationByTokenRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FindOrganisationInvitationByToken indicates an expected call of FindOrganisationInvitationByToken.
-func (mr *MockStoreMockRecorder) FindOrganisationInvitationByToken(ctx, tokenHash any) *gomock.Call {
+// FindOrganizationInvitationByToken indicates an expected call of FindOrganizationInvitationByToken.
+func (mr *MockStoreMockRecorder) FindOrganizationInvitationByToken(ctx, tokenHash any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganisationInvitationByToken", reflect.TypeOf((*MockStore)(nil).FindOrganisationInvitationByToken), ctx, tokenHash)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrganizationInvitationByToken", reflect.TypeOf((*MockStore)(nil).FindOrganizationInvitationByToken), ctx, tokenHash)
 }
 
 // FindPasswordAccountByUserID mocks base method.
@@ -173,19 +173,19 @@ func (mr *MockStoreMockRecorder) FindPasswordAccountByUserID(ctx, userID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPasswordAccountByUserID", reflect.TypeOf((*MockStore)(nil).FindPasswordAccountByUserID), ctx, userID)
 }
 
-// FindPendingOrganisationInvitationByEmail mocks base method.
-func (m *MockStore) FindPendingOrganisationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganisationInvitationByEmailParams) (sqlcgen.FindPendingOrganisationInvitationByEmailRow, error) {
+// FindPendingOrganizationInvitationByEmail mocks base method.
+func (m *MockStore) FindPendingOrganizationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganizationInvitationByEmailParams) (sqlcgen.FindPendingOrganizationInvitationByEmailRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindPendingOrganisationInvitationByEmail", ctx, arg)
-	ret0, _ := ret[0].(sqlcgen.FindPendingOrganisationInvitationByEmailRow)
+	ret := m.ctrl.Call(m, "FindPendingOrganizationInvitationByEmail", ctx, arg)
+	ret0, _ := ret[0].(sqlcgen.FindPendingOrganizationInvitationByEmailRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FindPendingOrganisationInvitationByEmail indicates an expected call of FindPendingOrganisationInvitationByEmail.
-func (mr *MockStoreMockRecorder) FindPendingOrganisationInvitationByEmail(ctx, arg any) *gomock.Call {
+// FindPendingOrganizationInvitationByEmail indicates an expected call of FindPendingOrganizationInvitationByEmail.
+func (mr *MockStoreMockRecorder) FindPendingOrganizationInvitationByEmail(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPendingOrganisationInvitationByEmail", reflect.TypeOf((*MockStore)(nil).FindPendingOrganisationInvitationByEmail), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPendingOrganizationInvitationByEmail", reflect.TypeOf((*MockStore)(nil).FindPendingOrganizationInvitationByEmail), ctx, arg)
 }
 
 // FindTwoFactorByUserID mocks base method.
@@ -263,19 +263,19 @@ func (mr *MockStoreMockRecorder) GetInstanceName(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstanceName", reflect.TypeOf((*MockStore)(nil).GetInstanceName), ctx)
 }
 
-// GetActiveSessionTokenHashesForOrganisation mocks base method.
-func (m *MockStore) GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error) {
+// GetActiveSessionTokenHashesForOrganization mocks base method.
+func (m *MockStore) GetActiveSessionTokenHashesForOrganization(ctx context.Context, activeOrganizationID uuid.UUID) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActiveSessionTokenHashesForOrganisation", ctx, activeOrganisationID)
+	ret := m.ctrl.Call(m, "GetActiveSessionTokenHashesForOrganization", ctx, activeOrganizationID)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetActiveSessionTokenHashesForOrganisation indicates an expected call of GetActiveSessionTokenHashesForOrganisation.
-func (mr *MockStoreMockRecorder) GetActiveSessionTokenHashesForOrganisation(ctx, activeOrganisationID any) *gomock.Call {
+// GetActiveSessionTokenHashesForOrganization indicates an expected call of GetActiveSessionTokenHashesForOrganization.
+func (mr *MockStoreMockRecorder) GetActiveSessionTokenHashesForOrganization(ctx, activeOrganizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveSessionTokenHashesForOrganisation", reflect.TypeOf((*MockStore)(nil).GetActiveSessionTokenHashesForOrganisation), ctx, activeOrganisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveSessionTokenHashesForOrganization", reflect.TypeOf((*MockStore)(nil).GetActiveSessionTokenHashesForOrganization), ctx, activeOrganizationID)
 }
 
 // GetActiveSessionTokenHashesForUser mocks base method.
@@ -336,74 +336,74 @@ func (mr *MockStoreMockRecorder) InsertOrReplaceTwoFactor(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrReplaceTwoFactor", reflect.TypeOf((*MockStore)(nil).InsertOrReplaceTwoFactor), ctx, arg)
 }
 
-// InsertOrganisation mocks base method.
-func (m *MockStore) InsertOrganisation(ctx context.Context, arg sqlcgen.InsertOrganisationParams) error {
+// InsertOrganization mocks base method.
+func (m *MockStore) InsertOrganization(ctx context.Context, arg sqlcgen.InsertOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertOrganisation", ctx, arg)
+	ret := m.ctrl.Call(m, "InsertOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertOrganisation indicates an expected call of InsertOrganisation.
-func (mr *MockStoreMockRecorder) InsertOrganisation(ctx, arg any) *gomock.Call {
+// InsertOrganization indicates an expected call of InsertOrganization.
+func (mr *MockStoreMockRecorder) InsertOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganisation", reflect.TypeOf((*MockStore)(nil).InsertOrganisation), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganization", reflect.TypeOf((*MockStore)(nil).InsertOrganization), ctx, arg)
 }
 
-// InsertOrganisationInvitation mocks base method.
-func (m *MockStore) InsertOrganisationInvitation(ctx context.Context, arg sqlcgen.InsertOrganisationInvitationParams) error {
+// InsertOrganizationInvitation mocks base method.
+func (m *MockStore) InsertOrganizationInvitation(ctx context.Context, arg sqlcgen.InsertOrganizationInvitationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertOrganisationInvitation", ctx, arg)
+	ret := m.ctrl.Call(m, "InsertOrganizationInvitation", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertOrganisationInvitation indicates an expected call of InsertOrganisationInvitation.
-func (mr *MockStoreMockRecorder) InsertOrganisationInvitation(ctx, arg any) *gomock.Call {
+// InsertOrganizationInvitation indicates an expected call of InsertOrganizationInvitation.
+func (mr *MockStoreMockRecorder) InsertOrganizationInvitation(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganisationInvitation", reflect.TypeOf((*MockStore)(nil).InsertOrganisationInvitation), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationInvitation", reflect.TypeOf((*MockStore)(nil).InsertOrganizationInvitation), ctx, arg)
 }
 
-// InsertOrganisationMember mocks base method.
-func (m *MockStore) InsertOrganisationMember(ctx context.Context, arg sqlcgen.InsertOrganisationMemberParams) error {
+// InsertOrganizationMember mocks base method.
+func (m *MockStore) InsertOrganizationMember(ctx context.Context, arg sqlcgen.InsertOrganizationMemberParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertOrganisationMember", ctx, arg)
+	ret := m.ctrl.Call(m, "InsertOrganizationMember", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertOrganisationMember indicates an expected call of InsertOrganisationMember.
-func (mr *MockStoreMockRecorder) InsertOrganisationMember(ctx, arg any) *gomock.Call {
+// InsertOrganizationMember indicates an expected call of InsertOrganizationMember.
+func (mr *MockStoreMockRecorder) InsertOrganizationMember(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganisationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganisationMember), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), ctx, arg)
 }
 
-// InsertOrganisationRole mocks base method.
-func (m *MockStore) InsertOrganisationRole(ctx context.Context, arg sqlcgen.InsertOrganisationRoleParams) error {
+// InsertOrganizationRole mocks base method.
+func (m *MockStore) InsertOrganizationRole(ctx context.Context, arg sqlcgen.InsertOrganizationRoleParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertOrganisationRole", ctx, arg)
+	ret := m.ctrl.Call(m, "InsertOrganizationRole", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertOrganisationRole indicates an expected call of InsertOrganisationRole.
-func (mr *MockStoreMockRecorder) InsertOrganisationRole(ctx, arg any) *gomock.Call {
+// InsertOrganizationRole indicates an expected call of InsertOrganizationRole.
+func (mr *MockStoreMockRecorder) InsertOrganizationRole(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganisationRole", reflect.TypeOf((*MockStore)(nil).InsertOrganisationRole), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationRole", reflect.TypeOf((*MockStore)(nil).InsertOrganizationRole), ctx, arg)
 }
 
-// InsertOrganisationRolePermission mocks base method.
-func (m *MockStore) InsertOrganisationRolePermission(ctx context.Context, arg sqlcgen.InsertOrganisationRolePermissionParams) error {
+// InsertOrganizationRolePermission mocks base method.
+func (m *MockStore) InsertOrganizationRolePermission(ctx context.Context, arg sqlcgen.InsertOrganizationRolePermissionParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertOrganisationRolePermission", ctx, arg)
+	ret := m.ctrl.Call(m, "InsertOrganizationRolePermission", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertOrganisationRolePermission indicates an expected call of InsertOrganisationRolePermission.
-func (mr *MockStoreMockRecorder) InsertOrganisationRolePermission(ctx, arg any) *gomock.Call {
+// InsertOrganizationRolePermission indicates an expected call of InsertOrganizationRolePermission.
+func (mr *MockStoreMockRecorder) InsertOrganizationRolePermission(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganisationRolePermission", reflect.TypeOf((*MockStore)(nil).InsertOrganisationRolePermission), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationRolePermission", reflect.TypeOf((*MockStore)(nil).InsertOrganizationRolePermission), ctx, arg)
 }
 
 // InsertSession mocks base method.
@@ -448,19 +448,19 @@ func (mr *MockStoreMockRecorder) InsertVerificationToken(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertVerificationToken", reflect.TypeOf((*MockStore)(nil).InsertVerificationToken), ctx, arg)
 }
 
-// ListOrganisationsForUser mocks base method.
-func (m *MockStore) ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganisationsForUserRow, error) {
+// ListOrganizationsForUser mocks base method.
+func (m *MockStore) ListOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganizationsForUserRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListOrganisationsForUser", ctx, userID)
-	ret0, _ := ret[0].([]sqlcgen.ListOrganisationsForUserRow)
+	ret := m.ctrl.Call(m, "ListOrganizationsForUser", ctx, userID)
+	ret0, _ := ret[0].([]sqlcgen.ListOrganizationsForUserRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListOrganisationsForUser indicates an expected call of ListOrganisationsForUser.
-func (mr *MockStoreMockRecorder) ListOrganisationsForUser(ctx, userID any) *gomock.Call {
+// ListOrganizationsForUser indicates an expected call of ListOrganizationsForUser.
+func (mr *MockStoreMockRecorder) ListOrganizationsForUser(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganisationsForUser", reflect.TypeOf((*MockStore)(nil).ListOrganisationsForUser), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationsForUser", reflect.TypeOf((*MockStore)(nil).ListOrganizationsForUser), ctx, userID)
 }
 
 // MarkTwoFactorUsed mocks base method.

@@ -33,7 +33,7 @@ type Store interface {
 	InsertSession(ctx context.Context, arg sqlcgen.InsertSessionParams) error
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (sqlcgen.GetSessionByTokenHashRow, error)
 	GetActiveSessionTokenHashesForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
-	GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error)
+	GetActiveSessionTokenHashesForOrganization(ctx context.Context, activeOrganizationID uuid.UUID) ([]string, error)
 	RevokeSessionByTokenHash(ctx context.Context, arg sqlcgen.RevokeSessionByTokenHashParams) error
 	RevokeSessionsForUser(ctx context.Context, arg sqlcgen.RevokeSessionsForUserParams) error
 }
@@ -122,13 +122,13 @@ func (s *Service) cacheTTL(p *Principal, now time.Time) time.Duration {
 }
 
 // Create issues a new session token for the given user and organization.
-func (s *Service) Create(ctx context.Context, userID, organisationID, ip, userAgent string) (string, error) {
+func (s *Service) Create(ctx context.Context, userID, organizationID, ip, userAgent string) (string, error) {
 	token := s.IDGenerator.New()
 	now := s.Clock.Now().UTC()
 	if err := s.store.InsertSession(ctx, sqlcgen.InsertSessionParams{
 		ID:                   id.MustParse(token),
 		UserID:               id.MustParse(userID),
-		ActiveOrganisationID: id.MustParse(organisationID),
+		ActiveOrganizationID: id.MustParse(organizationID),
 		TokenHash:            security.HashToken(token),
 		IpAddress:            ip,
 		UserAgent:            userAgent,
@@ -192,14 +192,14 @@ func (s *Service) InvalidateForUser(ctx context.Context, userID string) error {
 	return s.principals.Delete(ctx, hashes...)
 }
 
-// InvalidateForOrganisation drops cached principals for every active session in
+// InvalidateForOrganization drops cached principals for every active session in
 // the organization. Call this whenever an organization-wide change (role
 // permissions, organization name or slug) alters the resolved principal.
-func (s *Service) InvalidateForOrganisation(ctx context.Context, organisationID string) error {
+func (s *Service) InvalidateForOrganization(ctx context.Context, organizationID string) error {
 	if !s.principals.Enabled() {
 		return nil
 	}
-	hashes, err := s.store.GetActiveSessionTokenHashesForOrganisation(ctx, id.MustParse(organisationID))
+	hashes, err := s.store.GetActiveSessionTokenHashesForOrganization(ctx, id.MustParse(organizationID))
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsSessionGetSession), apperrors.WithCause(err))
 	}

@@ -18,31 +18,31 @@
               "name": "invitation_subject",
               "params": [
                 {
-                  "name": "organisation",
+                  "name": "organization",
                   "type": "string"
                 }
               ],
               "translations": {
-                "en": "You are invited to join {{.organisation}} on Dinchy"
+                "en": "You are invited to join {{.organization}} on Dinchy"
               }
             },
             {
               "name": "invitation_heading",
               "params": [
                 {
-                  "name": "organisation",
+                  "name": "organization",
                   "type": "string"
                 }
               ],
               "translations": {
-                "en": "Join {{.organisation}} on Dinchy"
+                "en": "Join {{.organization}} on Dinchy"
               }
             },
             {
               "name": "invitation_body",
               "params": [
                 {
-                  "name": "organisation",
+                  "name": "organization",
                   "type": "string"
                 },
                 {
@@ -51,7 +51,7 @@
                 }
               ],
               "translations": {
-                "en": "You have been invited to join {{.organisation}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon."
+                "en": "You have been invited to join {{.organization}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon."
               }
             },
             {

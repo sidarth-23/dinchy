@@ -25,15 +25,15 @@
                   }
                 },
                 {
-                  "name": "find_organisation",
+                  "name": "find_organization",
                   "translations": {
-                    "en": "Resolve organisation during login failed"
+                    "en": "Resolve organization during login failed"
                   }
                 },
                 {
-                  "name": "list_organisations",
+                  "name": "list_organizations",
                   "translations": {
-                    "en": "List organisations during login failed"
+                    "en": "List organizations during login failed"
                   }
                 },
                 {
@@ -61,9 +61,9 @@
               "description": "Internal auth session failure diagnostics",
               "messages": [
                 {
-                  "name": "find_organisation",
+                  "name": "find_organization",
                   "translations": {
-                    "en": "Resolve organisation during session failed"
+                    "en": "Resolve organization during session failed"
                   }
                 }
               ]
@@ -127,15 +127,15 @@
                   }
                 },
                 {
-                  "name": "insert_organisation",
+                  "name": "insert_organization",
                   "translations": {
-                    "en": "Insert organisation during setup failed"
+                    "en": "Insert organization during setup failed"
                   }
                 },
                 {
-                  "name": "insert_organisation_member",
+                  "name": "insert_organization_member",
                   "translations": {
-                    "en": "Insert organisation member during setup failed"
+                    "en": "Insert organization member during setup failed"
                   }
                 }
               ]
@@ -217,9 +217,9 @@
               "description": "Internal invitation failure diagnostics",
               "messages": [
                 {
-                  "name": "find_organisation",
+                  "name": "find_organization",
                   "translations": {
-                    "en": "Resolve organisation during invitation failed"
+                    "en": "Resolve organization during invitation failed"
                   }
                 },
                 {

@@ -51,7 +51,7 @@ func (f *fakeStore) GetActiveSessionTokenHashesForUser(context.Context, uuid.UUI
 	return f.userHashes, nil
 }
 
-func (f *fakeStore) GetActiveSessionTokenHashesForOrganisation(context.Context, uuid.UUID) ([]string, error) {
+func (f *fakeStore) GetActiveSessionTokenHashesForOrganization(context.Context, uuid.UUID) ([]string, error) {
 	return f.orgHashes, nil
 }
 
@@ -70,9 +70,9 @@ func validRow(revoked pgtype.Timestamptz) sqlcgen.GetSessionByTokenHashRow {
 		UserID:               id.MustParse(testUserID),
 		Email:                "user@example.com",
 		DisplayName:          "User",
-		ActiveOrganisationID: id.MustParse(testOrgID),
-		OrganisationName:     "Default",
-		OrganisationSlug:     "default",
+		ActiveOrganizationID: id.MustParse(testOrgID),
+		OrganizationName:     "Default",
+		OrganizationSlug:     "default",
 		Role:                 string(permission.RoleAdmin),
 		Permissions:          []string{"audit.logs.read"},
 		IdleExpiresAt:        sqltype.Timestamptz(fixedTime.Add(time.Hour)),
@@ -118,7 +118,7 @@ func TestSession_CachesAfterFirstLookup(t *testing.T) {
 	require.NotNil(t, second)
 	assert.Equal(t, 1, store.getCalls, "second lookup should be served from cache")
 	assert.Equal(t, first.UserID, second.UserID)
-	assert.Equal(t, first.OrganisationSlug, second.OrganisationSlug)
+	assert.Equal(t, first.OrganizationSlug, second.OrganizationSlug)
 	assert.Equal(t, []permission.Permission{permission.Permission("audit.logs.read")}, second.Permissions)
 }
 

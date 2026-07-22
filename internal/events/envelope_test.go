@@ -26,7 +26,7 @@ func TestNewEnvelope_PopulatesRequestAndTraceMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "user-1", envelope.ActorUserID)
-	assert.Equal(t, "org-1", envelope.ActorOrganisationID)
+	assert.Equal(t, "org-1", envelope.ActorOrganizationID)
 	assert.Equal(t, "session", envelope.TargetType)
 	assert.Equal(t, "session-1", envelope.TargetID)
 	assert.Equal(t, "display", envelope.TargetDisplay)

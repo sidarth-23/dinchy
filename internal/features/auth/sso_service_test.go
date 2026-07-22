@@ -164,7 +164,7 @@ func TestStartSSO_ReturnsMetadataAndTransactionCookie(t *testing.T) {
 	require.NoError(t, svc.RedisClient.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	assert.Equal(t, "github", cached.ProviderID)
 	assert.Equal(t, "/projects/123?tab=activity", cached.ReturnTo)
-	assert.Equal(t, "default", cached.OrganisationSlug)
+	assert.Equal(t, "default", cached.OrganizationSlug)
 	var session fakeSSOSession
 	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 	assert.Contains(t, session.AuthURL, "state=")
@@ -201,8 +201,8 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 			return nil
 		})
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil).
+		ListOrganizationsForUser(gomock.Any(), id.MustParse(testUserID)).
+		Return([]sqlcgen.ListOrganizationsForUserRow{organizationRow(testOrganizationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 

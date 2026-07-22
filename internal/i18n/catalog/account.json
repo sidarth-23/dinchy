@@ -43,15 +43,15 @@
               }
             },
             {
-              "name": "organisation_required",
+              "name": "organization_required",
               "translations": {
-                "en": "Choose an organisation to continue."
+                "en": "Choose an organization to continue."
               }
             },
             {
-              "name": "organisation_not_found",
+              "name": "organization_not_found",
               "translations": {
-                "en": "The selected organisation is not available."
+                "en": "The selected organization is not available."
               }
             },
             {

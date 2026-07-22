@@ -59,7 +59,7 @@ func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
 			Action:              log.Action,
 			Outcome:             log.Outcome,
 			ActorUserID:         log.ActorUserID,
-			ActorOrganisationID: log.ActorOrganisationID,
+			ActorOrganizationID: log.ActorOrganizationID,
 			TargetType:          log.TargetType,
 			TargetID:            log.TargetID,
 			TargetDisplay:       log.TargetDisplay,

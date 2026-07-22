@@ -15,10 +15,10 @@ import (
 
 func TestLoginBodyResolve_NormalizesFields(t *testing.T) {
 	t.Parallel()
-	body := LoginBody{Email: "  USER@EXAMPLE.COM  ", OrganisationSlug: "  acme  ", TOTPCode: "  123456  "}
+	body := LoginBody{Email: "  USER@EXAMPLE.COM  ", OrganizationSlug: "  acme  ", TOTPCode: "  123456  "}
 	require.Nil(t, body.Resolve(nil))
 	assert.Equal(t, "user@example.com", body.Email)
-	assert.Equal(t, "acme", body.OrganisationSlug)
+	assert.Equal(t, "acme", body.OrganizationSlug)
 	assert.Equal(t, "123456", body.TOTPCode)
 }
 
@@ -52,11 +52,11 @@ func TestAcceptInvitationBodyResolve_TrimsDisplayName(t *testing.T) {
 	assert.Equal(t, "Ada", body.DisplayName)
 }
 
-func TestSelectOrganisationBodyResolve_TrimsSlug(t *testing.T) {
+func TestSelectOrganizationBodyResolve_TrimsSlug(t *testing.T) {
 	t.Parallel()
-	body := SelectOrganisationBody{OrganisationSlug: "  acme  "}
+	body := SelectOrganizationBody{OrganizationSlug: "  acme  "}
 	require.Nil(t, body.Resolve(nil))
-	assert.Equal(t, "acme", body.OrganisationSlug)
+	assert.Equal(t, "acme", body.OrganizationSlug)
 }
 
 func TestTOTPConfirmBodyResolve_TrimsCode(t *testing.T) {
@@ -68,7 +68,7 @@ func TestTOTPConfirmBodyResolve_TrimsCode(t *testing.T) {
 
 func TestSSOStartInResolve_TrimsSlug(t *testing.T) {
 	t.Parallel()
-	in := SSOStartIn{OrganisationSlug: "  acme  "}
+	in := SSOStartIn{OrganizationSlug: "  acme  "}
 	require.Nil(t, in.Resolve(nil))
-	assert.Equal(t, "acme", in.OrganisationSlug)
+	assert.Equal(t, "acme", in.OrganizationSlug)
 }

@@ -180,7 +180,7 @@ func (s *Service) consumerGroupName(subscriberName string) string {
 
 func newRecord(event Event, definition Definition) Record {
 	envelope := event.EnvelopeData()
-	return Record{ID: envelope.ID, EventType: string(event.Type()), Category: definition.Category, Subcategory: definition.Subcategory, Action: definition.Action, Outcome: definition.Outcome, ActorUserID: envelope.ActorUserID, ActorOrganisationID: envelope.ActorOrganisationID, TargetType: envelope.TargetType, TargetID: envelope.TargetID, TargetDisplay: envelope.TargetDisplay, RequestID: envelope.RequestID, TraceID: envelope.TraceID, SpanID: envelope.SpanID, IPAddress: envelope.IPAddress, UserAgent: envelope.UserAgent, Metadata: event.MetadataMap(), Changes: event.ChangesMap(), CreatedAt: envelope.CreatedAt}
+	return Record{ID: envelope.ID, EventType: string(event.Type()), Category: definition.Category, Subcategory: definition.Subcategory, Action: definition.Action, Outcome: definition.Outcome, ActorUserID: envelope.ActorUserID, ActorOrganizationID: envelope.ActorOrganizationID, TargetType: envelope.TargetType, TargetID: envelope.TargetID, TargetDisplay: envelope.TargetDisplay, RequestID: envelope.RequestID, TraceID: envelope.TraceID, SpanID: envelope.SpanID, IPAddress: envelope.IPAddress, UserAgent: envelope.UserAgent, Metadata: event.MetadataMap(), Changes: event.ChangesMap(), CreatedAt: envelope.CreatedAt}
 }
 
 var _ Publisher = (*Service)(nil)

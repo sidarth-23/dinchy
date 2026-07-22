@@ -113,9 +113,9 @@ func insertParams(event events.Record) (sqlcgen.InsertAuditLogParams, error) {
 	if err != nil {
 		return sqlcgen.InsertAuditLogParams{}, fmt.Errorf("parse audit actor user ID %q for event type %q: %w", event.ActorUserID, event.EventType, err)
 	}
-	actorOrganisationID, err := id.NullUUID(event.ActorOrganisationID, event.ActorOrganisationID != "")
+	actorOrganizationID, err := id.NullUUID(event.ActorOrganizationID, event.ActorOrganizationID != "")
 	if err != nil {
-		return sqlcgen.InsertAuditLogParams{}, fmt.Errorf("parse audit actor organization ID %q for event type %q: %w", event.ActorOrganisationID, event.EventType, err)
+		return sqlcgen.InsertAuditLogParams{}, fmt.Errorf("parse audit actor organization ID %q for event type %q: %w", event.ActorOrganizationID, event.EventType, err)
 	}
 	return sqlcgen.InsertAuditLogParams{
 		ID:                  eventID,
@@ -125,7 +125,7 @@ func insertParams(event events.Record) (sqlcgen.InsertAuditLogParams, error) {
 		Action:              event.Action,
 		Outcome:             event.Outcome,
 		ActorUserID:         actorUserID,
-		ActorOrganisationID: actorOrganisationID,
+		ActorOrganizationID: actorOrganizationID,
 		TargetType:          event.TargetType,
 		TargetID:            event.TargetID,
 		TargetDisplay:       event.TargetDisplay,
@@ -152,7 +152,7 @@ func logFromRow(row sqlcgen.AppAuditLog) (events.Record, error) {
 	return events.Record{
 		ID: row.ID.String(), Category: row.Category, Subcategory: row.Subcategory, EventType: row.EventType,
 		Action: row.Action, Outcome: row.Outcome, ActorUserID: id.NullUUIDString(row.ActorUserID),
-		ActorOrganisationID: id.NullUUIDString(row.ActorOrganisationID),
+		ActorOrganizationID: id.NullUUIDString(row.ActorOrganizationID),
 		TargetType:          row.TargetType, TargetID: row.TargetID,
 		TargetDisplay: row.TargetDisplay, RequestID: sqltype.TextValue(row.RequestID),
 		TraceID: sqltype.TextValue(row.TraceID), SpanID: sqltype.TextValue(row.SpanID),

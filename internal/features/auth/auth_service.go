@@ -74,21 +74,21 @@ func (s *Service) publishEvent(ctx context.Context, event events.Event) error {
 	return s.EventPublisher.Publish(ctx, event)
 }
 
-// OrganisationsForUser lists the organizations the given user can access.
-func (s *Service) OrganisationsForUser(ctx context.Context, userID string) ([]Organization, error) {
-	rows, err := s.store.ListOrganisationsForUser(ctx, id.MustParse(userID))
+// OrganizationsForUser lists the organizations the given user can access.
+func (s *Service) OrganizationsForUser(ctx context.Context, userID string) ([]Organization, error) {
+	rows, err := s.store.ListOrganizationsForUser(ctx, id.MustParse(userID))
 	if err != nil {
 		return nil, err
 	}
 	out := make([]Organization, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, organisationFromListOrganisationRow(row))
+		out = append(out, organizationFromListOrganizationRow(row))
 	}
 	return out, nil
 }
 
 // Login verifies credentials and TOTP, resolves the target organization, and returns a new session token.
-func (s *Service) Login(ctx context.Context, emailAddress, password, organisationSlug, totpCode, ip, userAgent string) (string, error) {
+func (s *Service) Login(ctx context.Context, emailAddress, password, organizationSlug, totpCode, ip, userAgent string) (string, error) {
 	user, err := s.findUserWithPassword(ctx, emailAddress, password)
 	if err != nil {
 		return "", err
@@ -96,15 +96,15 @@ func (s *Service) Login(ctx context.Context, emailAddress, password, organisatio
 	if err := s.verifyTOTPForLogin(ctx, user.ID, totpCode); err != nil {
 		return "", err
 	}
-	organization, err := s.resolveLoginOrganisation(ctx, user.ID, organisationSlug)
+	organization, err := s.resolveLoginOrganization(ctx, user.ID, organizationSlug)
 	if err != nil {
 		return "", err
 	}
 	return s.sessions.Create(ctx, user.ID, organization.ID, ip, userAgent)
 }
 
-// SelectOrganisation switches the current session to another organization the user belongs to, returning a fresh session token.
-func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisationSlug, ip, userAgent string) (string, error) {
+// SelectOrganization switches the current session to another organization the user belongs to, returning a fresh session token.
+func (s *Service) SelectOrganization(ctx context.Context, rawToken, organizationSlug, ip, userAgent string) (string, error) {
 	principal, err := s.sessions.Session(ctx, rawToken)
 	if err != nil {
 		return "", err
@@ -112,23 +112,23 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 	if principal == nil {
 		return "", apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
-	organisationRow, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(principal.UserID), Slug: organisationSlug})
+	organizationRow, err := s.store.FindOrganizationBySlugForUser(ctx, sqlcgen.FindOrganizationBySlugForUserParams{UserID: id.MustParse(principal.UserID), Slug: organizationSlug})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganisationNotFound))
+			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganizationNotFound))
 		}
-		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthSessionFindOrganisation), apperrors.WithCause(err))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthSessionFindOrganization), apperrors.WithCause(err))
 	}
-	organization := organisationFromFindOrganisationRow(organisationRow)
+	organization := organizationFromFindOrganizationRow(organizationRow)
 	if organization == nil {
-		return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganisationNotFound))
+		return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganizationNotFound))
 	}
 	loggedOutPrincipal, err := s.sessions.Logout(ctx, rawToken)
 	if err != nil {
 		return "", err
 	}
 	if loggedOutPrincipal != nil {
-		envelope, err := events.NewEnvelope(ctx, loggedOutPrincipal.UserID, loggedOutPrincipal.OrganisationID, events.NewTarget("session", loggedOutPrincipal.SessionID, loggedOutPrincipal.DisplayName))
+		envelope, err := events.NewEnvelope(ctx, loggedOutPrincipal.UserID, loggedOutPrincipal.OrganizationID, events.NewTarget("session", loggedOutPrincipal.SessionID, loggedOutPrincipal.DisplayName))
 		if err != nil {
 			return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLogoutPublishEvent), apperrors.WithCause(err))
 		}

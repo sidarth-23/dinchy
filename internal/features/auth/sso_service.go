@@ -36,7 +36,7 @@ func (s *Service) effectiveSSOProviderConfig(providerID string) (config.SSOProvi
 	return providerConfig, ok
 }
 
-func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisationSlug string) (string, []http.Cookie, error) {
+func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organizationSlug string) (string, []http.Cookie, error) {
 	providerConfig, ok := s.effectiveSSOProviderConfig(providerID)
 	if !ok || !providerConfig.Enabled {
 		return "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthSSOProviderNotFound, i18n.P("provider", providerID)))
@@ -65,7 +65,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	if err != nil {
 		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginGenerateToken), apperrors.WithCause(err))
 	}
-	cacheState := ssoCacheState{ProviderID: providerID, ReturnTo: internalReturnPath(returnTo), OrganisationSlug: organisationSlug, State: stateToken, ProviderSession: session.Marshal()}
+	cacheState := ssoCacheState{ProviderID: providerID, ReturnTo: internalReturnPath(returnTo), OrganizationSlug: organizationSlug, State: stateToken, ProviderSession: session.Marshal()}
 	if err := redisClient.Set(ctx, s.sso.cacheKey(transactionID), cacheState, s.sso.stateLifetime).Err(); err != nil {
 		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginSSOStart), apperrors.WithCause(err))
 	}
@@ -135,7 +135,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	if user == nil {
 		return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthSSOLoginFailed))
 	}
-	organization, err := s.resolveLoginOrganisation(ctx, user.ID, cached.OrganisationSlug)
+	organization, err := s.resolveLoginOrganization(ctx, user.ID, cached.OrganizationSlug)
 	if err != nil {
 		return "", "", nil, err
 	}

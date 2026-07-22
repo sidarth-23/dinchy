@@ -99,11 +99,11 @@ func TestResolve_ExposeInternalOnClientErrorAttachesDebug(t *testing.T) {
 	t.Parallel()
 
 	renderer := render.NewRenderer(i18n.Default, true)
-	appErr := apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganisationNotFound))
+	appErr := apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganizationNotFound))
 	resp := renderer.Resolve(language.English, appErr)
 
 	assert.Equal(t, http.StatusBadRequest, resp.GetStatus())
-	assert.Equal(t, string(i18n.CodeAccountAuthOrganisationNotFound), resp.Payload.Code)
+	assert.Equal(t, string(i18n.CodeAccountAuthOrganizationNotFound), resp.Payload.Code)
 	require.NotNil(t, resp.Payload.Debug)
-	assert.Equal(t, string(i18n.CodeAccountAuthOrganisationNotFound), resp.Payload.Debug.Code)
+	assert.Equal(t, string(i18n.CodeAccountAuthOrganizationNotFound), resp.Payload.Debug.Code)
 }

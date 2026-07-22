@@ -22,11 +22,11 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
-func invitationRow(rowID, organisationID, email, role, status, tokenHash, invitedByUserID string, expiresAt time.Time, acceptedAt pgtype.Timestamptz) sqlcgen.FindOrganisationInvitationByTokenRow {
-	return sqlcgen.FindOrganisationInvitationByTokenRow{
+func invitationRow(rowID, organizationID, emailAddress, role, status, tokenHash, invitedByUserID string, expiresAt time.Time, acceptedAt pgtype.Timestamptz) sqlcgen.FindOrganizationInvitationByTokenRow {
+	return sqlcgen.FindOrganizationInvitationByTokenRow{
 		ID:              id.MustParse(rowID),
-		OrganisationID:  id.MustParse(organisationID),
-		Email:           email,
+		OrganizationID:  id.MustParse(organizationID),
+		Email:           emailAddress,
 		Role:            role,
 		Status:          status,
 		TokenHash:       tokenHash,
@@ -44,16 +44,16 @@ func TestCreateInvitation_SendsEmailAndStoresToken(t *testing.T) {
 	principal := &session.Principal{
 		UserID:           testUserID,
 		Email:            "owner@example.com",
-		OrganisationID:   testOrganisationID,
-		OrganisationName: "Default",
-		OrganisationSlug: "default",
+		OrganizationID:   testOrganizationID,
+		OrganizationName: "Default",
+		OrganizationSlug: "default",
 		Role:             permission.RoleAdmin,
 		Permissions:      []permission.Permission{permission.AuthInvitationsCreate},
 	}
 
 	store.EXPECT().FindUserByEmail(gomock.Any(), "invitee@example.com").Return(sqlcgen.FindUserByEmailRow{}, pgx.ErrNoRows)
-	store.EXPECT().FindPendingOrganisationInvitationByEmail(gomock.Any(), gomock.Any()).Return(sqlcgen.FindPendingOrganisationInvitationByEmailRow{}, pgx.ErrNoRows)
-	store.EXPECT().InsertOrganisationInvitation(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in sqlcgen.InsertOrganisationInvitationParams) error {
+	store.EXPECT().FindPendingOrganizationInvitationByEmail(gomock.Any(), gomock.Any()).Return(sqlcgen.FindPendingOrganizationInvitationByEmailRow{}, pgx.ErrNoRows)
+	store.EXPECT().InsertOrganizationInvitation(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in sqlcgen.InsertOrganizationInvitationParams) error {
 		assert.Equal(t, "invitee@example.com", in.Email)
 		assert.Equal(t, string(permission.RoleMember), in.Role)
 		assert.Equal(t, testUserID, in.InvitedByUserID.String())
@@ -85,8 +85,8 @@ func TestAcceptInvitation_CreatesUserAndSession(t *testing.T) {
 	invitationID := testVerificationTokenID
 
 	store.EXPECT().
-		FindOrganisationInvitationByToken(gomock.Any(), tokenHash).
-		Return(invitationRow(invitationID, testOrganisationID, "invitee@example.com", string(permission.RoleAdmin), string(InvitationStatusPending), tokenHash, testUserID, fixedTime.Add(time.Hour), pgtype.Timestamptz{}), nil)
+		FindOrganizationInvitationByToken(gomock.Any(), tokenHash).
+		Return(invitationRow(invitationID, testOrganizationID, "invitee@example.com", string(permission.RoleAdmin), string(InvitationStatusPending), tokenHash, testUserID, fixedTime.Add(time.Hour), pgtype.Timestamptz{}), nil)
 	store.EXPECT().FindUserByEmail(gomock.Any(), "invitee@example.com").Return(sqlcgen.FindUserByEmailRow{}, pgx.ErrNoRows)
 	store.EXPECT().InsertUser(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in sqlcgen.InsertUserParams) error {
 		assert.Equal(t, "invitee@example.com", in.Email)
@@ -95,9 +95,9 @@ func TestAcceptInvitation_CreatesUserAndSession(t *testing.T) {
 	})
 	store.EXPECT().FindPasswordAccountByUserID(gomock.Any(), gomock.Any()).Return(sqlcgen.FindPasswordAccountByUserIDRow{}, pgx.ErrNoRows)
 	store.EXPECT().InsertAccount(gomock.Any(), gomock.Any()).Return(nil)
-	store.EXPECT().FindOrganisationByIDForUser(gomock.Any(), gomock.Any()).Return(sqlcgen.FindOrganisationByIDForUserRow{}, pgx.ErrNoRows)
-	store.EXPECT().InsertOrganisationMember(gomock.Any(), gomock.Any()).Return(nil)
-	store.EXPECT().ConsumeOrganisationInvitation(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().FindOrganizationByIDForUser(gomock.Any(), gomock.Any()).Return(sqlcgen.FindOrganizationByIDForUserRow{}, pgx.ErrNoRows)
+	store.EXPECT().InsertOrganizationMember(gomock.Any(), gomock.Any()).Return(nil)
+	store.EXPECT().ConsumeOrganizationInvitation(gomock.Any(), gomock.Any()).Return(nil)
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
 	token, err := svc.AcceptInvitation(testCtx, rawToken, "Invitee", "password123", "127.0.0.1", "ua")
@@ -109,7 +109,7 @@ func TestAcceptInvitation_InvalidToken(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	store.EXPECT().FindOrganisationInvitationByToken(gomock.Any(), security.HashToken("bad-token")).Return(sqlcgen.FindOrganisationInvitationByTokenRow{}, pgx.ErrNoRows)
+	store.EXPECT().FindOrganizationInvitationByToken(gomock.Any(), security.HashToken("bad-token")).Return(sqlcgen.FindOrganizationInvitationByTokenRow{}, pgx.ErrNoRows)
 
 	_, err := svc.AcceptInvitation(testCtx, "bad-token", "Invitee", "password123", "", "")
 	require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthInvitationInvalid)))

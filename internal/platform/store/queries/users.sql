@@ -9,20 +9,20 @@ VALUES ($1, $2, $3, $4, $5, $6);
 INSERT INTO accounts (id, user_id, provider, provider_account_id, password_hash, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
 
--- name: InsertOrganisation :exec
-INSERT INTO organisations (id, name, slug, logo, created_at, updated_at)
+-- name: InsertOrganization :exec
+INSERT INTO organizations (id, name, slug, logo, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6);
 
--- name: InsertOrganisationRole :exec
-INSERT INTO organisation_roles (id, organisation_id, role_key, created_at, updated_at)
+-- name: InsertOrganizationRole :exec
+INSERT INTO organization_roles (id, organization_id, role_key, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5);
 
--- name: InsertOrganisationRolePermission :exec
-INSERT INTO organisation_role_permissions (role_id, permission)
+-- name: InsertOrganizationRolePermission :exec
+INSERT INTO organization_role_permissions (role_id, permission)
 VALUES ($1, $2);
 
--- name: InsertOrganisationMember :exec
-INSERT INTO organisation_members (id, organisation_id, user_id, role, created_at, updated_at)
+-- name: InsertOrganizationMember :exec
+INSERT INTO organization_members (id, organization_id, user_id, role, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: FindUserByEmail :one
@@ -46,23 +46,23 @@ UPDATE users
 SET email_verified_at = $1, updated_at = $2
 WHERE id = $3;
 
--- name: ListOrganisationsForUser :many
+-- name: ListOrganizationsForUser :many
 SELECT o.id, o.name, o.slug, m.role
-FROM organisation_members m
-JOIN organisations o ON o.id = m.organisation_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
 WHERE m.user_id = $1
 ORDER BY o.name;
 
--- name: FindOrganisationBySlugForUser :one
+-- name: FindOrganizationBySlugForUser :one
 SELECT o.id, o.name, o.slug, m.role
-FROM organisation_members m
-JOIN organisations o ON o.id = m.organisation_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
 WHERE m.user_id = $1 AND o.slug = $2;
 
--- name: FindOrganisationByIDForUser :one
+-- name: FindOrganizationByIDForUser :one
 SELECT o.id, o.name, o.slug, m.role
-FROM organisation_members m
-JOIN organisations o ON o.id = m.organisation_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
 WHERE m.user_id = $1 AND o.id = $2;
 
 -- name: InsertVerificationToken :exec
@@ -79,10 +79,10 @@ UPDATE verification_tokens
 SET consumed_at = $1, updated_at = $2
 WHERE id = $3 AND consumed_at IS NULL;
 
--- name: InsertOrganisationInvitation :exec
-INSERT INTO organisation_invitations (
+-- name: InsertOrganizationInvitation :exec
+INSERT INTO organization_invitations (
   id,
-  organisation_id,
+  organization_id,
   email,
   role,
   status,
@@ -94,20 +94,20 @@ INSERT INTO organisation_invitations (
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 
--- name: FindOrganisationInvitationByToken :one
-SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
-FROM organisation_invitations
+-- name: FindOrganizationInvitationByToken :one
+SELECT id, organization_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organization_invitations
 WHERE token_hash = $1;
 
--- name: FindPendingOrganisationInvitationByEmail :one
-SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
-FROM organisation_invitations
-WHERE organisation_id = $1 AND email = $2 AND status = 'pending' AND accepted_at IS NULL
+-- name: FindPendingOrganizationInvitationByEmail :one
+SELECT id, organization_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organization_invitations
+WHERE organization_id = $1 AND email = $2 AND status = 'pending' AND accepted_at IS NULL
 ORDER BY created_at DESC
 LIMIT 1;
 
--- name: ConsumeOrganisationInvitation :exec
-UPDATE organisation_invitations
+-- name: ConsumeOrganizationInvitation :exec
+UPDATE organization_invitations
 SET status = 'accepted', accepted_at = $1, updated_at = $2
 WHERE id = $3 AND status = 'pending' AND accepted_at IS NULL;
 

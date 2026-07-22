@@ -189,8 +189,8 @@ func TestLogin_TOTPSuccessMarksStepUsed(t *testing.T) {
 	store.EXPECT().FindTwoFactorByUserID(gomock.Any(), id.MustParse(testUserID)).
 		Return(twoFactorRow(testVerificationTokenID, testUserID, testTOTPSecret, true, 0, false, 0, pgtype.Timestamptz{}), nil)
 	store.EXPECT().MarkTwoFactorUsed(gomock.Any(), gomock.Any()).Return(nil)
-	store.EXPECT().ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(permission.RoleAdmin))}, nil)
+	store.EXPECT().ListOrganizationsForUser(gomock.Any(), id.MustParse(testUserID)).
+		Return([]sqlcgen.ListOrganizationsForUserRow{organizationRow(testOrganizationID, "Default", "default", string(permission.RoleAdmin))}, nil)
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
 	token, err := svc.Login(testCtx, "user@example.com", "secret", "", validTOTPCode(t), "", "")

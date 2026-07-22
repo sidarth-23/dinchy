@@ -23,8 +23,8 @@ const (
 	CodeAccountAuthOIDCInvalidState                          Code = "account.auth.oidc.invalid_state"
 	CodeAccountAuthOIDCLoginFailed                           Code = "account.auth.oidc.login_failed"
 	CodeAccountAuthOIDCProviderNotFound                      Code = "account.auth.oidc.provider_not_found"
-	CodeAccountAuthOrganisationNotFound                      Code = "account.auth.organisation_not_found"
-	CodeAccountAuthOrganisationRequired                      Code = "account.auth.organisation_required"
+	CodeAccountAuthOrganizationNotFound                      Code = "account.auth.organization_not_found"
+	CodeAccountAuthOrganizationRequired                      Code = "account.auth.organization_required"
 	CodeAccountAuthSetupCompleted                            Code = "account.auth.setup_completed"
 	CodeAccountAuthSSOCacheRequired                          Code = "account.auth.sso.cache_required"
 	CodeAccountAuthSSOInvalidState                           Code = "account.auth.sso.invalid_state"
@@ -44,7 +44,7 @@ const (
 	CodeDiagnosticsAuthInvitationCreateInvitation            Code = "diagnostics.auth.invitation.create_invitation"
 	CodeDiagnosticsAuthInvitationFindAccount                 Code = "diagnostics.auth.invitation.find_account"
 	CodeDiagnosticsAuthInvitationFindInvitation              Code = "diagnostics.auth.invitation.find_invitation"
-	CodeDiagnosticsAuthInvitationFindOrganisation            Code = "diagnostics.auth.invitation.find_organisation"
+	CodeDiagnosticsAuthInvitationFindOrganization            Code = "diagnostics.auth.invitation.find_organization"
 	CodeDiagnosticsAuthInvitationFindUser                    Code = "diagnostics.auth.invitation.find_user"
 	CodeDiagnosticsAuthInvitationGenerateToken               Code = "diagnostics.auth.invitation.generate_token"
 	CodeDiagnosticsAuthInvitationPasswordHash                Code = "diagnostics.auth.invitation.password_hash"
@@ -52,10 +52,10 @@ const (
 	CodeDiagnosticsAuthInvitationSendEmail                   Code = "diagnostics.auth.invitation.send_email"
 	CodeDiagnosticsAuthInvitationUpdateEmailVerified         Code = "diagnostics.auth.invitation.update_email_verified"
 	CodeDiagnosticsAuthLoginFindAccount                      Code = "diagnostics.auth.login.find_account"
-	CodeDiagnosticsAuthLoginFindOrganisation                 Code = "diagnostics.auth.login.find_organisation"
+	CodeDiagnosticsAuthLoginFindOrganization                 Code = "diagnostics.auth.login.find_organization"
 	CodeDiagnosticsAuthLoginFindUser                         Code = "diagnostics.auth.login.find_user"
 	CodeDiagnosticsAuthLoginGenerateToken                    Code = "diagnostics.auth.login.generate_token"
-	CodeDiagnosticsAuthLoginListOrganisations                Code = "diagnostics.auth.login.list_organisations"
+	CodeDiagnosticsAuthLoginListOrganizations                Code = "diagnostics.auth.login.list_organizations"
 	CodeDiagnosticsAuthLoginSSOCallback                      Code = "diagnostics.auth.login.sso_callback"
 	CodeDiagnosticsAuthLoginSSOStart                         Code = "diagnostics.auth.login.sso_start"
 	CodeDiagnosticsAuthLogoutPublishEvent                    Code = "diagnostics.auth.logout.publish_event"
@@ -66,14 +66,14 @@ const (
 	CodeDiagnosticsAuthPasswordResetGenerateToken            Code = "diagnostics.auth.password_reset.generate_token"
 	CodeDiagnosticsAuthPasswordResetPasswordHash             Code = "diagnostics.auth.password_reset.password_hash"
 	CodeDiagnosticsAuthPasswordResetSendEmail                Code = "diagnostics.auth.password_reset.send_email"
-	CodeDiagnosticsAuthSessionFindOrganisation               Code = "diagnostics.auth.session.find_organisation"
+	CodeDiagnosticsAuthSessionFindOrganization               Code = "diagnostics.auth.session.find_organization"
 	CodeDiagnosticsAuthSetupBeginTx                          Code = "diagnostics.auth.setup.begin_tx"
 	CodeDiagnosticsAuthSetupCommit                           Code = "diagnostics.auth.setup.commit"
 	CodeDiagnosticsAuthSetupCountUsers                       Code = "diagnostics.auth.setup.count_users"
 	CodeDiagnosticsAuthSetupCreateFirstUser                  Code = "diagnostics.auth.setup.create_first_user"
 	CodeDiagnosticsAuthSetupInsertAccount                    Code = "diagnostics.auth.setup.insert_account"
-	CodeDiagnosticsAuthSetupInsertOrganisation               Code = "diagnostics.auth.setup.insert_organisation"
-	CodeDiagnosticsAuthSetupInsertOrganisationMember         Code = "diagnostics.auth.setup.insert_organisation_member"
+	CodeDiagnosticsAuthSetupInsertOrganization               Code = "diagnostics.auth.setup.insert_organization"
+	CodeDiagnosticsAuthSetupInsertOrganizationMember         Code = "diagnostics.auth.setup.insert_organization_member"
 	CodeDiagnosticsAuthSetupInsertUser                       Code = "diagnostics.auth.setup.insert_user"
 	CodeDiagnosticsAuthSetupRollback                         Code = "diagnostics.auth.setup.rollback"
 	CodeDiagnosticsAuthTOTPConfirm                           Code = "diagnostics.auth.totp.confirm"
@@ -122,8 +122,8 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeAccountAuthOIDCInvalidState:                          "The OIDC login flow is invalid or has expired.",
 		CodeAccountAuthOIDCLoginFailed:                           "Unable to sign in with that OIDC provider.",
 		CodeAccountAuthOIDCProviderNotFound:                      "The selected OIDC provider is not available.",
-		CodeAccountAuthOrganisationNotFound:                      "The selected organisation is not available.",
-		CodeAccountAuthOrganisationRequired:                      "Choose an organisation to continue.",
+		CodeAccountAuthOrganizationNotFound:                      "The selected organization is not available.",
+		CodeAccountAuthOrganizationRequired:                      "Choose an organization to continue.",
 		CodeAccountAuthSetupCompleted:                            "Setup has already been completed for {{.resource}} ({{.count}} users).",
 		CodeAccountAuthSSOCacheRequired:                          "A cache store is required before SSO can be enabled.",
 		CodeAccountAuthSSOInvalidState:                           "The SSO login flow is invalid or has expired.",
@@ -143,7 +143,7 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsAuthInvitationCreateInvitation:            "Create invitation failed",
 		CodeDiagnosticsAuthInvitationFindAccount:                 "Look up password account during invitation failed",
 		CodeDiagnosticsAuthInvitationFindInvitation:              "Look up invitation failed",
-		CodeDiagnosticsAuthInvitationFindOrganisation:            "Resolve organisation during invitation failed",
+		CodeDiagnosticsAuthInvitationFindOrganization:            "Resolve organization during invitation failed",
 		CodeDiagnosticsAuthInvitationFindUser:                    "Look up user during invitation failed",
 		CodeDiagnosticsAuthInvitationGenerateToken:               "Generate invitation token failed",
 		CodeDiagnosticsAuthInvitationPasswordHash:                "Hash password during invitation failed",
@@ -151,10 +151,10 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsAuthInvitationSendEmail:                   "Send invitation email failed",
 		CodeDiagnosticsAuthInvitationUpdateEmailVerified:         "Update email verification during invitation failed",
 		CodeDiagnosticsAuthLoginFindAccount:                      "Look up password account during login failed",
-		CodeDiagnosticsAuthLoginFindOrganisation:                 "Resolve organisation during login failed",
+		CodeDiagnosticsAuthLoginFindOrganization:                 "Resolve organization during login failed",
 		CodeDiagnosticsAuthLoginFindUser:                         "Look up user during login failed",
 		CodeDiagnosticsAuthLoginGenerateToken:                    "Generate token during login failed",
-		CodeDiagnosticsAuthLoginListOrganisations:                "List organisations during login failed",
+		CodeDiagnosticsAuthLoginListOrganizations:                "List organizations during login failed",
 		CodeDiagnosticsAuthLoginSSOCallback:                      "Complete SSO login failed",
 		CodeDiagnosticsAuthLoginSSOStart:                         "Start SSO login failed",
 		CodeDiagnosticsAuthLogoutPublishEvent:                    "Publish logout event failed",
@@ -165,14 +165,14 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsAuthPasswordResetGenerateToken:            "Generate password reset token failed",
 		CodeDiagnosticsAuthPasswordResetPasswordHash:             "Hash password during reset failed",
 		CodeDiagnosticsAuthPasswordResetSendEmail:                "Send password reset email failed",
-		CodeDiagnosticsAuthSessionFindOrganisation:               "Resolve organisation during session failed",
+		CodeDiagnosticsAuthSessionFindOrganization:               "Resolve organization during session failed",
 		CodeDiagnosticsAuthSetupBeginTx:                          "Begin first-user setup transaction failed",
 		CodeDiagnosticsAuthSetupCommit:                           "Commit first-user setup transaction failed",
 		CodeDiagnosticsAuthSetupCountUsers:                       "Count users during setup failed",
 		CodeDiagnosticsAuthSetupCreateFirstUser:                  "Create first user failed",
 		CodeDiagnosticsAuthSetupInsertAccount:                    "Insert account during setup failed",
-		CodeDiagnosticsAuthSetupInsertOrganisation:               "Insert organisation during setup failed",
-		CodeDiagnosticsAuthSetupInsertOrganisationMember:         "Insert organisation member during setup failed",
+		CodeDiagnosticsAuthSetupInsertOrganization:               "Insert organization during setup failed",
+		CodeDiagnosticsAuthSetupInsertOrganizationMember:         "Insert organization member during setup failed",
 		CodeDiagnosticsAuthSetupInsertUser:                       "Insert user during setup failed",
 		CodeDiagnosticsAuthSetupRollback:                         "Roll back first-user setup transaction failed",
 		CodeDiagnosticsAuthTOTPConfirm:                           "Confirm two-factor authentication failed",
@@ -188,10 +188,10 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsWorkersEventProcessing:                    "Event subscriber processing failed",
 		CodeDiagnosticsWorkersSessionCleanup:                     "Session cleanup worker execution failed",
 		CodeNotificationEmailFooter:                              "This is an automated message from Dinchy. Please do not reply to this email.",
-		CodeNotificationEmailInvitationBody:                      "You have been invited to join {{.organisation}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon.",
+		CodeNotificationEmailInvitationBody:                      "You have been invited to join {{.organization}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon.",
 		CodeNotificationEmailInvitationCta:                       "Accept invitation",
-		CodeNotificationEmailInvitationHeading:                   "Join {{.organisation}} on Dinchy",
-		CodeNotificationEmailInvitationSubject:                   "You are invited to join {{.organisation}} on Dinchy",
+		CodeNotificationEmailInvitationHeading:                   "Join {{.organization}} on Dinchy",
+		CodeNotificationEmailInvitationSubject:                   "You are invited to join {{.organization}} on Dinchy",
 		CodeNotificationEmailNotConfigured:                       "Email delivery is not configured.",
 		CodeNotificationEmailPasswordResetBody:                   "We received a request to reset your Dinchy password. Click the button below to choose a new one. If you did not request this, you can safely ignore this email.",
 		CodeNotificationEmailPasswordResetCta:                    "Reset password",

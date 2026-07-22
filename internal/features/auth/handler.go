@@ -106,7 +106,7 @@ func Register(h huma.API, svc *Service, sessions *session.Service, sr SettingsRe
 		Description: "Sets the active organization for the current session and reissues the session cookie.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
-	}, a.selectOrganisation)
+	}, a.selectOrganization)
 
 	huma.Register(h, huma.Operation{
 		OperationID: "auth-create-invitation",
@@ -218,7 +218,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 		ctx,
 		in.Body.Email,
 		in.Body.Password,
-		in.Body.OrganisationSlug,
+		in.Body.OrganizationSlug,
 		in.Body.TOTPCode,
 		support.RemoteIPFrom(ctx),
 		support.UserAgentFrom(ctx),
@@ -257,7 +257,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 			return nil, err
 		}
 		if principal != nil {
-			envelope, err := events.NewEnvelope(ctx, principal.UserID, principal.OrganisationID, events.NewTarget("session", principal.SessionID, principal.DisplayName))
+			envelope, err := events.NewEnvelope(ctx, principal.UserID, principal.OrganizationID, events.NewTarget("session", principal.SessionID, principal.DisplayName))
 			if err != nil {
 				return nil, err
 			}
@@ -300,7 +300,7 @@ func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error
 	if a.requireHTTPS && !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
-	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganisationSlug)
+	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganizationSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -342,8 +342,8 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 	return out, nil
 }
 
-func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) (*SelectOrganisationOut, error) {
-	token, err := a.auth.SelectOrganisation(ctx, support.CookieValueFrom(ctx, a.sessions.SessionCookieName()), in.Body.OrganisationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+func (a *API) selectOrganization(ctx context.Context, in *SelectOrganizationIn) (*SelectOrganizationOut, error) {
+	token, err := a.auth.SelectOrganization(ctx, support.CookieValueFrom(ctx, a.sessions.SessionCookieName()), in.Body.OrganizationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +355,7 @@ func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) 
 	if err != nil {
 		return nil, err
 	}
-	out := &SelectOrganisationOut{SetCookie: []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, support.IsSecure(ctx))}}
+	out := &SelectOrganizationOut{SetCookie: []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, support.IsSecure(ctx))}}
 	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
 		return nil, err
 	}
@@ -520,7 +520,7 @@ func (a *API) attachSession(ctx context.Context, body *BootstrapBody) error {
 }
 
 func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody, sess *session.Principal, instanceName string) error {
-	orgs, err := a.auth.OrganisationsForUser(ctx, sess.UserID)
+	orgs, err := a.auth.OrganizationsForUser(ctx, sess.UserID)
 	if err != nil {
 		return err
 	}
@@ -528,15 +528,15 @@ func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody
 	body.Authenticated = true
 	body.App.InstanceName = instanceName
 	body.Viewer = &ViewerOut{Email: sess.Email, DisplayName: sess.DisplayName, Role: string(sess.Role)}
-	body.ActiveOrganisation = &OrganisationOut{ID: sess.OrganisationID, Name: sess.OrganisationName, Slug: sess.OrganisationSlug, Role: string(sess.Role)}
-	body.Organizations = organisationsOut(orgs)
+	body.ActiveOrganization = &OrganizationOut{ID: sess.OrganizationID, Name: sess.OrganizationName, Slug: sess.OrganizationSlug, Role: string(sess.Role)}
+	body.Organizations = organizationsOut(orgs)
 	return nil
 }
 
-func organisationsOut(orgs []Organization) []OrganisationOut {
-	out := make([]OrganisationOut, 0, len(orgs))
+func organizationsOut(orgs []Organization) []OrganizationOut {
+	out := make([]OrganizationOut, 0, len(orgs))
 	for _, org := range orgs {
-		out = append(out, OrganisationOut{ID: org.ID, Name: org.Name, Slug: org.Slug, Role: string(org.Role)})
+		out = append(out, OrganizationOut{ID: org.ID, Name: org.Name, Slug: org.Slug, Role: string(org.Role)})
 	}
 	return out
 }

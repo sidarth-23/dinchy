@@ -18,7 +18,7 @@ type Type string
 type Envelope struct {
 	ID                  string
 	ActorUserID         string
-	ActorOrganisationID string
+	ActorOrganizationID string
 	TargetType          string
 	TargetID            string
 	TargetDisplay       string
@@ -134,7 +134,7 @@ func (target Target) validate() error {
 }
 
 // NewEnvelope creates an event envelope and requires a populated target reference.
-func NewEnvelope(ctx context.Context, actorUserID, actorOrganisationID string, target Target) (Envelope, error) {
+func NewEnvelope(ctx context.Context, actorUserID, actorOrganizationID string, target Target) (Envelope, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -143,7 +143,7 @@ func NewEnvelope(ctx context.Context, actorUserID, actorOrganisationID string, t
 	}
 	return Envelope{
 		ActorUserID:         actorUserID,
-		ActorOrganisationID: actorOrganisationID,
+		ActorOrganizationID: actorOrganizationID,
 		TargetType:          target.targetType,
 		TargetID:            target.targetID,
 		TargetDisplay:       target.targetDisplay,
@@ -164,7 +164,7 @@ type Record struct {
 	Action              string         `json:"action"`
 	Outcome             string         `json:"outcome"`
 	ActorUserID         string         `json:"actor_user_id,omitempty"`
-	ActorOrganisationID string         `json:"actor_organization_id,omitempty"`
+	ActorOrganizationID string         `json:"actor_organization_id,omitempty"`
 	TargetType          string         `json:"target_type"`
 	TargetID            string         `json:"target_id"`
 	TargetDisplay       string         `json:"target_display"`

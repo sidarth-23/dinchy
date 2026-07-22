@@ -27,9 +27,9 @@ type Principal struct {
 	UserID           string
 	Email            string
 	DisplayName      string
-	OrganisationID   string
-	OrganisationName string
-	OrganisationSlug string
+	OrganizationID   string
+	OrganizationName string
+	OrganizationSlug string
 	Role             permission.Role
 	Permissions      []permission.Permission
 	IdleExpiresAt    time.Time
@@ -48,9 +48,9 @@ func FromGetSessionRow(row sqlcgen.GetSessionByTokenHashRow) *Principal {
 		UserID:           row.UserID.String(),
 		Email:            row.Email,
 		DisplayName:      row.DisplayName,
-		OrganisationID:   row.ActiveOrganisationID.String(),
-		OrganisationName: row.OrganisationName,
-		OrganisationSlug: row.OrganisationSlug,
+		OrganizationID:   row.ActiveOrganizationID.String(),
+		OrganizationName: row.OrganizationName,
+		OrganizationSlug: row.OrganizationSlug,
 		Role:             permission.Role(row.Role),
 		Permissions:      permissions,
 		IdleExpiresAt:    sqltype.TimeValue(row.IdleExpiresAt),
@@ -67,9 +67,9 @@ type cachedPrincipal struct {
 	UserID           string
 	Email            string
 	DisplayName      string
-	OrganisationID   string
-	OrganisationName string
-	OrganisationSlug string
+	OrganizationID   string
+	OrganizationName string
+	OrganizationSlug string
 	Role             permission.Role
 	Permissions      []permission.Permission
 	IdleExpiresAt    time.Time
@@ -82,9 +82,9 @@ func (p *Principal) toCache() cachedPrincipal {
 		UserID:           p.UserID,
 		Email:            p.Email,
 		DisplayName:      p.DisplayName,
-		OrganisationID:   p.OrganisationID,
-		OrganisationName: p.OrganisationName,
-		OrganisationSlug: p.OrganisationSlug,
+		OrganizationID:   p.OrganizationID,
+		OrganizationName: p.OrganizationName,
+		OrganizationSlug: p.OrganizationSlug,
 		Role:             p.Role,
 		Permissions:      p.Permissions,
 		IdleExpiresAt:    p.IdleExpiresAt,
@@ -98,9 +98,9 @@ func (c cachedPrincipal) toPrincipal() *Principal {
 		UserID:           c.UserID,
 		Email:            c.Email,
 		DisplayName:      c.DisplayName,
-		OrganisationID:   c.OrganisationID,
-		OrganisationName: c.OrganisationName,
-		OrganisationSlug: c.OrganisationSlug,
+		OrganizationID:   c.OrganizationID,
+		OrganizationName: c.OrganizationName,
+		OrganizationSlug: c.OrganizationSlug,
 		Role:             c.Role,
 		Permissions:      c.Permissions,
 		IdleExpiresAt:    c.IdleExpiresAt,

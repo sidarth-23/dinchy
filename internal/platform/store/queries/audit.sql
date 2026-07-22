@@ -1,7 +1,7 @@
 -- name: InsertAuditLog :exec
 INSERT INTO app_audit_logs (
   id, category, subcategory, event_type, action, outcome,
-  actor_user_id, actor_organisation_id, target_type, target_id, target_display,
+  actor_user_id, actor_organization_id, target_type, target_id, target_display,
   request_id, trace_id, span_id, ip_address, user_agent,
   metadata_json, changes_json, created_at
 )
@@ -10,7 +10,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $
 -- name: ListAuditLogs :many
 SELECT
   id, category, subcategory, event_type, action, outcome,
-  actor_user_id, actor_organisation_id, target_type, target_id, target_display,
+  actor_user_id, actor_organization_id, target_type, target_id, target_display,
   request_id, trace_id, span_id, ip_address, user_agent,
   metadata_json, changes_json, created_at
 FROM app_audit_logs

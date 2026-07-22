@@ -42,19 +42,19 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
-// GetActiveSessionTokenHashesForOrganisation mocks base method.
-func (m *MockStore) GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error) {
+// GetActiveSessionTokenHashesForOrganization mocks base method.
+func (m *MockStore) GetActiveSessionTokenHashesForOrganization(ctx context.Context, activeOrganizationID uuid.UUID) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActiveSessionTokenHashesForOrganisation", ctx, activeOrganisationID)
+	ret := m.ctrl.Call(m, "GetActiveSessionTokenHashesForOrganization", ctx, activeOrganizationID)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetActiveSessionTokenHashesForOrganisation indicates an expected call of GetActiveSessionTokenHashesForOrganisation.
-func (mr *MockStoreMockRecorder) GetActiveSessionTokenHashesForOrganisation(ctx, activeOrganisationID any) *gomock.Call {
+// GetActiveSessionTokenHashesForOrganization indicates an expected call of GetActiveSessionTokenHashesForOrganization.
+func (mr *MockStoreMockRecorder) GetActiveSessionTokenHashesForOrganization(ctx, activeOrganizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveSessionTokenHashesForOrganisation", reflect.TypeOf((*MockStore)(nil).GetActiveSessionTokenHashesForOrganisation), ctx, activeOrganisationID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveSessionTokenHashesForOrganization", reflect.TypeOf((*MockStore)(nil).GetActiveSessionTokenHashesForOrganization), ctx, activeOrganizationID)
 }
 
 // GetActiveSessionTokenHashesForUser mocks base method.
