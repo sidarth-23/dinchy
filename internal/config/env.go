@@ -11,9 +11,9 @@ import (
 
 	"github.com/joho/godotenv"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/transform"
 )
 
 // applyModsValue walks the config value recursively and normalizes every string

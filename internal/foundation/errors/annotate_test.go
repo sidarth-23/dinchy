@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 func TestAnnotatePreservesCodeAndAddsMeta(t *testing.T) {

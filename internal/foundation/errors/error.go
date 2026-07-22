@@ -5,7 +5,7 @@ import (
 	stdErrors "errors"
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 // AppError is the source-layer error type returned by business, store, and

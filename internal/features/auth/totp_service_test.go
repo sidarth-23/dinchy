@@ -15,10 +15,10 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/events"
-	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/id"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )

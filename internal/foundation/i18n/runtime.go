@@ -1,7 +1,7 @@
 // Package i18n resolves message codes to localized text for supported locales.
 package i18n
 
-//go:generate go run ../../cmd/codegen i18n -input catalog -output generated.go
+//go:generate go run ../../../cmd/codegen i18n -input catalog -output generated.go
 
 import (
 	"bytes"

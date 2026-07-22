@@ -14,7 +14,7 @@ func runPermission(args []string) error {
 	fs.SetOutput(io.Discard)
 	permissionsInput := fs.String("permissions-input", "permissions.json", "permissions manifest input path")
 	rolesInput := fs.String("roles-input", "roles.json", "roles manifest input path")
-	i18nInput := fs.String("i18n-input", "../../i18n/catalog", "i18n manifest input path (directory of fragments or single file)")
+	i18nInput := fs.String("i18n-input", "../../foundation/i18n/catalog", "i18n manifest input path (directory of fragments or single file)")
 	permissionsOutput := fs.String("permissions-output", "permission_generated.go", "generated permissions Go output path")
 	rolesOutput := fs.String("roles-output", "role_generated.go", "generated roles Go output path")
 	if err := fs.Parse(args); err != nil {

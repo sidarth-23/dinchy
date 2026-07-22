@@ -3,8 +3,8 @@ package config
 import (
 	"github.com/go-playground/validator/v10"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 // validateStruct validates value against its go-playground validator tags and

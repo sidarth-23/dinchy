@@ -14,13 +14,13 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/clock"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/id"
 	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
-	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
-	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )

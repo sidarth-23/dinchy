@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 )
 
 // Error records a failure once at the boundary where it is handled.

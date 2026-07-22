@@ -20,7 +20,7 @@ linters:
     settings:
         exhaustruct:
             include:
-                - 'github\.com/sidarth-23/dinchy/internal/i18n\.Messages'
+                - 'github\.com/sidarth-23/dinchy/internal/foundation/i18n\.Messages'
         gocritic:
             enabled-tags:
                 - diagnostic

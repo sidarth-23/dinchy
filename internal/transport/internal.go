@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/sidarth-23/dinchy/internal/features/health"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/render"
 )

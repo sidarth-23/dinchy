@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 func marshalMap(kind, eventType string, value map[string]any) (string, error) {

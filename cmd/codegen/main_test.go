@@ -19,7 +19,7 @@ func TestGenerateI18nUsesSourceManifest(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	out := filepath.Join(tmpDir, "generated.go")
-	input := filepath.Join("..", "..", "internal", "i18n", "catalog")
+	input := filepath.Join("..", "..", "internal", "foundation", "i18n", "catalog")
 
 	mf, err := manifest.LoadI18nCatalogDir(input)
 	require.NoError(t, err)

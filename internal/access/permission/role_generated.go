@@ -2,7 +2,7 @@
 
 package permission
 
-import "github.com/sidarth-23/dinchy/internal/i18n"
+import "github.com/sidarth-23/dinchy/internal/foundation/i18n"
 
 type Role string
 type RoleDefinition struct {

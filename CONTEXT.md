@@ -34,7 +34,13 @@ tests, and design discussion. Keep entries terse and intent-focused.
 
 ## Foundation
 
-- **requestcontext** (`internal/platform/requestcontext`) — a foundation leaf
+`internal/foundation/*` is the base tier: domain-agnostic primitives with zero
+internal dependencies (or, for `errors`, only `i18n`). Nothing in `foundation`
+imports `config`, `platform`, or any feature. It holds `errors`, `i18n`, `clock`,
+`id`, `transform`, and `requestcontext`. Everything else builds on top:
+`platform/*` is infrastructure that depends on `config` and `foundation`.
+
+- **requestcontext** (`internal/foundation/requestcontext`) — a foundation leaf
   carrying request-scoped observability values (client IP, user agent, and
   request/trace/span IDs) across layers via the context. Transport middleware
   populates it; any layer reads it, including non-transport code (e.g. the events

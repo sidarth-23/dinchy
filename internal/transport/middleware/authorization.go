@@ -7,8 +7,8 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 // SessionResolutionGuard returns Huma middleware that surfaces session lookup failures.

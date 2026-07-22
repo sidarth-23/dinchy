@@ -1,7 +1,7 @@
 package errors
 
 import (
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 // Annotate preserves an existing structured error and adds more metadata.

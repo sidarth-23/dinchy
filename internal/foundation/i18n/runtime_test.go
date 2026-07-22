@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/text/language"
 
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 func TestCatalogResolve_InterpolatesMetadata(t *testing.T) {

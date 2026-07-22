@@ -8,7 +8,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 )
 
 // Migrate applies River's schema migrations, creating the job-queue tables when

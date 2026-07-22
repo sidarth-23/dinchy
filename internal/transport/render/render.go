@@ -12,8 +12,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/text/language"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 // ResponsePayload is the public error payload serialized by transport.

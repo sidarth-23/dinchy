@@ -13,9 +13,9 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/id"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/id"
 )
 
 // Config holds the Redis stream and consumer-group tuning for the event bus.

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/sidarth-23/dinchy/internal/platform/requestcontext"
+	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
 )
 
 func TestRequestInfo_RoundTrip(t *testing.T) {

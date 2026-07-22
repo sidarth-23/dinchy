@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/platform/requestcontext"
+	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 

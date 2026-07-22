@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sidarth-23/dinchy/internal/platform/requestcontext"
+	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
 )
 
 // Type is the catalog identifier for an event.

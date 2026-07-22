@@ -16,7 +16,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 )
 
 // New builds the River client that runs durable background jobs. Workers must be

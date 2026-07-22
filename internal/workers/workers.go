@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 )
 

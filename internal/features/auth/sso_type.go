@@ -8,8 +8,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/foundation/transform"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 // SSOProviderOut is a single configured SSO provider in an API response.

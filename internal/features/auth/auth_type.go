@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/foundation/transform"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 //go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
