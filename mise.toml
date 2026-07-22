@@ -28,3 +28,7 @@ generate = "go generate ./internal/errors ./internal/i18n ./internal/events ./in
 [settings]
 experimental = true
 auto_install = true
+
+# Install git hooks as part of `mise install` so a fresh checkout is ready to commit.
+[hooks]
+postinstall = "lefthook install"

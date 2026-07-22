@@ -1,4 +1,4 @@
-# Install hooks with: mise run hooks:install
+# Git hooks install automatically via `mise install` (see the [hooks] postinstall in mise.toml).
 pre-commit:
     jobs:
         - name: validate and generate
@@ -27,7 +27,7 @@ pre-commit:
 
                   - name: generate sqlc
                     glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"
-                    run: sqlc generate && git add internal/platform/store/sqlcgen
+                    run: mise exec -- sqlc generate && git add internal/platform/store/sqlcgen
 
         - name: golangci-lint
           glob: "*.go"
