@@ -75,7 +75,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	}); err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetCreateVerificationToken), apperrors.WithCause(err))
 	}
-	if err := s.Mailer.SendPasswordReset(ctx, email.PasswordResetEmail{To: emailAddress, Token: rawToken}); err != nil {
+	if err := s.Mailer.Send(ctx, emailAddress, s.passwordResetContent(rawToken)); err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetSendEmail), apperrors.WithCause(err))
 	}
 	return nil

@@ -95,7 +95,7 @@ func (a *App) Start() error {
 	}
 	a.jobs = riverClient
 	enqueuer := jobs.NewEnqueuer(riverClient)
-	mailer, err := email.NewMailer(enqueuer, a.cfg.PublicBaseURL, a.cfg.SMTP.Enabled())
+	mailer, err := email.NewMailer(enqueuer, a.cfg.SMTP.Enabled())
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
@@ -113,7 +113,7 @@ func (a *App) Start() error {
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
-	authSvc, err := auth.NewService(sharedService.Named("auth"), queries, sessionSvc, a.cfg.Auth, a.cfg.SSOProviders)
+	authSvc, err := auth.NewService(sharedService.Named("auth"), queries, sessionSvc, a.cfg.Auth, config.NewLinks(a.cfg.PublicBaseURL), a.cfg.SSOProviders)
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}

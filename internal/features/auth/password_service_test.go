@@ -56,14 +56,14 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
 	enqueuer := &fakeEnqueuer{}
-	mailer, err := email.NewMailer(enqueuer, "https://app.test", sender.Configured())
+	mailer, err := email.NewMailer(enqueuer, sender.Configured())
 	require.NoError(t, err)
 	sharedService := module.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: mailer, Jobs: enqueuer}
 	cacheConfig := config.DefaultCache()
 	cacheConfig.Enabled = false
 	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), cacheConfig)
 	require.NoError(t, err)
-	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), nil)
+	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), config.NewLinks("https://app.test"), nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{

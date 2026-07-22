@@ -65,7 +65,7 @@ func (s *Service) Initialize() error {
 	}
 	if s.Mailer == nil {
 		var err error
-		s.Mailer, err = email.NewMailer(nil, "", false)
+		s.Mailer, err = email.NewMailer(nil, false)
 		if err != nil {
 			return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("create default mailer for module %q: %w", s.ModuleName, err)))
 		}

@@ -44,7 +44,7 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
 	clk := clock.Fixed(fixedTime)
-	noopMailer, err := email.NewMailer(nil, "", false)
+	noopMailer, err := email.NewMailer(nil, false)
 	require.NoError(t, err)
 	publisher := &recordingPublisher{}
 	sharedService := module.Service{Clock: clk, IDGenerator: id.NewGenerator(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: noopMailer, EventPublisher: publisher}
@@ -52,7 +52,7 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	cacheConfig.Enabled = false
 	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), cacheConfig)
 	require.NoError(t, err)
-	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), nil)
+	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), config.NewLinks("https://app.test"), nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{

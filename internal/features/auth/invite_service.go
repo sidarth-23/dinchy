@@ -100,12 +100,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 	}); err != nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationCreateInvitation), apperrors.WithCause(err))
 	}
-	if err := s.Mailer.SendInvitation(ctx, email.InvitationEmail{
-		To:               emailAddress,
-		OrganisationName: inviter.OrganisationName,
-		Role:             string(invitationRole),
-		Token:            rawToken,
-	}); err != nil {
+	if err := s.Mailer.Send(ctx, emailAddress, s.invitationContent(inviter.OrganisationName, string(invitationRole), rawToken)); err != nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthInvitationSendEmail), apperrors.WithCause(err))
 	}
 	return &Invitation{

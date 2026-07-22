@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -10,10 +11,56 @@ import (
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/platform/email"
 	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
+
+// resolveEmailCopy renders a catalog message at the default locale. Recipient
+// locale is unknown for outbound email, so copy always uses the default language.
+func resolveEmailCopy(msg i18n.Message) string {
+	return i18n.Default.Resolve(i18n.Default.Match(""), msg)
+}
+
+// actionURL builds a call-to-action link from the configured base URL, a
+// frontend route path, and a single-use token.
+func (s *Service) actionURL(path, token string) string {
+	link := url.URL{Path: path}
+	if base, err := url.Parse(s.links.BaseURL); err == nil && s.links.BaseURL != "" {
+		link = *base
+		link.Path = path
+	}
+	query := link.Query()
+	query.Set("token", token)
+	link.RawQuery = query.Encode()
+	return link.String()
+}
+
+// invitationContent builds the organization invitation email.
+func (s *Service) invitationContent(organisationName, role, token string) email.Content {
+	organization := i18n.P("organization", organisationName)
+	return email.Content{
+		Subject:  resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailInvitationSubject, organization)),
+		Heading:  resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailInvitationHeading, organization)),
+		Body:     resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailInvitationBody, organization, i18n.P("role", role))),
+		CTALabel: resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailInvitationCta)),
+		CTAURL:   s.actionURL(s.links.AcceptInvitationPath, token),
+		Footer:   resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailFooter)),
+	}
+}
+
+// passwordResetContent builds the password reset email.
+func (s *Service) passwordResetContent(token string) email.Content {
+	return email.Content{
+		Subject:  resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailPasswordResetSubject)),
+		Heading:  resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailPasswordResetHeading)),
+		Body:     resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailPasswordResetBody)),
+		CTALabel: resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailPasswordResetCta)),
+		CTAURL:   s.actionURL(s.links.ResetPasswordPath, token),
+		Footer:   resolveEmailCopy(i18n.Msg(i18n.CodeNotificationEmailFooter)),
+	}
+}
 
 func userFromFindUserRow(row sqlcgen.FindUserByEmailRow) *User {
 	if row.ID == uuid.Nil {

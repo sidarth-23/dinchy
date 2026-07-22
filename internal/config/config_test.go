@@ -70,6 +70,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	t.Setenv("DINCHY_EVENT_BUS_WORKER_INTERVAL", "15s")
 	t.Setenv("DINCHY_SMTP_HOST", "smtp.example.com")
 	t.Setenv("DINCHY_SMTP_FROM", "dinchy@example.com")
+	t.Setenv("DINCHY_PUBLIC_BASE_URL", "https://app.example.com")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -96,6 +97,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, 1*time.Second, cfg.EventBus.ReadBlock)
 	assert.Equal(t, 15*time.Second, cfg.EventBus.WorkerInterval)
 	assert.True(t, cfg.SMTP.Enabled())
+	assert.Equal(t, "https://app.example.com", cfg.PublicBaseURL)
 }
 
 func TestLoad_DevMode_AcceptsMultipleBoolFormats(t *testing.T) {

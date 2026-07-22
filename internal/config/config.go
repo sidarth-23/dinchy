@@ -5,6 +5,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -95,6 +96,10 @@ func Load() (Config, error) {
 	v := validation.New()
 	if err := v.Struct(cfg); err != nil {
 		return Config{}, err
+	}
+
+	if cfg.SMTP.Enabled() && cfg.PublicBaseURL == "" {
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigValidationFailed), apperrors.WithCause(fmt.Errorf("public base URL is required when SMTP is configured")))
 	}
 
 	return cfg, nil

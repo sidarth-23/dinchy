@@ -23,11 +23,12 @@ type Service struct {
 	store      Store
 	sessions   *session.Service
 	authConfig config.AuthConfig
+	links      config.Links
 	sso        *ssoRegistry
 }
 
 // NewService builds an auth Service, wiring the SSO registry and falling back to a no-op mailer when none is provided.
-func NewService(base *module.Service, store Store, sessions *session.Service, authConfig config.AuthConfig, providers []config.SSOProviderConfig) (*Service, error) {
+func NewService(base *module.Service, store Store, sessions *session.Service, authConfig config.AuthConfig, links config.Links, providers []config.SSOProviderConfig) (*Service, error) {
 	if base == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("auth module service is required")))
 	}
@@ -38,7 +39,7 @@ func NewService(base *module.Service, store Store, sessions *session.Service, au
 	if err != nil {
 		return nil, err
 	}
-	service := &Service{Service: base, store: store, sessions: sessions, authConfig: authConfig, sso: registry}
+	service := &Service{Service: base, store: store, sessions: sessions, authConfig: authConfig, links: links, sso: registry}
 	if base.Database != nil {
 		service.beginTx = func(ctx context.Context) (*setupTransaction, error) {
 			tx, err := base.Database.Begin(ctx)

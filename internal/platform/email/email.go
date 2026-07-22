@@ -1,3 +1,6 @@
+// Package email renders resolved Content into a shared branded layout and
+// delivers it durably through a background job. It selects no copy and builds no
+// links; callers supply fully-resolved Content and reach delivery through Mailer.
 package email
 
 import (

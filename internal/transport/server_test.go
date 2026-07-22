@@ -29,7 +29,7 @@ func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler 
 	sharedService := module.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), CacheKeyer: cache.NewKeyer("test")}
 	sessionSvc, err := session.NewService(sharedService.Named("session"), nil, config.DefaultSession(), config.DefaultCache())
 	require.NoError(t, err)
-	svc, err := auth.NewService(sharedService.Named("auth"), nil, sessionSvc, config.DefaultAuth(), nil)
+	svc, err := auth.NewService(sharedService.Named("auth"), nil, sessionSvc, config.DefaultAuth(), config.NewLinks(""), nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
 	srv := transport.New(":0", dist, svc, sessionSvc, nil, false, devMode, false, devProxyURL, nil)
