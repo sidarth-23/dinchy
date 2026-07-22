@@ -1,4 +1,4 @@
-// Package errors provides structured, localizable application errors and response rendering.
+// Package errors provides structured, localizable application errors.
 package errors
 
 import (

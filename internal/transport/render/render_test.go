@@ -1,4 +1,4 @@
-package errors_test
+package render_test
 
 import (
 	"encoding/json"
@@ -12,13 +12,14 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 )
 
 func TestErrorResponse_MarshalsAndReportsStatus(t *testing.T) {
 	t.Parallel()
 
-	resp := &apperrors.ErrorResponse{
-		Payload: apperrors.ResponsePayload{
+	resp := &render.ErrorResponse{
+		Payload: render.ResponsePayload{
 			Code:    string(i18n.CodeTransportRequestValidationFailed),
 			Message: "Some fields need attention.",
 			Meta:    map[string]any{"fields": []any{map[string]any{"message": "expected string"}}},
@@ -38,7 +39,7 @@ func TestErrorResponse_MarshalsAndReportsStatus(t *testing.T) {
 func TestResolve_LocalizesAndPreservesMeta(t *testing.T) {
 	t.Parallel()
 
-	renderer := apperrors.NewRenderer(i18n.Default, false)
+	renderer := render.NewRenderer(i18n.Default, false)
 	resp := renderer.Resolve(language.English, apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 2))))
 
 	assert.Equal(t, http.StatusConflict, resp.GetStatus())
@@ -51,7 +52,7 @@ func TestResolve_LocalizesAndPreservesMeta(t *testing.T) {
 func TestResponseFor_ValidationDetails(t *testing.T) {
 	t.Parallel()
 
-	renderer := apperrors.NewRenderer(i18n.Default, false)
+	renderer := render.NewRenderer(i18n.Default, false)
 	detail := &huma.ErrorDetail{Message: "expected string", Location: "body.email", Value: "x"}
 	resp := renderer.ResponseFor(language.English, http.StatusUnprocessableEntity, detail)
 
@@ -68,7 +69,7 @@ func TestResponseFor_ValidationDetails(t *testing.T) {
 func TestResolve_ServerErrorRendersGenericButPreservesCode(t *testing.T) {
 	t.Parallel()
 
-	renderer := apperrors.NewRenderer(i18n.Default, false)
+	renderer := render.NewRenderer(i18n.Default, false)
 	appErr := apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginFindUser), apperrors.WithCause(assert.AnError))
 	resp := renderer.Resolve(language.English, appErr)
 
@@ -84,7 +85,7 @@ func TestResolve_ServerErrorRendersGenericButPreservesCode(t *testing.T) {
 func TestResolve_ExposeInternalAttachesDebug(t *testing.T) {
 	t.Parallel()
 
-	renderer := apperrors.NewRenderer(i18n.Default, true)
+	renderer := render.NewRenderer(i18n.Default, true)
 	appErr := apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginFindUser), apperrors.WithCause(assert.AnError))
 	resp := renderer.Resolve(language.English, appErr)
 
@@ -97,7 +98,7 @@ func TestResolve_ExposeInternalAttachesDebug(t *testing.T) {
 func TestResolve_ExposeInternalOnClientErrorAttachesDebug(t *testing.T) {
 	t.Parallel()
 
-	renderer := apperrors.NewRenderer(i18n.Default, true)
+	renderer := render.NewRenderer(i18n.Default, true)
 	appErr := apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganisationNotFound))
 	resp := renderer.Resolve(language.English, appErr)
 

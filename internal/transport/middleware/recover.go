@@ -9,15 +9,15 @@ import (
 
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // Recover catches handler panics, logs them once through the structured
 // logging pipeline, and returns the standard 500 error envelope when the
 // response has not started yet.
-func Recover(logger *slog.Logger, renderer *apperrors.Renderer) func(http.Handler) http.Handler {
+func Recover(logger *slog.Logger, renderer *render.Renderer) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -49,7 +49,7 @@ func Recover(logger *slog.Logger, renderer *apperrors.Renderer) func(http.Handle
 	}
 }
 
-func writeErrorResponse(ctx context.Context, w http.ResponseWriter, logger *slog.Logger, response *apperrors.ErrorResponse) {
+func writeErrorResponse(ctx context.Context, w http.ResponseWriter, logger *slog.Logger, response *render.ErrorResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(response.GetStatus())
 	if err := json.NewEncoder(w).Encode(response); err != nil {

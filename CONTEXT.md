@@ -24,6 +24,14 @@ tests, and design discussion. Keep entries terse and intent-focused.
   assemble a `Content.CTAURL`; base URL and route paths live in one place rather
   than inside the delivery module.
 
+## Transport
+
+- **Renderer** (`internal/transport/render`) — the error-response rendering seam.
+  It localizes a source-layer `errors.AppError` into the client-facing HTTP
+  payload (`ResponsePayload`/`ErrorResponse`) for Huma, and owns whether internal
+  failure detail is exposed. Rendering lives in transport, not in `internal/errors`:
+  the errors package stays foundational and free of the HTTP framework.
+
 ## Ownership principle
 
 Shared platform modules own the *machinery* (email delivery, event transport),

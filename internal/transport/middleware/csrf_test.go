@@ -12,16 +12,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 func csrfHandler(t *testing.T) (http.Handler, *bool) {
 	t.Helper()
 	called := new(bool)
-	h := middleware.CSRF(apperrors.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := middleware.CSRF(render.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		*called = true
 		w.WriteHeader(http.StatusOK)
 	}))

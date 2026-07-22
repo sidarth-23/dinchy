@@ -17,12 +17,12 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/sidarth-23/dinchy/internal/access/session"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -33,7 +33,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 	if logger == nil {
 		logger = slog.Default()
 	}
-	renderer := apperrors.NewRenderer(i18n.Default, exposeInternalErrors)
+	renderer := render.NewRenderer(i18n.Default, exposeInternalErrors)
 	huma.NewError = func(status int, _ string, errs ...error) huma.StatusError {
 		return renderer.ResponseFor(language.English, status, errs...)
 	}

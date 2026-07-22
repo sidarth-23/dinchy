@@ -11,6 +11,7 @@ import (
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -18,7 +19,7 @@ import (
 // Every request ensures a dinchy_csrf cookie exists; mutating requests
 // (POST, PUT, PATCH, DELETE) additionally require the X-CSRF-Token header
 // to match the cookie value.
-func CSRF(renderer *apperrors.Renderer) func(http.Handler) http.Handler {
+func CSRF(renderer *render.Renderer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

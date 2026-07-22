@@ -1,4 +1,8 @@
-package errors
+// Package render localizes application errors into transport-layer HTTP
+// responses for Huma. It owns the client-facing error payload shape and whether
+// internal failure detail is exposed; the source-layer error values it renders
+// come from internal/errors.
+package render
 
 import (
 	"encoding/json"
@@ -8,6 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/text/language"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 )
 
@@ -115,21 +120,16 @@ func (r *Renderer) Resolve(tag language.Tag, err error) *ErrorResponse {
 	if appErr, ok := appErrorFrom(err); ok {
 		return r.localizedResponse(tag, appErr)
 	}
-	return r.localizedResponse(tag, Internal(i18n.Msg(i18n.CodePlatformServerInternalError), WithCause(err)))
-}
-
-// Render resolves the localized payload for an application error.
-func (r *Renderer) Render(tag language.Tag, err *AppError) ResponsePayload {
-	return r.localizedResponse(tag, err).Payload
+	return r.localizedResponse(tag, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(err)))
 }
 
 // localizedResponse builds the client response. Server errors (status >= 500)
 // render the generic internal code and drop metadata so no internal detail
 // reaches the client; the specific code and cause are surfaced only through the
 // debug object when internal exposure is enabled.
-func (r *Renderer) localizedResponse(tag language.Tag, appErr *AppError) *ErrorResponse {
+func (r *Renderer) localizedResponse(tag language.Tag, appErr *apperrors.AppError) *ErrorResponse {
 	var payload ResponsePayload
-	if appErr.status >= http.StatusInternalServerError {
+	if appErr.Status() >= http.StatusInternalServerError {
 		payload = ResponsePayload{
 			Code:    string(i18n.CodePlatformServerInternalError),
 			Message: r.catalog.Resolve(tag, i18n.Msg(i18n.CodePlatformServerInternalError)),
@@ -144,12 +144,20 @@ func (r *Renderer) localizedResponse(tag language.Tag, appErr *AppError) *ErrorR
 	if r.exposeInternal {
 		payload.Debug = debugForAppError(appErr)
 	}
-	return &ErrorResponse{status: appErr.status, Payload: payload}
+	return &ErrorResponse{status: appErr.Status(), Payload: payload}
 }
 
-func debugForAppError(appErr *AppError) *DebugPayload {
+func appErrorFrom(err error) (*apperrors.AppError, bool) {
+	var appErr *apperrors.AppError
+	if !stdErrors.As(err, &appErr) {
+		return nil, false
+	}
+	return appErr, true
+}
+
+func debugForAppError(appErr *apperrors.AppError) *DebugPayload {
 	debug := &DebugPayload{Code: string(appErr.Code()), Meta: appErr.Meta()}
-	if cause := appErr.cause; cause != nil {
+	if cause := appErr.Unwrap(); cause != nil {
 		debug.Cause = cause.Error()
 	}
 	return debug
