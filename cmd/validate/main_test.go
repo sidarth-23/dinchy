@@ -11,29 +11,6 @@ import (
 	manifest "github.com/sidarth-23/dinchy/internal/manifest"
 )
 
-func TestRunValidateErrorAcceptsValidCatalog(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "catalog.json")
-	raw, err := json.Marshal(manifest.ErrorCatalog{
-		Modules: []manifest.ErrorModule{
-			{
-				Name: "metadata",
-				Modules: []manifest.ErrorNode{
-					{
-						Name: "stage",
-						Type: "string",
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(path, raw, 0o644))
-	require.NoError(t, runValidateError([]string{"-input", path}))
-}
-
 func TestRunValidateEventRejectsInvalidCatalog(t *testing.T) {
 	t.Parallel()
 

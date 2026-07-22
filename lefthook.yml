@@ -5,10 +5,6 @@ pre-commit:
           group:
               parallel: true
               jobs:
-                  - name: validate error catalog
-                    glob: "internal/errors/catalog*.json"
-                    run: go run ./cmd/validate error -input internal/errors/catalog.json
-
                   - name: validate event catalog
                     glob: "internal/events/catalog*.json"
                     run: go run ./cmd/validate event -input internal/events/catalog.json
@@ -22,8 +18,8 @@ pre-commit:
                     run: go run ./cmd/coderules logreturn ./...
 
                   - name: generate catalogs
-                    glob: "internal/{errors,events,i18n}/catalog*.json"
-                    run: go generate ./internal/errors ./internal/i18n ./internal/events && git add internal/errors/generated.go internal/events/generated.go internal/i18n/generated.go
+                    glob: "internal/{events,i18n}/catalog*.json"
+                    run: go generate ./internal/i18n ./internal/events && git add internal/events/generated.go internal/i18n/generated.go
 
                   - name: generate sqlc
                     glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"

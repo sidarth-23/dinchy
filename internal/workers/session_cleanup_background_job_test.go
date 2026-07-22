@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -64,5 +64,5 @@ func TestSessionCleanupWorker_Contract(t *testing.T) {
 	assert.Equal(t, 15*time.Second, worker.LeaseDuration())
 	assert.Equal(t, 5*time.Minute, worker.RetryDelay())
 	assert.Equal(t, "task.session_cleanup_failed", worker.FailureErrorCode())
-	assert.Equal(t, apperrors.StageDeleteEndedSessions, worker.ExecutionStage())
+	assert.Equal(t, i18n.CodeWorkersSessionCleanup, worker.ExecutionCode())
 }

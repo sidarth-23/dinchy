@@ -6,6 +6,7 @@ import (
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
@@ -14,7 +15,7 @@ import (
 func (s *Store) EnsureDefaultSettings(ctx context.Context) error {
 	now := time.Now().UTC()
 	if err := s.Query().EnsureDefaultSettings(ctx, sqlcgen.EnsureDefaultSettingsParams{CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationEnsureDefaultSettings))
+		return apperrors.Internal(i18n.Msg(i18n.CodeStoreEnsureDefaultSettings), apperrors.WithCause(err))
 	}
 	return nil
 }
@@ -23,11 +24,11 @@ func (s *Store) EnsureDefaultSettings(ctx context.Context) error {
 func (s *Store) Bootstrap(ctx context.Context) (auth.BootstrapState, error) {
 	count, err := s.Query().CountUsers(ctx)
 	if err != nil {
-		return auth.BootstrapState{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCountUsers))
+		return auth.BootstrapState{}, apperrors.Internal(i18n.Msg(i18n.CodeStoreCountUsers), apperrors.WithCause(err))
 	}
 	name, err := s.Query().GetInstanceName(ctx)
 	if err != nil {
-		return auth.BootstrapState{}, apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationGetInstanceName))
+		return auth.BootstrapState{}, apperrors.Internal(i18n.Msg(i18n.CodeStoreGetInstanceName), apperrors.WithCause(err))
 	}
 	return auth.BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
 }

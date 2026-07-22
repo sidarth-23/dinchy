@@ -40,7 +40,7 @@ func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, passwo
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 		}
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindUser), apperrors.WithCause(err))
 	}
 	user := userFromFindUserRow(row)
 	if user == nil {
@@ -51,7 +51,7 @@ func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, passwo
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
 		}
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindAccount), apperrors.WithCause(err))
 	}
 	if !security.VerifyPassword(password, accountRow.PasswordHash.String) {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
@@ -66,7 +66,7 @@ func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, organisa
 			if errors.Is(err, pgx.ErrNoRows) {
 				return Organization{}, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 			}
-			return Organization{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindOrganisation))
+			return Organization{}, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindOrganisation), apperrors.WithCause(err))
 		}
 		org := organisationFromFindOrganisationRow(row)
 		if org == nil {
@@ -76,7 +76,7 @@ func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, organisa
 	}
 	rows, err := s.store.ListOrganisationsForUser(ctx, id.MustParse(userID))
 	if err != nil {
-		return Organization{}, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageListOrganisations))
+		return Organization{}, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginListOrganisations), apperrors.WithCause(err))
 	}
 	if len(rows) == 0 {
 		return Organization{}, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthOrganisationNotFound))

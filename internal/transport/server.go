@@ -29,12 +29,13 @@ import (
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string, logger *slog.Logger) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode, exposeInternalErrors bool, devProxyURL string, logger *slog.Logger) *http.Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	renderer := apperrors.NewRenderer(i18n.Default, exposeInternalErrors)
 	huma.NewError = func(status int, _ string, errs ...error) huma.StatusError {
-		return apperrors.ResponseFor(language.English, i18n.Default, status, errs...)
+		return renderer.ResponseFor(language.English, status, errs...)
 	}
 	huma.NewErrorWithContext = func(ctx huma.Context, status int, _ string, errs ...error) huma.StatusError {
 		for _, err := range errs {
@@ -44,13 +45,13 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 			logging.HTTPError(ctx.Context(), logger, status, "Request failed", err)
 			break
 		}
-		return apperrors.ResponseFor(support.LangFrom(ctx.Context()), i18n.Default, status, errs...)
+		return renderer.ResponseFor(support.LangFrom(ctx.Context()), status, errs...)
 	}
 
 	r := chi.NewRouter()
 
 	r.Use(mw.RequestID())
-	r.Use(mw.Recover(logger))
+	r.Use(mw.Recover(logger, renderer))
 	r.Use(mw.RealIP())
 	r.Use(mw.CleanPath())
 	r.Use(mw.SecureDetect())
@@ -58,7 +59,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 	r.Use(mw.Lang(i18n.Default))
 	r.Use(mw.SecureHeaders(devMode))
 	r.Use(mw.CORS(devMode, devProxyURL))
-	r.Use(mw.CSRF())
+	r.Use(mw.CSRF(renderer))
 	r.Use(session.RequestMiddleware(sessionSvc.SessionCookieName(), sessionSvc.Session))
 	r.Use(mw.Timeout(30 * time.Second))
 	r.Use(mw.AccessLog(logger))

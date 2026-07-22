@@ -92,7 +92,7 @@ func (s *Service) Session(ctx context.Context, rawToken string) (*Principal, err
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeSessionGetSession), apperrors.WithCause(err))
 	}
 	principal := FromGetSessionRow(row)
 	if principal.RevokedAt.Valid || s.expired(principal, now) {
@@ -130,7 +130,7 @@ func (s *Service) Create(ctx context.Context, userID, organisationID, ip, userAg
 		CreatedAt:            sqltype.Timestamptz(now),
 		UpdatedAt:            sqltype.Timestamptz(now),
 	}); err != nil {
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowNewSession), apperrors.WithStage(apperrors.StageCreateSession))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeSessionCreateSession), apperrors.WithCause(err))
 	}
 	return token, nil
 }
@@ -147,7 +147,7 @@ func (s *Service) Logout(ctx context.Context, rawToken string) (*Principal, erro
 	now := s.Clock.Now()
 	hash := security.HashToken(rawToken)
 	if err := s.store.RevokeSessionByTokenHash(ctx, sqlcgen.RevokeSessionByTokenHashParams{RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now), TokenHash: hash}); err != nil {
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageRevokeSession))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeSessionRevokeSession), apperrors.WithCause(err))
 	}
 	if err := s.principals.Delete(ctx, hash); err != nil {
 		logging.Warn(ctx, s.Logger(ctx), "Session cache invalidation failed after logout", slog.Any("error", err))
@@ -163,7 +163,7 @@ func (s *Service) RevokeForUser(ctx context.Context, userID string) error {
 	})
 	now := s.Clock.Now()
 	if err := s.store.RevokeSessionsForUser(ctx, sqlcgen.RevokeSessionsForUserParams{UserID: uid, RevokedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithOperation(apperrors.OperationRevokeSessionsForUser), apperrors.WithStage(apperrors.StageRevokeSession))
+		return apperrors.Internal(i18n.Msg(i18n.CodeSessionRevokeSessionsForUser), apperrors.WithCause(err))
 	}
 	if err := s.principals.Delete(ctx, hashes...); err != nil {
 		logging.Warn(ctx, s.Logger(ctx), "Session cache invalidation failed after user revocation", slog.Any("error", err))
@@ -180,7 +180,7 @@ func (s *Service) InvalidateForUser(ctx context.Context, userID string) error {
 	}
 	hashes, err := s.store.GetActiveSessionTokenHashesForUser(ctx, id.MustParse(userID))
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
+		return apperrors.Internal(i18n.Msg(i18n.CodeSessionGetSession), apperrors.WithCause(err))
 	}
 	return s.principals.Delete(ctx, hashes...)
 }
@@ -194,7 +194,7 @@ func (s *Service) InvalidateForOrganisation(ctx context.Context, organisationID 
 	}
 	hashes, err := s.store.GetActiveSessionTokenHashesForOrganisation(ctx, id.MustParse(organisationID))
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageGetSession))
+		return apperrors.Internal(i18n.Msg(i18n.CodeSessionGetSession), apperrors.WithCause(err))
 	}
 	return s.principals.Delete(ctx, hashes...)
 }

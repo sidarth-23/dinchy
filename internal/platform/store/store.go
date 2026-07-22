@@ -120,7 +120,7 @@ func (s *Store) Pool() *pgxpool.Pool {
 // PingContext verifies the database connection is alive.
 func (s *Store) PingContext(ctx context.Context) error {
 	if s.pool == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("%s cannot ping a transaction-scoped store", s.name)), apperrors.WithOperation(apperrors.OperationPingContext))
+		return apperrors.Internal(i18n.Msg(i18n.CodeStorePing), apperrors.WithCause(fmt.Errorf("%s cannot ping a transaction-scoped store", s.name)))
 	}
 	return s.pool.Ping(ctx)
 }
@@ -128,7 +128,7 @@ func (s *Store) PingContext(ctx context.Context) error {
 // Close shuts down the database connection.
 func (s *Store) Close() error {
 	if s.pool == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("%s cannot close a transaction-scoped store", s.name)), apperrors.WithOperation(apperrors.OperationClose))
+		return apperrors.Internal(i18n.Msg(i18n.CodeStoreClose), apperrors.WithCause(fmt.Errorf("%s cannot close a transaction-scoped store", s.name)))
 	}
 	s.pool.Close()
 	return nil
@@ -138,32 +138,29 @@ func (s *Store) Close() error {
 func (s *Store) WithTx(ctx context.Context, fn func(tx *Store) error) error {
 	if s.tx != nil {
 		if err := fn(s); err != nil {
-			return apperrors.Annotate(err,
-				apperrors.WithOperation(apperrors.OperationWithTx),
-				apperrors.WithStage(apperrors.StageTxPassthrough),
-			)
+			return apperrors.Internal(i18n.Msg(i18n.CodeStoreTxPassthrough), apperrors.WithCause(err))
 		}
 		return nil
 	}
 
 	pgxTx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationBeginTx))
+		return apperrors.Internal(i18n.Msg(i18n.CodeStoreTxBegin), apperrors.WithCause(err))
 	}
 
 	txStore := newTxStore(pgxTx, s.name, s.newQ)
 	if err := fn(txStore); err != nil {
 		if rbErr := pgxTx.Rollback(ctx); rbErr != nil {
 			return errors.Join(
-				apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationWithTx), apperrors.WithStage(apperrors.StageBody)),
-				apperrors.Annotate(rbErr, apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeStoreTxBody), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeStoreTxRollback), apperrors.WithCause(rbErr)),
 			)
 		}
-		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationWithTx), apperrors.WithStage(apperrors.StageBody))
+		return apperrors.Internal(i18n.Msg(i18n.CodeStoreTxBody), apperrors.WithCause(err))
 	}
 
 	if err := pgxTx.Commit(ctx); err != nil {
-		return apperrors.Annotate(err, apperrors.WithOperation(apperrors.OperationCommit))
+		return apperrors.Internal(i18n.Msg(i18n.CodeStoreTxCommit), apperrors.WithCause(err))
 	}
 	return nil
 }

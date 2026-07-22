@@ -162,7 +162,7 @@ func loadEnvFile() error {
 	if xdg == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithStage(apperrors.StageResolveXDGConfigHome))
+			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
 		}
 		xdg = filepath.Join(home, ".config")
 	}

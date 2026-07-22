@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -54,9 +54,9 @@ func (w *SessionCleanupWorker) FailureErrorCode() string {
 	return "task.session_cleanup_failed"
 }
 
-// ExecutionStage returns the error stage used to annotate execution failures.
-func (w *SessionCleanupWorker) ExecutionStage() apperrors.Stage {
-	return apperrors.StageDeleteEndedSessions
+// ExecutionCode returns the error code used to classify execution failures.
+func (w *SessionCleanupWorker) ExecutionCode() i18n.Code {
+	return i18n.CodeWorkersSessionCleanup
 }
 
 // Execute deletes ended sessions older than the retention window and reports the count.

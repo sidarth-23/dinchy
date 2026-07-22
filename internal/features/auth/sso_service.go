@@ -47,27 +47,27 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organisati
 	}
 	provider, err := newGothProviderForSSO(providerConfig)
 	if err != nil {
-		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
+		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOStart), apperrors.WithCause(err))
 	}
 	stateToken, err := security.RandomToken(32)
 	if err != nil {
-		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
+		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginGenerateToken), apperrors.WithCause(err))
 	}
 	session, err := provider.BeginAuth(stateToken)
 	if err != nil {
-		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
+		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOStart), apperrors.WithCause(err))
 	}
 	authURL, err := session.GetAuthURL()
 	if err != nil {
-		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
+		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOStart), apperrors.WithCause(err))
 	}
 	transactionID, err := security.RandomToken(32)
 	if err != nil {
-		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageGenerateToken))
+		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginGenerateToken), apperrors.WithCause(err))
 	}
 	cacheState := ssoCacheState{ProviderID: providerID, ReturnTo: internalReturnPath(returnTo), OrganisationSlug: organisationSlug, State: stateToken, ProviderSession: session.Marshal()}
 	if err := redisClient.Set(ctx, s.sso.cacheKey(transactionID), cacheState, s.sso.stateLifetime).Err(); err != nil {
-		return "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOStart))
+		return "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOStart), apperrors.WithCause(err))
 	}
 	return authURL, []http.Cookie{{Name: s.sso.stateCookieName, Value: transactionID, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(s.sso.stateLifetime.Seconds()), Expires: s.Clock.Now().Add(s.sso.stateLifetime)}}, nil
 }
@@ -90,25 +90,25 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 	}
 	provider, err := newGothProviderForSSO(providerConfig)
 	if err != nil {
-		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
+		return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOCallback), apperrors.WithCause(err))
 	}
 	session, err := provider.UnmarshalSession(cached.ProviderSession)
 	if err != nil {
-		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
+		return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOCallback), apperrors.WithCause(err))
 	}
 	if err := validateSSOState(session, queryState); err != nil {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState))
 	}
 	if _, err := session.Authorize(provider, url.Values{"code": []string{code}, "state": []string{queryState}}); err != nil {
-		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
+		return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOCallback), apperrors.WithCause(err))
 	}
 	gothUser, err := provider.FetchUser(session)
 	if err != nil {
-		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
+		return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOCallback), apperrors.WithCause(err))
 	}
 	userRow, err := s.store.FindUserByProviderAccount(ctx, sqlcgen.FindUserByProviderAccountParams{Provider: providerID, ProviderAccountID: gothUser.UserID})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
+		return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindUser), apperrors.WithCause(err))
 	}
 	var user *User
 	if userRow.ID != uuid.Nil {
@@ -122,14 +122,14 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 			if errors.Is(emailErr, pgx.ErrNoRows) {
 				return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
 			}
-			return "", "", nil, apperrors.Annotate(emailErr, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindUser))
+			return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindUser), apperrors.WithCause(emailErr))
 		}
 		user = userFromFindUserRow(emailRow)
 		if user == nil || !user.EmailVerified {
 			return "", "", nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed))
 		}
 		if err := s.store.InsertAccount(ctx, sqlcgen.InsertAccountParams{ID: id.MustParse(s.IDGenerator.New()), UserID: id.MustParse(user.ID), Provider: providerID, ProviderAccountID: gothUser.UserID, CreatedAt: sqltype.Timestamptz(s.Clock.Now()), UpdatedAt: sqltype.Timestamptz(s.Clock.Now())}); err != nil {
-			return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageFindAccount))
+			return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindAccount), apperrors.WithCause(err))
 		}
 	}
 	if user == nil {
@@ -144,7 +144,7 @@ func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code,
 		return "", "", nil, err
 	}
 	if err := redisClient.Del(ctx, s.sso.cacheKey(transactionID)).Err(); err != nil {
-		return "", "", nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogin), apperrors.WithStage(apperrors.StageSSOCallback))
+		return "", "", nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginSSOCallback), apperrors.WithCause(err))
 	}
 	return cached.ReturnTo, token, s.clearSSOCookies(), nil
 }

@@ -199,10 +199,7 @@ func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error)
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerBootstrapGet),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
 	out := &BootstrapOut{}
 	out.Body.SetupRequired = bs.SetupRequired
@@ -227,24 +224,15 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 		support.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthLogin),
-			apperrors.WithStage(apperrors.StageLogin),
-		)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthLogin),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
 	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthLogin),
-			apperrors.WithStage(apperrors.StageSessionLookup),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	out := &LoginOut{}
@@ -266,18 +254,12 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 	if sessionToken != "" {
 		principal, err := a.sessions.Logout(ctx, sessionToken)
 		if err != nil {
-			return nil, apperrors.Annotate(err,
-				apperrors.WithHandler(apperrors.HandlerAuthLogout),
-				apperrors.WithStage(apperrors.StageLogout),
-			)
+			return nil, err
 		}
 		if principal != nil {
 			envelope, err := events.NewEnvelope(ctx, principal.UserID, principal.OrganisationID, events.NewTarget("session", principal.SessionID, principal.DisplayName))
 			if err != nil {
-				return nil, apperrors.Annotate(err,
-					apperrors.WithHandler(apperrors.HandlerAuthLogout),
-					apperrors.WithStage(apperrors.StageLogout),
-				)
+				return nil, err
 			}
 			// Best effort: logout should not fail if audit publication fails.
 			_ = a.auth.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
@@ -294,10 +276,7 @@ func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSession),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
 	out := &SessionOut{}
 	out.Body.SetupRequired = bs.SetupRequired
@@ -323,10 +302,7 @@ func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error
 	}
 	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganisationSlug)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSSOStart),
-			apperrors.WithStage(apperrors.StageSSOStart),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	for i := range cookies {
@@ -352,10 +328,7 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 		support.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSSOCallback),
-			apperrors.WithStage(apperrors.StageSSOCallback),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	for i := range clearCookie {
@@ -376,7 +349,7 @@ func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) 
 	}
 	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err, apperrors.WithHandler(apperrors.HandlerAuthSession), apperrors.WithStage(apperrors.StageSessionLookup))
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
@@ -402,10 +375,7 @@ func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*Cr
 	}
 	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationCreate),
-			apperrors.WithStage(apperrors.StageCreateInvitation),
-		)
+		return nil, err
 	}
 	out := &CreateInvitationOut{}
 	out.Body.Created = invitation.ID != ""
@@ -425,24 +395,15 @@ func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*Ac
 		support.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
-			apperrors.WithStage(apperrors.StageAcceptInvitation),
-		)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
 	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
-			apperrors.WithStage(apperrors.StageSessionLookup),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	out := &AcceptInvitationOut{}
@@ -528,24 +489,15 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 		support.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSetup),
-			apperrors.WithStage(apperrors.StageSetupFirstUser),
-		)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSetup),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
 	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSetup),
-			apperrors.WithStage(apperrors.StageSessionLookup),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 )
 
 // Worker is a registered background task that the runtime can schedule and execute.
@@ -14,7 +14,7 @@ type Worker interface {
 	LeaseDuration() time.Duration
 	RetryDelay() time.Duration
 	FailureErrorCode() string
-	ExecutionStage() apperrors.Stage
+	ExecutionCode() i18n.Code
 	Execute(ctx context.Context) (WorkerOutcome, error)
 }
 

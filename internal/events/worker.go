@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/workers"
 )
 
@@ -54,9 +54,9 @@ func (w *Worker) FailureErrorCode() string {
 	return "eventbus." + w.subscriberName + ".failed"
 }
 
-// ExecutionStage returns the error stage attributed to the worker's execution.
-func (w *Worker) ExecutionStage() apperrors.Stage {
-	return apperrors.StageBody
+// ExecutionCode returns the error code attributed to the worker's execution.
+func (w *Worker) ExecutionCode() i18n.Code {
+	return i18n.CodeWorkersEventProcessing
 }
 
 // Execute processes one batch of events for the subscriber and reports the outcome.

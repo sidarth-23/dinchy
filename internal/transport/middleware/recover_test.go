@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
@@ -18,7 +20,7 @@ func TestRecover_PanicReturnsJSONErrorAndStructuredLog(t *testing.T) {
 
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
-	handler := middleware.Recover(logger)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	handler := middleware.Recover(logger, apperrors.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom")
 	}))
 
@@ -46,7 +48,7 @@ func TestRecover_HTTPErrAbortHandlerIsRepanicked(t *testing.T) {
 
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
-	handler := middleware.Recover(logger)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	handler := middleware.Recover(logger, apperrors.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic(http.ErrAbortHandler)
 	}))
 
@@ -62,7 +64,7 @@ func TestRecover_PanicAfterWriteDoesNotWriteErrorResponse(t *testing.T) {
 
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
-	handler := middleware.Recover(logger)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := middleware.Recover(logger, apperrors.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("hello"))
 		panic("boom")

@@ -51,7 +51,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageFindUser))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetFindUser), apperrors.WithCause(err))
 	}
 	user := userFromFindUserRow(userRow)
 	if user == nil {
@@ -59,7 +59,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	}
 	rawToken, err := security.RandomToken(32)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageGenerateToken))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetGenerateToken), apperrors.WithCause(err))
 	}
 	tokenHash := security.HashToken(rawToken)
 	now := s.Clock.Now()
@@ -73,10 +73,10 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		CreatedAt: sqltype.Timestamptz(now),
 		UpdatedAt: sqltype.Timestamptz(now),
 	}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageCreateVerificationToken))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetCreateVerificationToken), apperrors.WithCause(err))
 	}
 	if err := s.Mailer.SendPasswordReset(ctx, email.PasswordResetEmail{To: emailAddress, Token: rawToken}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageSendEmail))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetSendEmail), apperrors.WithCause(err))
 	}
 	return nil
 }
@@ -88,7 +88,7 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))
 		}
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageFindVerificationToken))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetFindVerificationToken), apperrors.WithCause(err))
 	}
 	token := &VerificationToken{
 		ID:              tokenRow.ID.String(),
@@ -107,13 +107,13 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 	}
 	hash, err := security.HashPassword(password)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StagePasswordHash))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetPasswordHash), apperrors.WithCause(err))
 	}
 	if err := s.store.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{UserID: id.MustParse(token.UserID), PasswordHash: sqltype.Text(hash), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StagePasswordHash))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetPasswordHash), apperrors.WithCause(err))
 	}
 	if err := s.store.ConsumeVerificationToken(ctx, sqlcgen.ConsumeVerificationTokenParams{ID: id.MustParse(token.ID), ConsumedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowPasswordReset), apperrors.WithStage(apperrors.StageConsumeVerificationToken))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetConsumeVerificationToken), apperrors.WithCause(err))
 	}
 	return s.sessions.RevokeForUser(ctx, token.UserID)
 }

@@ -5,6 +5,7 @@ import (
 	stdErrors "errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 )
@@ -45,6 +46,7 @@ func logError(ctx context.Context, logger *slog.Logger, message string, err erro
 			slog.Int("status", appErr.Status()),
 			slog.String("code", string(appErr.Code())),
 		)
+		attrs = append(attrs, codePathAttrs(string(appErr.Code()))...)
 		if meta := appErr.Meta(); len(meta) > 0 {
 			attrs = append(attrs, slog.Any("meta", meta))
 		}
@@ -58,6 +60,28 @@ func logError(ctx context.Context, logger *slog.Logger, message string, err erro
 
 	attrs = append(attrs, slog.Any("error", err))
 	logger.ErrorContext(ctx, message, attrs...)
+}
+
+// codePathAttrs derives structured module/area/operation fields from a dotted
+// error code (e.g. auth.login.find_user), preserving the observability that
+// flow/stage metadata used to carry at the call site.
+func codePathAttrs(code string) []any {
+	segments := strings.Split(code, ".")
+	if len(segments) == 0 || segments[0] == "" {
+		return nil
+	}
+	attrs := []any{slog.String("module", segments[0])}
+	switch len(segments) {
+	case 1:
+		return attrs
+	case 2:
+		return append(attrs, slog.String("operation", segments[1]))
+	default:
+		return append(attrs,
+			slog.String("area", segments[1]),
+			slog.String("operation", strings.Join(segments[2:], ".")),
+		)
+	}
 }
 
 // Panic records a recovered panic once at the boundary where it is handled.

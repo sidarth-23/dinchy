@@ -29,19 +29,19 @@ type stubWorker struct {
 	lease      time.Duration
 	retry      time.Duration
 	failCode   string
-	stage      apperrors.Stage
+	execCode   i18n.Code
 	outcome    WorkerOutcome
 	execErr    error
 	panicValue any
 	executed   int
 }
 
-func (w *stubWorker) TaskName() string                { return w.name }
-func (w *stubWorker) IntervalSeconds() int64          { return w.interval }
-func (w *stubWorker) LeaseDuration() time.Duration    { return w.lease }
-func (w *stubWorker) RetryDelay() time.Duration       { return w.retry }
-func (w *stubWorker) FailureErrorCode() string        { return w.failCode }
-func (w *stubWorker) ExecutionStage() apperrors.Stage { return w.stage }
+func (w *stubWorker) TaskName() string             { return w.name }
+func (w *stubWorker) IntervalSeconds() int64       { return w.interval }
+func (w *stubWorker) LeaseDuration() time.Duration { return w.lease }
+func (w *stubWorker) RetryDelay() time.Duration    { return w.retry }
+func (w *stubWorker) FailureErrorCode() string     { return w.failCode }
+func (w *stubWorker) ExecutionCode() i18n.Code     { return w.execCode }
 
 func (w *stubWorker) Execute(context.Context) (WorkerOutcome, error) {
 	w.executed++
@@ -58,7 +58,7 @@ func newStubWorker() *stubWorker {
 		lease:    15 * time.Second,
 		retry:    5 * time.Minute,
 		failCode: "task.cleanup_failed",
-		stage:    apperrors.StageDeleteEndedSessions,
+		execCode: i18n.CodeWorkersSessionCleanup,
 	}
 }
 
@@ -67,6 +67,13 @@ func metaOf(t *testing.T, err error) map[string]any {
 	var appErr *apperrors.AppError
 	require.ErrorAs(t, err, &appErr)
 	return appErr.Meta()
+}
+
+func codeOf(t *testing.T, err error) i18n.Code {
+	t.Helper()
+	var appErr *apperrors.AppError
+	require.ErrorAs(t, err, &appErr)
+	return appErr.Code()
 }
 
 func TestRuntime_RegisterWorker_EnsuresTask(t *testing.T) {
@@ -102,7 +109,7 @@ func TestRuntime_RegisterWorker_AnnotatesEnsureError(t *testing.T) {
 
 	meta := metaOf(t, err)
 	assert.Equal(t, worker.name, meta["task"])
-	assert.Equal(t, string(apperrors.StageEnsureTask), meta["stage"])
+	assert.Equal(t, i18n.CodeWorkersEnsureTask, codeOf(t, err))
 }
 
 func TestRuntime_RunWorker_SkipsExecuteWhenNotClaimed(t *testing.T) {
@@ -174,7 +181,7 @@ func TestRuntime_RunWorker_FailureRecordsAndAnnotates(t *testing.T) {
 
 	meta := metaOf(t, err)
 	assert.Equal(t, worker.name, meta["task"])
-	assert.Equal(t, string(worker.stage), meta["stage"])
+	assert.Equal(t, worker.execCode, codeOf(t, err))
 }
 
 func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T) {
@@ -199,7 +206,7 @@ func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T)
 
 	meta := metaOf(t, err)
 	assert.Equal(t, worker.name, meta["task"])
-	assert.Equal(t, string(apperrors.StageFinishSuccess), meta["stage"])
+	assert.Equal(t, i18n.CodeWorkersFinishSuccess, codeOf(t, err))
 	assert.Equal(t, 9, meta["deleted_count"])
 }
 
@@ -234,7 +241,7 @@ func TestRuntime_RunWorker_PanicRecordsFailedFinishTask(t *testing.T) {
 
 	meta := metaOf(t, err)
 	assert.Equal(t, worker.name, meta["task"])
-	assert.Equal(t, string(worker.stage), meta["stage"])
+	assert.Equal(t, worker.execCode, codeOf(t, err))
 	assert.Equal(t, 1, worker.executed)
 }
 

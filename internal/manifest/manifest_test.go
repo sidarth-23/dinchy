@@ -1,7 +1,6 @@
 package manifest
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -47,54 +46,4 @@ func TestValidateEventCatalogRejectsInvalidTypedFieldType(t *testing.T) {
 
 	err := ValidateEventCatalog(catalog)
 	require.Error(t, err)
-}
-
-func TestValidateErrorCatalogRejectsTypedValueMismatch(t *testing.T) {
-	t.Parallel()
-
-	raw := []byte(`{
-		"modules": [
-			{
-				"name": "metadata",
-				"modules": [
-					{
-						"name": "deleted_count",
-						"type": "int",
-						"values": ["nope"]
-					}
-				]
-			}
-		]
-	}`)
-
-	catalog, err := DecodeErrorCatalog(raw)
-	require.NoError(t, err)
-	require.Error(t, ValidateErrorCatalog(catalog))
-}
-
-func TestDecodeErrorCatalogReadsTypedValues(t *testing.T) {
-	t.Parallel()
-
-	raw := []byte(`{
-		"modules": [
-			{
-				"name": "metadata",
-				"modules": [
-					{
-						"name": "enabled",
-						"type": "bool",
-						"values": [true, false]
-					}
-				]
-			}
-		]
-	}`)
-
-	catalog, err := DecodeErrorCatalog(raw)
-	require.NoError(t, err)
-	require.Len(t, catalog.Modules, 1)
-
-	encoded, err := json.Marshal(catalog)
-	require.NoError(t, err)
-	require.Contains(t, string(encoded), `"enabled"`)
 }

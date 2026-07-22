@@ -10,7 +10,6 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
@@ -18,7 +17,7 @@ import (
 // Recover catches handler panics, logs them once through the structured
 // logging pipeline, and returns the standard 500 error envelope when the
 // response has not started yet.
-func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
+func Recover(logger *slog.Logger, renderer *apperrors.Renderer) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -41,7 +40,7 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 					slog.String("path", r.URL.Path),
 				)
 				if ww.Status() == 0 {
-					writeErrorResponse(ctx, ww, logger, apperrors.ResponseFor(support.LangFrom(ctx), i18n.Default, http.StatusInternalServerError))
+					writeErrorResponse(ctx, ww, logger, renderer.ResponseFor(support.LangFrom(ctx), http.StatusInternalServerError))
 				}
 			}()
 			next.ServeHTTP(ww, r)

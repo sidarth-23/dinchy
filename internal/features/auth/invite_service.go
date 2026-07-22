@@ -62,11 +62,11 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 			}); membershipErr == nil {
 				return nil, apperrors.Conflict(i18n.Msg(i18n.CodeAuthInvitationExists))
 			} else if !errors.Is(membershipErr, pgx.ErrNoRows) {
-				return nil, apperrors.Annotate(membershipErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindOrganisation))
+				return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindOrganisation), apperrors.WithCause(membershipErr))
 			}
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindUser))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindUser), apperrors.WithCause(err))
 	}
 
 	if pendingInvitation, err := s.store.FindPendingOrganisationInvitationByEmail(ctx, sqlcgen.FindPendingOrganisationInvitationByEmailParams{
@@ -77,12 +77,12 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 			return nil, apperrors.Conflict(i18n.Msg(i18n.CodeAuthInvitationExists))
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindInvitation))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindInvitation), apperrors.WithCause(err))
 	}
 
 	rawToken, err := security.RandomToken(32)
 	if err != nil {
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageGenerateToken))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationGenerateToken), apperrors.WithCause(err))
 	}
 	invitationID := s.IDGenerator.New()
 	expiresAt := now.Add(s.authConfig.InviteLifetime)
@@ -98,7 +98,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 		CreatedAt:       sqltype.Timestamptz(now),
 		UpdatedAt:       sqltype.Timestamptz(now),
 	}); err != nil {
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageCreateInvitation))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationCreateInvitation), apperrors.WithCause(err))
 	}
 	if err := s.Mailer.SendInvitation(ctx, email.InvitationEmail{
 		To:               emailAddress,
@@ -106,7 +106,7 @@ func (s *Service) CreateInvitation(ctx context.Context, inviter *session.Princip
 		Role:             string(invitationRole),
 		Token:            rawToken,
 	}); err != nil {
-		return nil, apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageSendEmail))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationSendEmail), apperrors.WithCause(err))
 	}
 	return &Invitation{
 		ID:              invitationID,
@@ -126,28 +126,28 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	}
 	tx, err := s.beginTx(ctx)
 	if err != nil {
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationBeginTx))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationBeginTx), apperrors.WithCause(err))
 	}
 	now := s.Clock.Now().UTC()
 	invitationRow, err := tx.queries.FindOrganisationInvitationByToken(ctx, security.HashToken(token))
 	if err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
-				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindInvitation)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindInvitation), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationInvalid))
 		}
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindInvitation))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindInvitation), apperrors.WithCause(err))
 	}
 	invitation := invitationFromFindRow(invitationRow)
 	if invitation == nil || invitation.Status != InvitationStatusPending || invitation.AcceptedAtValid || now.After(invitation.ExpiresAt) {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
 				apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationInvalid)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
 		return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationInvalid))
@@ -162,11 +162,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	if err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
-				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StagePasswordHash)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationPasswordHash), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StagePasswordHash))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationPasswordHash), apperrors.WithCause(err))
 	}
 
 	userRow, err := tx.queries.FindUserByEmail(ctx, emailAddress)
@@ -174,11 +174,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
-				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindUser)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindUser), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindUser))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindUser), apperrors.WithCause(err))
 	}
 	if err == nil {
 		user = userFromFindUserRow(userRow)
@@ -186,7 +186,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
 					apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationInvalid)),
-					apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 				)
 			}
 			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationInvalid))
@@ -199,11 +199,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 			}); err != nil {
 				if rbErr := tx.rollback(); rbErr != nil {
 					return "", errors.Join(
-						apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageUpdateUserEmailVerifiedAt)),
-						apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+						apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationUpdateEmailVerified), apperrors.WithCause(err)),
+						apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 					)
 				}
-				return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageUpdateUserEmailVerifiedAt))
+				return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationUpdateEmailVerified), apperrors.WithCause(err))
 			}
 		}
 	} else {
@@ -218,11 +218,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
-					apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation)),
-					apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationAccept), apperrors.WithCause(err)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 				)
 			}
-			return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation))
+			return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationAccept), apperrors.WithCause(err))
 		}
 		user = &User{ID: userID, Email: emailAddress, DisplayName: userDisplayName, EmailVerified: true}
 	}
@@ -235,11 +235,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
-					apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StagePasswordHash)),
-					apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationPasswordHash), apperrors.WithCause(err)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 				)
 			}
-			return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StagePasswordHash))
+			return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationPasswordHash), apperrors.WithCause(err))
 		}
 	} else if errors.Is(err, pgx.ErrNoRows) {
 		if err := tx.queries.InsertAccount(ctx, sqlcgen.InsertAccountParams{
@@ -253,20 +253,20 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
-					apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation)),
-					apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationAccept), apperrors.WithCause(err)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 				)
 			}
-			return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation))
+			return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationAccept), apperrors.WithCause(err))
 		}
 	} else {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
-				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindAccount)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindAccount), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindAccount))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindAccount), apperrors.WithCause(err))
 	}
 
 	if memberRow, err := tx.queries.FindOrganisationByIDForUser(ctx, sqlcgen.FindOrganisationByIDForUserParams{
@@ -285,20 +285,20 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 		}); err != nil {
 			if rbErr := tx.rollback(); rbErr != nil {
 				return "", errors.Join(
-					apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageCreateInvitation)),
-					apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationCreateInvitation), apperrors.WithCause(err)),
+					apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 				)
 			}
-			return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageCreateInvitation))
+			return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationCreateInvitation), apperrors.WithCause(err))
 		}
 	} else {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
-				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindOrganisation)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindOrganisation), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageFindOrganisation))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationFindOrganisation), apperrors.WithCause(err))
 	}
 
 	if err := tx.queries.ConsumeOrganisationInvitation(ctx, sqlcgen.ConsumeOrganisationInvitationParams{
@@ -308,14 +308,14 @@ func (s *Service) AcceptInvitation(ctx context.Context, token, displayName, pass
 	}); err != nil {
 		if rbErr := tx.rollback(); rbErr != nil {
 			return "", errors.Join(
-				apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageConsumeInvitation)),
-				apperrors.Annotate(rbErr, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationRollback)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationConsumeInvitation), apperrors.WithCause(err)),
+				apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationRollback), apperrors.WithCause(rbErr)),
 			)
 		}
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageConsumeInvitation))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationConsumeInvitation), apperrors.WithCause(err))
 	}
 	if err := tx.commit(); err != nil {
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowInvitation), apperrors.WithStage(apperrors.StageAcceptInvitation), apperrors.WithOperation(apperrors.OperationCommit))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthInvitationCommit), apperrors.WithCause(err))
 	}
 
 	token, sessionErr := s.sessions.Create(ctx, user.ID, invitation.OrganisationID, ip, userAgent)

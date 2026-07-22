@@ -13,8 +13,6 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
-	case "error":
-		err = runError(os.Args[2:])
 	case "i18n":
 		err = runI18n(os.Args[2:])
 	case "event":
@@ -35,5 +33,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: codegen <error|i18n|event|permission> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: codegen <i18n|event|permission> [flags]")
 }

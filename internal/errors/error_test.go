@@ -1,17 +1,42 @@
 package errors_test
 
 import (
-	"encoding/json"
 	stdErrors "errors"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 )
+
+func TestConstructors_StatusAndCode(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		err    *apperrors.AppError
+		status int
+		code   i18n.Code
+	}{
+		{"InvalidCredentials", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)), http.StatusUnauthorized, i18n.CodeAuthInvalidCredentials},
+		{"SetupCompleted", apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 3))), http.StatusConflict, i18n.CodeAuthSetupCompleted},
+		{"Unauthenticated", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated)), http.StatusUnauthorized, i18n.CodeAuthUnauthenticated},
+		{"HTTPSRequired", apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired)), http.StatusForbidden, i18n.CodeSecurityHTTPSRequired},
+		{"CSRFFailed", apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed)), http.StatusBadRequest, i18n.CodeSecurityCSRFFailed},
+		{"Internal", apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(assert.AnError)), http.StatusInternalServerError, i18n.CodeServerInternalError},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.status, tc.err.Status())
+			assert.Equal(t, tc.code, tc.err.Code())
+			assert.Equal(t, string(tc.code), tc.err.Error())
+		})
+	}
+}
 
 func TestAppError_MethodsExposeStableState(t *testing.T) {
 	t.Parallel()
@@ -35,27 +60,6 @@ func TestAppError_MetaReturnsCopy(t *testing.T) {
 	meta["field"] = "mutated"
 
 	assert.Equal(t, "email", err.Meta()["field"])
-}
-
-func TestErrorResponse_MarshalsAndReportsStatus(t *testing.T) {
-	t.Parallel()
-
-	resp := &apperrors.ErrorResponse{
-		Payload: apperrors.ResponsePayload{
-			Code:    string(i18n.CodeRequestValidationFailed),
-			Message: "Some fields need attention.",
-			Meta:    map[string]any{"fields": []any{map[string]any{"message": "expected string"}}},
-		},
-	}
-
-	assert.Equal(t, string(i18n.CodeRequestValidationFailed), resp.Error())
-	assert.Equal(t, 0, resp.GetStatus())
-
-	raw, err := json.Marshal(resp)
-	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"error"`)
-	assert.Contains(t, string(raw), `"fields"`)
-	assert.Contains(t, string(raw), `"expected string"`)
 }
 
 func TestAppError_IsMatchesByCode(t *testing.T) {

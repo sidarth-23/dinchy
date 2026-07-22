@@ -116,7 +116,7 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
 		}
-		return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowSession), apperrors.WithStage(apperrors.StageFindOrganisation))
+		return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthSessionFindOrganisation), apperrors.WithCause(err))
 	}
 	organization := organisationFromFindOrganisationRow(organisationRow)
 	if organization == nil {
@@ -129,7 +129,7 @@ func (s *Service) SelectOrganisation(ctx context.Context, rawToken, organisation
 	if loggedOutPrincipal != nil {
 		envelope, err := events.NewEnvelope(ctx, loggedOutPrincipal.UserID, loggedOutPrincipal.OrganisationID, events.NewTarget("session", loggedOutPrincipal.SessionID, loggedOutPrincipal.DisplayName))
 		if err != nil {
-			return "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowLogout), apperrors.WithStage(apperrors.StageLogout))
+			return "", apperrors.Internal(i18n.Msg(i18n.CodeAuthLogoutPublishEvent), apperrors.WithCause(err))
 		}
 		// Best effort: logout should not fail if audit publication fails.
 		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})

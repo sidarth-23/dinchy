@@ -18,7 +18,7 @@ import (
 // Every request ensures a dinchy_csrf cookie exists; mutating requests
 // (POST, PUT, PATCH, DELETE) additionally require the X-CSRF-Token header
 // to match the cookie value.
-func CSRF() func(http.Handler) http.Handler {
+func CSRF(renderer *apperrors.Renderer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -40,7 +40,7 @@ func CSRF() func(http.Handler) http.Handler {
 			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 				header := r.Header.Get("X-CSRF-Token")
 				if subtle.ConstantTimeCompare([]byte(token), []byte(header)) != 1 {
-					locErr := apperrors.Resolve(support.LangFrom(ctx), i18n.Default, apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed)))
+					locErr := renderer.Resolve(support.LangFrom(ctx), apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed)))
 					writeErrorResponse(ctx, w, nil, locErr)
 					return
 				}

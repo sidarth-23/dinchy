@@ -18,6 +18,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/health"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
@@ -56,69 +57,69 @@ func (a *App) Start() error {
 	ctx := context.Background()
 	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN, store.WithLogger(a.logger))
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageOpenStore))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppOpenStore), apperrors.WithCause(err))
 	}
 	a.closer = s
 	queries := sqlcgen.New(s.Pool())
 	redisClient, err := cache.OpenRedis(ctx, a.cfg.Redis)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	a.redis = redisClient
 	eventBusSvc, err := events.NewService(redisClient, id.NewGenerator(), events.Config{StreamName: a.cfg.EventBus.StreamName, ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix, ConsumerName: a.cfg.EventBus.ConsumerName, BatchSize: a.cfg.EventBus.BatchSize, RetentionWindow: a.cfg.EventBus.RetentionWindow, ClaimMinIdle: a.cfg.EventBus.ClaimMinIdle, ReadBlock: a.cfg.EventBus.ReadBlock, WorkerInterval: a.cfg.EventBus.WorkerInterval})
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	clk := clock.System{}
 	var sender email.Sender = email.NoopSender{}
 	if a.cfg.SMTP.Enabled() {
 		smtpSender, err := email.NewSMTPSender(a.cfg.SMTP)
 		if err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+			return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 		}
 		sender = smtpSender
 	}
 	mailer, err := email.NewMailer(sender, a.cfg.PublicBaseURL)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	keyer := cache.NewKeyer(a.cfg.Redis.KeyPrefix)
 	sessionCache := cache.NewRedis(redisClient, keyer, a.cfg.Cache.Enabled)
 	sharedService := module.Service{BaseLogger: a.logger, Clock: clk, IDGenerator: id.NewGenerator(), Database: s.Pool(), RedisClient: redisClient, Cache: sessionCache, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc}
 	auditSvc, err := audit.NewService(sharedService.Named("audit"), queries)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	eventBusSvc.Register(auditSvc)
 	if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	sessionSvc, err := session.NewService(sharedService.Named("session"), queries, a.cfg.Session, a.cfg.Cache)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	authSvc, err := auth.NewService(sharedService.Named("auth"), queries, sessionSvc, a.cfg.Auth, a.cfg.SSOProviders)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	var dist fs.FS
 	if !a.cfg.DevMode {
 		distFS, err := frontend.DistFS()
 		if err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageFrontendDistFs), apperrors.WithStage(apperrors.StageLoadFrontendAssets))
+			return apperrors.Internal(i18n.Msg(i18n.CodeAppLoadFrontendAssets), apperrors.WithCause(err))
 		}
 		dist = distFS
 	}
-	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.ExposeInternalErrors, a.cfg.DevProxyURL, a.logger)
 	healthAPI, err := health.NewAPI(sharedService.Named("health"), s)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppSetup), apperrors.WithCause(err))
 	}
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, healthAPI)
 	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc)}
 	a.workers = workers.NewRuntime(queries, clk, a.logger, registeredWorkers...)
 	if err := a.workers.Start(ctx); err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageStartTaskRuntime))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAppStartTaskRuntime), apperrors.WithCause(err))
 	}
 	go func() { a.errCh <- a.public.ListenAndServe() }()
 	go func() { a.errCh <- a.internal.ListenAndServe() }()

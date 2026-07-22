@@ -27,6 +27,10 @@ type Config struct {
 	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,http_url"`
 	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
 	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
+	// ExposeInternalErrors adds a debug object to every error response carrying the
+	// internal code, cause chain (including SQL errors), and metadata. It leaks internal
+	// detail and must stay disabled outside local or trusted debugging environments.
+	ExposeInternalErrors bool `env:"DINCHY_EXPOSE_INTERNAL_ERRORS"`
 	// PublicBaseURL is the externally reachable base URL used to build links in
 	// outbound email (invitation and password reset). Required when SMTP is enabled.
 	PublicBaseURL string `env:"DINCHY_PUBLIC_BASE_URL" validate:"omitempty,http_url"`

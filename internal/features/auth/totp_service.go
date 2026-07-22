@@ -21,7 +21,7 @@ import (
 func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress string) (secret, url string, err error) {
 	key, err := totp.Generate(totp.GenerateOpts{Issuer: s.authConfig.TOTPIssuer, AccountName: emailAddress})
 	if err != nil {
-		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))
+		return "", "", apperrors.Internal(i18n.Msg(i18n.CodeAuthTOTPEnroll), apperrors.WithCause(err))
 	}
 	if err := s.store.InsertOrReplaceTwoFactor(ctx, sqlcgen.InsertOrReplaceTwoFactorParams{
 		ID:        id.MustParse(s.IDGenerator.New()),
@@ -31,7 +31,7 @@ func (s *Service) StartTOTPEnrollment(ctx context.Context, userID, emailAddress 
 		CreatedAt: sqltype.Timestamptz(s.Clock.Now()),
 		UpdatedAt: sqltype.Timestamptz(s.Clock.Now()),
 	}); err != nil {
-		return "", "", apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPEnroll))
+		return "", "", apperrors.Internal(i18n.Msg(i18n.CodeAuthTOTPEnroll), apperrors.WithCause(err))
 	}
 	return key.Secret(), key.URL(), nil
 }
@@ -43,7 +43,7 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, displayName, code str
 		if errors.Is(err, pgx.ErrNoRows) {
 			return apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidTOTP))
 		}
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthTOTPConfirm), apperrors.WithCause(err))
 	}
 	twoFactor := twoFactorFromFindTwoFactorRow(twoFactorRow)
 	now := s.Clock.Now().UTC()
@@ -54,11 +54,11 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, displayName, code str
 		return s.recordTOTPFailure(ctx, userID, twoFactor.FailedVerificationCount, now, i18n.Msg(i18n.CodeAuthInvalidTOTP))
 	}
 	if err := s.store.ConfirmTwoFactor(ctx, sqlcgen.ConfirmTwoFactorParams{UserID: id.MustParse(userID), LastUsedStep: sqltype.Int8(totpStep(now)), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthTOTPConfirm), apperrors.WithCause(err))
 	}
 	envelope, err := events.NewEnvelope(ctx, userID, "", events.NewTarget("user", userID, displayName))
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthTOTPConfirm), apperrors.WithCause(err))
 	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorEnabledEvent{
 		EventType: events.AuthSecurityTwoFactorEnabled,
@@ -95,7 +95,7 @@ func (s *Service) DisableTOTP(ctx context.Context, userID, displayName string) e
 	}
 	envelope, err := events.NewEnvelope(ctx, userID, "", events.NewTarget("user", userID, displayName))
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthTOTPDisable), apperrors.WithCause(err))
 	}
 	return s.publishEvent(ctx, events.AuthSecurityTwoFactorDisabledEvent{
 		EventType: events.AuthSecurityTwoFactorDisabled,
@@ -147,7 +147,7 @@ func (s *Service) recordTOTPFailure(ctx context.Context, userID string, currentC
 		UpdatedAt:    sqltype.Timestamptz(now),
 		UserID:       id.MustParse(userID),
 	}); err != nil {
-		return apperrors.Annotate(err, apperrors.WithFlow(apperrors.FlowTOTP), apperrors.WithStage(apperrors.StageTOTPConfirm))
+		return apperrors.Internal(i18n.Msg(i18n.CodeAuthTOTPConfirm), apperrors.WithCause(err))
 	}
 	if lockedUntil.Valid {
 		return apperrors.TooManyRequests(i18n.Msg(i18n.CodeAuthTOTPLocked))

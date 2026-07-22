@@ -8,7 +8,9 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/health"
+	"github.com/sidarth-23/dinchy/internal/i18n"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
@@ -17,7 +19,7 @@ import (
 func NewInternal(addr string, healthAPI *health.API) *http.Server {
 	r := chi.NewRouter()
 	r.Use(mw.RequestID())
-	r.Use(mw.Recover(slog.Default()))
+	r.Use(mw.Recover(slog.Default(), apperrors.NewRenderer(i18n.Default, false)))
 
 	apiRouter := chi.NewRouter()
 	cfg := huma.DefaultConfig("Dinchy Internal API", "0.1.0")

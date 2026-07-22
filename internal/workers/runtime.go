@@ -98,9 +98,9 @@ func (r *Runtime) registerWorker(ctx context.Context, worker Worker) error {
 		NextRunAt:               sqltype.Timestamptz(now),
 		UpdatedAt:               sqltype.Timestamptz(now),
 	}); err != nil {
-		return apperrors.Annotate(err,
+		return apperrors.Internal(i18n.Msg(i18n.CodeWorkersEnsureTask),
+			apperrors.WithCause(err),
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
-			apperrors.WithStage(apperrors.StageEnsureTask),
 		)
 	}
 	logging.Info(ctx, r.logger, "Registered worker",
@@ -124,9 +124,9 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 		NextRunAtCutoff:      sqltype.Timestamptz(now),
 	})
 	if err != nil {
-		return apperrors.Annotate(err,
+		return apperrors.Internal(i18n.Msg(i18n.CodeWorkersClaimTask),
+			apperrors.WithCause(err),
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
-			apperrors.WithStage(apperrors.StageClaimTask),
 		)
 	}
 	if result.RowsAffected() == 0 {
@@ -144,14 +144,14 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 			UpdatedAt:        sqltype.Timestamptz(now),
 			TaskName:         worker.TaskName(),
 		}); finishErr != nil {
-			return apperrors.Annotate(finishErr,
+			return apperrors.Internal(i18n.Msg(i18n.CodeWorkersFinishFailedRun),
+				apperrors.WithCause(finishErr),
 				apperrors.WithTask(apperrors.Task(worker.TaskName())),
-				apperrors.WithStage(apperrors.StageFinishFailedRun),
 			)
 		}
-		return apperrors.Annotate(executeErr,
+		return apperrors.Internal(i18n.Msg(worker.ExecutionCode()),
+			apperrors.WithCause(executeErr),
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
-			apperrors.WithStage(worker.ExecutionStage()),
 		)
 	}
 
@@ -162,9 +162,9 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 		UpdatedAt:      sqltype.Timestamptz(now),
 		TaskName:       worker.TaskName(),
 	}); err != nil {
-		return apperrors.Annotate(err,
+		return apperrors.Internal(i18n.Msg(i18n.CodeWorkersFinishSuccess),
+			apperrors.WithCause(err),
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
-			apperrors.WithStage(apperrors.StageFinishSuccess),
 			apperrors.WithDeletedCount(apperrors.DeletedCount(outcome.DeletedCount)),
 		)
 	}

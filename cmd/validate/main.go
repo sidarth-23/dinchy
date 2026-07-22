@@ -13,8 +13,6 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
-	case "error":
-		err = runValidateError(os.Args[2:])
 	case "event":
 		err = runValidateEvent(os.Args[2:])
 	case "i18n":
@@ -33,5 +31,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: validate <error|event|i18n> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: validate <event|i18n> [flags]")
 }

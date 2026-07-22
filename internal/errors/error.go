@@ -1,8 +1,9 @@
+// Package errors provides structured, localizable application errors and response rendering.
 package errors
 
 import (
-	"encoding/json"
 	stdErrors "errors"
+	"net/http"
 
 	"github.com/sidarth-23/dinchy/internal/i18n"
 )
@@ -16,6 +17,53 @@ type AppError struct {
 	meta   map[string]any
 	cause  error
 	logged bool
+}
+
+// Option configures an AppError.
+type Option func(*AppError)
+
+// New creates a new source-layer app error.
+func New(status int, msg i18n.Message, opts ...Option) *AppError {
+	e := &AppError{status: status, msg: msg}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
+}
+
+// BadRequest creates a 400 AppError.
+func BadRequest(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusBadRequest, msg, opts...)
+}
+
+// Unauthorized creates a 401 AppError.
+func Unauthorized(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusUnauthorized, msg, opts...)
+}
+
+// Forbidden creates a 403 AppError.
+func Forbidden(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusForbidden, msg, opts...)
+}
+
+// Conflict creates a 409 AppError.
+func Conflict(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusConflict, msg, opts...)
+}
+
+// TooManyRequests creates a 429 AppError.
+func TooManyRequests(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusTooManyRequests, msg, opts...)
+}
+
+// UnprocessableEntity creates a 422 AppError.
+func UnprocessableEntity(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusUnprocessableEntity, msg, opts...)
+}
+
+// Internal creates a 500 AppError.
+func Internal(msg i18n.Message, opts ...Option) *AppError {
+	return New(http.StatusInternalServerError, msg, opts...)
 }
 
 // Logged reports whether a boundary has already recorded this error.
@@ -66,39 +114,4 @@ func (e *AppError) Meta() map[string]any {
 // Message returns the localized message descriptor associated with the error.
 func (e *AppError) Message() i18n.Message {
 	return e.msg
-}
-
-// Option configures an AppError.
-type Option func(*AppError)
-
-// ResponsePayload is the public error payload serialized by transport.
-type ResponsePayload struct {
-	Code    string         `json:"code" doc:"Stable machine-readable error code"`
-	Message string         `json:"message" doc:"Localized, human-readable error message"`
-	Meta    map[string]any `json:"meta,omitempty" doc:"Additional error context; for validation failures this carries a fields array of {message, location, value}"`
-}
-
-// ErrorResponse is the transport-layer error type returned to Huma.
-type ErrorResponse struct {
-	status  int
-	Payload ResponsePayload `json:"error"`
-}
-
-// Error implements the error interface.
-func (e *ErrorResponse) Error() string {
-	return e.Payload.Code
-}
-
-// GetStatus implements huma.StatusError.
-func (e *ErrorResponse) GetStatus() int {
-	return e.status
-}
-
-// MarshalJSON serializes the response as {"error":{...}}.
-func (e *ErrorResponse) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Error ResponsePayload `json:"error"`
-	}{
-		Error: e.Payload,
-	})
 }
