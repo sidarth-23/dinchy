@@ -28,9 +28,9 @@ type AppAuditLog struct {
 	Outcome             string             `db:"outcome" json:"outcome"`
 	ActorUserID         uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
 	ActorOrganisationID uuid.NullUUID      `db:"actor_organisation_id" json:"actor_organisation_id"`
-	TargetType          pgtype.Text        `db:"target_type" json:"target_type"`
-	TargetID            pgtype.Text        `db:"target_id" json:"target_id"`
-	TargetDisplay       pgtype.Text        `db:"target_display" json:"target_display"`
+	TargetType          string             `db:"target_type" json:"target_type"`
+	TargetID            string             `db:"target_id" json:"target_id"`
+	TargetDisplay       string             `db:"target_display" json:"target_display"`
 	RequestID           pgtype.Text        `db:"request_id" json:"request_id"`
 	TraceID             pgtype.Text        `db:"trace_id" json:"trace_id"`
 	SpanID              pgtype.Text        `db:"span_id" json:"span_id"`
@@ -95,22 +95,6 @@ type OrganisationRole struct {
 type OrganisationRolePermission struct {
 	RoleID     uuid.UUID `db:"role_id" json:"role_id"`
 	Permission string    `db:"permission" json:"permission"`
-}
-
-type ScheduledTask struct {
-	ID                      uuid.UUID          `db:"id" json:"id"`
-	TaskName                string             `db:"task_name" json:"task_name"`
-	Enabled                 bool               `db:"enabled" json:"enabled"`
-	ScheduleIntervalSeconds int64              `db:"schedule_interval_seconds" json:"schedule_interval_seconds"`
-	LeaseOwner              pgtype.Text        `db:"lease_owner" json:"lease_owner"`
-	LeaseExpiresAt          pgtype.Timestamptz `db:"lease_expires_at" json:"lease_expires_at"`
-	LastRunAt               pgtype.Timestamptz `db:"last_run_at" json:"last_run_at"`
-	LastFinishedAt          pgtype.Timestamptz `db:"last_finished_at" json:"last_finished_at"`
-	NextRunAt               pgtype.Timestamptz `db:"next_run_at" json:"next_run_at"`
-	LastStatus              pgtype.Text        `db:"last_status" json:"last_status"`
-	LastErrorCode           pgtype.Text        `db:"last_error_code" json:"last_error_code"`
-	LastErrorMessage        pgtype.Text        `db:"last_error_message" json:"last_error_message"`
-	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Session struct {

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-co-op/gocron/v2"
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/sidarth-23/dinchy/internal/access/session"
@@ -39,7 +40,7 @@ type App struct {
 	redis    *goredis.Client
 	public   *http.Server
 	internal *http.Server
-	workers  *workers.Runtime
+	workers  gocron.Scheduler
 	errCh    chan error
 	logger   *slog.Logger
 }
@@ -116,11 +117,18 @@ func (a *App) Start() error {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
 	a.internal = transport.NewInternal(a.cfg.InternalAddr, healthAPI)
-	registeredWorkers := []workers.Worker{workers.NewSessionCleanupWorker(queries, clk), events.NewWorker(eventBusSvc, auditSvc)}
-	a.workers = workers.NewRuntime(queries, clk, a.logger, registeredWorkers...)
-	if err := a.workers.Start(ctx); err != nil {
+	scheduler, err := workers.New(a.logger, a.cfg.Worker)
+	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
 	}
+	if err := workers.RegisterSessionCleanup(scheduler, queries, clk); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
+	}
+	if err := events.RegisterWorkers(scheduler, eventBusSvc); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
+	}
+	scheduler.Start()
+	a.workers = scheduler
 	go func() { a.errCh <- a.public.ListenAndServe() }()
 	go func() { a.errCh <- a.internal.ListenAndServe() }()
 	logging.Info(ctx, a.logger, "Application started", slog.String("public_addr", a.cfg.Addr), slog.String("internal_addr", a.cfg.InternalAddr), slog.Bool("dev_mode", a.cfg.DevMode))
@@ -132,7 +140,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 	logging.Info(ctx, a.logger, "Application stopping")
 	if a.workers != nil {
-		a.workers.Stop()
+		if err := a.workers.ShutdownWithContext(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
 	}
 	if a.public != nil {
 		if err := a.public.Shutdown(ctx); err != nil {

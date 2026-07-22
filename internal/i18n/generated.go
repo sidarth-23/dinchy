@@ -93,11 +93,7 @@ const (
 	CodeDiagnosticsStoreTxCommit                             Code = "diagnostics.store.tx.commit"
 	CodeDiagnosticsStoreTxPassthrough                        Code = "diagnostics.store.tx.passthrough"
 	CodeDiagnosticsStoreTxRollback                           Code = "diagnostics.store.tx.rollback"
-	CodeDiagnosticsWorkersClaimTask                          Code = "diagnostics.workers.claim_task"
-	CodeDiagnosticsWorkersEnsureTask                         Code = "diagnostics.workers.ensure_task"
 	CodeDiagnosticsWorkersEventProcessing                    Code = "diagnostics.workers.event_processing"
-	CodeDiagnosticsWorkersFinishFailedRun                    Code = "diagnostics.workers.finish_failed_run"
-	CodeDiagnosticsWorkersFinishSuccess                      Code = "diagnostics.workers.finish_success"
 	CodeDiagnosticsWorkersSessionCleanup                     Code = "diagnostics.workers.session_cleanup"
 	CodeNotificationEmailFooter                              Code = "notification.email.footer"
 	CodeNotificationEmailInvitationBody                      Code = "notification.email.invitation_body"
@@ -203,11 +199,7 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsStoreTxCommit:                             "Commit transaction failed",
 		CodeDiagnosticsStoreTxPassthrough:                        "Nested transaction body failed",
 		CodeDiagnosticsStoreTxRollback:                           "Roll back transaction failed",
-		CodeDiagnosticsWorkersClaimTask:                          "Claim worker task failed",
-		CodeDiagnosticsWorkersEnsureTask:                         "Register worker task failed",
 		CodeDiagnosticsWorkersEventProcessing:                    "Event subscriber processing failed",
-		CodeDiagnosticsWorkersFinishFailedRun:                    "Record failed worker run failed",
-		CodeDiagnosticsWorkersFinishSuccess:                      "Record successful worker run failed",
 		CodeDiagnosticsWorkersSessionCleanup:                     "Session cleanup worker execution failed",
 		CodeNotificationEmailFooter:                              "This is an automated message from Dinchy. Please do not reply to this email.",
 		CodeNotificationEmailInvitationBody:                      "You have been invited to join {{.organisation}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon.",

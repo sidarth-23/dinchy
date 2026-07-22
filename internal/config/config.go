@@ -48,6 +48,8 @@ type Config struct {
 	Cache CacheConfig
 	// EventBus contains the Redis stream settings for durable in-app events.
 	EventBus EventBusConfig
+	// Worker contains the background job scheduler settings.
+	Worker WorkerConfig
 	// Logging controls application log formatting and level.
 	Logging LoggingConfig
 	// Telemetry controls OpenTelemetry logs and traces.
@@ -75,6 +77,7 @@ func Load() (Config, error) {
 		Redis:        DefaultRedis(),
 		Cache:        DefaultCache(),
 		EventBus:     DefaultEventBus(),
+		Worker:       DefaultWorker(),
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),
 	}

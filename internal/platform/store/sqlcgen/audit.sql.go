@@ -31,9 +31,9 @@ type InsertAuditLogParams struct {
 	Outcome             string             `db:"outcome" json:"outcome"`
 	ActorUserID         uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
 	ActorOrganisationID uuid.NullUUID      `db:"actor_organisation_id" json:"actor_organisation_id"`
-	TargetType          pgtype.Text        `db:"target_type" json:"target_type"`
-	TargetID            pgtype.Text        `db:"target_id" json:"target_id"`
-	TargetDisplay       pgtype.Text        `db:"target_display" json:"target_display"`
+	TargetType          string             `db:"target_type" json:"target_type"`
+	TargetID            string             `db:"target_id" json:"target_id"`
+	TargetDisplay       string             `db:"target_display" json:"target_display"`
 	RequestID           pgtype.Text        `db:"request_id" json:"request_id"`
 	TraceID             pgtype.Text        `db:"trace_id" json:"trace_id"`
 	SpanID              pgtype.Text        `db:"span_id" json:"span_id"`
@@ -98,9 +98,9 @@ type ListAuditLogsParams struct {
 	ActorUserIDFilter string             `db:"actor_user_id_filter" json:"actor_user_id_filter"`
 	ActorUserID       uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
 	TargetTypeFilter  string             `db:"target_type_filter" json:"target_type_filter"`
-	TargetType        pgtype.Text        `db:"target_type" json:"target_type"`
+	TargetType        string             `db:"target_type" json:"target_type"`
 	TargetIDFilter    string             `db:"target_id_filter" json:"target_id_filter"`
-	TargetID          pgtype.Text        `db:"target_id" json:"target_id"`
+	TargetID          string             `db:"target_id" json:"target_id"`
 	OutcomeFilter     string             `db:"outcome_filter" json:"outcome_filter"`
 	Outcome           string             `db:"outcome" json:"outcome"`
 	Before            pgtype.Timestamptz `db:"before" json:"before"`

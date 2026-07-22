@@ -6,63 +6,64 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-co-op/gocron/v2"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
+	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
 
-func TestSessionCleanupWorker_Execute_UsesRetentionWindow(t *testing.T) {
-	t.Parallel()
-	ctrl := gomock.NewController(t)
-	store := NewMockStore(ctrl)
+var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	store.EXPECT().
-		DeleteEndedSessionsOlderThan(gomock.Any(), sqlcgen.DeleteEndedSessionsOlderThanParams{
-			ExpiresAt: sqltype.Timestamptz(fixedTime.Add(-sessionCleanupRetentionDuration)),
-			UpdatedAt: sqltype.Timestamptz(fixedTime),
-		}).
-		Return(pgconn.NewCommandTag("DELETE 7"), nil)
-
-	worker := NewSessionCleanupWorker(store, clock.Fixed(fixedTime))
-	outcome, err := worker.Execute(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, int64(7), outcome.DeletedCount)
+type fakeSessionStore struct {
+	params sqlcgen.DeleteEndedSessionsOlderThanParams
+	tag    pgconn.CommandTag
+	err    error
+	calls  int
 }
 
-func TestSessionCleanupWorker_Execute_PropagatesError(t *testing.T) {
+func (f *fakeSessionStore) DeleteEndedSessionsOlderThan(_ context.Context, arg sqlcgen.DeleteEndedSessionsOlderThanParams) (pgconn.CommandTag, error) {
+	f.calls++
+	f.params = arg
+	return f.tag, f.err
+}
+
+func TestCleanupEndedSessions_UsesRetentionWindow(t *testing.T) {
 	t.Parallel()
-	ctrl := gomock.NewController(t)
-	store := NewMockStore(ctrl)
+	store := &fakeSessionStore{tag: pgconn.NewCommandTag("DELETE 7")}
+
+	require.NoError(t, cleanupEndedSessions(context.Background(), store, clock.Fixed(fixedTime)))
+	assert.Equal(t, 1, store.calls)
+	assert.Equal(t, sqltype.Timestamptz(fixedTime.Add(-sessionCleanupRetentionDuration)), store.params.ExpiresAt)
+	assert.Equal(t, sqltype.Timestamptz(fixedTime), store.params.UpdatedAt)
+}
+
+func TestCleanupEndedSessions_WrapsStoreError(t *testing.T) {
+	t.Parallel()
 	sentinel := stderrors.New("delete failed")
+	store := &fakeSessionStore{err: sentinel}
 
-	store.EXPECT().
-		DeleteEndedSessionsOlderThan(gomock.Any(), sqlcgen.DeleteEndedSessionsOlderThanParams{
-			ExpiresAt: sqltype.Timestamptz(fixedTime.Add(-sessionCleanupRetentionDuration)),
-			UpdatedAt: sqltype.Timestamptz(fixedTime),
-		}).
-		Return(pgconn.NewCommandTag("DELETE 0"), sentinel)
-
-	worker := NewSessionCleanupWorker(store, clock.Fixed(fixedTime))
-	outcome, err := worker.Execute(context.Background())
-	require.ErrorIs(t, err, sentinel, "Execute returns the store error unwrapped; the runtime annotates it")
-	assert.Zero(t, outcome.DeletedCount)
+	err := cleanupEndedSessions(context.Background(), store, clock.Fixed(fixedTime))
+	require.ErrorIs(t, err, sentinel)
+	var appErr *apperrors.AppError
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, i18n.CodeDiagnosticsWorkersSessionCleanup, appErr.Code())
 }
 
-func TestSessionCleanupWorker_Contract(t *testing.T) {
+func TestRegisterSessionCleanup_SchedulesNamedJob(t *testing.T) {
 	t.Parallel()
-	worker := NewSessionCleanupWorker(nil, clock.Fixed(fixedTime))
+	sched, err := gocron.NewScheduler()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sched.Shutdown() })
 
-	// The runtime keys scheduling and failure reporting on these values.
-	assert.Equal(t, "session_cleanup", worker.TaskName())
-	assert.Equal(t, int64(300), worker.IntervalSeconds())
-	assert.Equal(t, 15*time.Second, worker.LeaseDuration())
-	assert.Equal(t, 5*time.Minute, worker.RetryDelay())
-	assert.Equal(t, "task.session_cleanup_failed", worker.FailureErrorCode())
-	assert.Equal(t, i18n.CodeDiagnosticsWorkersSessionCleanup, worker.ExecutionCode())
+	require.NoError(t, RegisterSessionCleanup(sched, &fakeSessionStore{tag: pgconn.NewCommandTag("DELETE 0")}, clock.Fixed(fixedTime)))
+
+	jobs := sched.Jobs()
+	require.Len(t, jobs, 1)
+	assert.Equal(t, sessionCleanupJobName, jobs[0].Name())
 }

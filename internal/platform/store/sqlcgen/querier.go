@@ -12,7 +12,6 @@ import (
 )
 
 type Querier interface {
-	ClaimTask(ctx context.Context, arg ClaimTaskParams) (pgconn.CommandTag, error)
 	ConfirmTwoFactor(ctx context.Context, arg ConfirmTwoFactorParams) error
 	ConsumeOrganisationInvitation(ctx context.Context, arg ConsumeOrganisationInvitationParams) error
 	ConsumeVerificationToken(ctx context.Context, arg ConsumeVerificationTokenParams) error
@@ -20,7 +19,6 @@ type Querier interface {
 	DeleteEndedSessionsOlderThan(ctx context.Context, arg DeleteEndedSessionsOlderThanParams) (pgconn.CommandTag, error)
 	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
 	EnsureDefaultSettings(ctx context.Context, arg EnsureDefaultSettingsParams) error
-	EnsureTask(ctx context.Context, arg EnsureTaskParams) error
 	FindOrganisationByIDForUser(ctx context.Context, arg FindOrganisationByIDForUserParams) (FindOrganisationByIDForUserRow, error)
 	FindOrganisationBySlugForUser(ctx context.Context, arg FindOrganisationBySlugForUserParams) (FindOrganisationBySlugForUserRow, error)
 	FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (FindOrganisationInvitationByTokenRow, error)
@@ -30,7 +28,6 @@ type Querier interface {
 	FindUserByEmail(ctx context.Context, email string) (FindUserByEmailRow, error)
 	FindUserByProviderAccount(ctx context.Context, arg FindUserByProviderAccountParams) (FindUserByProviderAccountRow, error)
 	FindVerificationToken(ctx context.Context, arg FindVerificationTokenParams) (FindVerificationTokenRow, error)
-	FinishTask(ctx context.Context, arg FinishTaskParams) error
 	GetActiveSessionTokenHashesForOrganisation(ctx context.Context, activeOrganisationID uuid.UUID) ([]string, error)
 	GetActiveSessionTokenHashesForUser(ctx context.Context, userID uuid.UUID) ([]string, error)
 	GetInstanceName(ctx context.Context) (string, error)

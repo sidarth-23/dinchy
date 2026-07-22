@@ -443,30 +443,6 @@
           "description": "Internal background worker failure diagnostics",
           "messages": [
             {
-              "name": "ensure_task",
-              "translations": {
-                "en": "Register worker task failed"
-              }
-            },
-            {
-              "name": "claim_task",
-              "translations": {
-                "en": "Claim worker task failed"
-              }
-            },
-            {
-              "name": "finish_failed_run",
-              "translations": {
-                "en": "Record failed worker run failed"
-              }
-            },
-            {
-              "name": "finish_success",
-              "translations": {
-                "en": "Record successful worker run failed"
-              }
-            },
-            {
               "name": "session_cleanup",
               "translations": {
                 "en": "Session cleanup worker execution failed"
