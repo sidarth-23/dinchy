@@ -237,7 +237,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &LoginOut{}
-	out.SetCookie = []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}
+	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -267,7 +267,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 		}
 	}
 	out := &LogoutOut{}
-	out.SetCookie = *session.ClearSessionCookie(a.sessions.SessionCookieName(), support.IsSecure(ctx))
+	out.SetCookie = *session.ClearCookie(a.sessions.SessionCookieName(), support.IsSecure(ctx))
 	return out, nil
 }
 
@@ -338,7 +338,7 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 	out := &SSOCallbackOut{
 		Status:    http.StatusFound,
 		Location:  returnTo,
-		SetCookie: append([]http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}, clearCookie...),
+		SetCookie: append([]http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}, clearCookie...),
 	}
 	return out, nil
 }
@@ -356,7 +356,7 @@ func (a *API) selectOrganization(ctx context.Context, in *SelectOrganizationIn) 
 	if err != nil {
 		return nil, err
 	}
-	out := &SelectOrganizationOut{SetCookie: []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, support.IsSecure(ctx))}}
+	out := &SelectOrganizationOut{SetCookie: []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, support.IsSecure(ctx))}}
 	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
 		return nil, err
 	}
@@ -408,7 +408,7 @@ func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*Ac
 	}
 	secure := support.IsSecure(ctx)
 	out := &AcceptInvitationOut{}
-	out.SetCookie = []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}
+	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -502,7 +502,7 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}
-	out.SetCookie = []http.Cookie{*session.SessionCookie(a.sessions.SessionCookieName(), token, secure)}
+	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName

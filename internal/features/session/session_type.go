@@ -140,12 +140,12 @@ func ResolutionErrorFrom(ctx context.Context) error {
 	return err
 }
 
-// SessionCookie builds a session cookie carrying the given token, marking it secure when requested.
-func SessionCookie(name, token string, secure bool) *http.Cookie {
+// Cookie builds a session cookie carrying the given token, marking it secure when requested.
+func Cookie(name, token string, secure bool) *http.Cookie {
 	return support.ValueCookie(name, token, secure)
 }
 
-// ClearSessionCookie builds a cookie that clears a session cookie on the client.
-func ClearSessionCookie(name string, secure bool) *http.Cookie {
+// ClearCookie builds a cookie that clears the session cookie on the client.
+func ClearCookie(name string, secure bool) *http.Cookie {
 	return support.ClearCookie(name, secure)
 }
