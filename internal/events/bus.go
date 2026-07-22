@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -49,6 +50,7 @@ type Service struct {
 	idg         *id.Generator
 	cfg         Config
 	subscribers map[string]Subscriber
+	definitions map[Type]Definition
 }
 
 // NewService constructs a Service; the Redis client is required and a default ID generator is used when idg is nil.
@@ -59,7 +61,26 @@ func NewService(client *goredis.Client, idg *id.Generator, cfg Config) (*Service
 	if idg == nil {
 		idg = id.NewGenerator()
 	}
-	return &Service{client: client, idg: idg, cfg: cfg, subscribers: map[string]Subscriber{}}, nil
+	return &Service{client: client, idg: idg, cfg: cfg, subscribers: map[string]Subscriber{}, definitions: map[Type]Definition{}}, nil
+}
+
+// RegisterDefinitions adds a feature's generated event definitions to the bus
+// registry, keyed by event type. Features register their own catalog at wiring
+// time so the bus can validate published events without importing feature code.
+func (s *Service) RegisterDefinitions(definitions map[Type]Definition) {
+	if s == nil {
+		return
+	}
+	maps.Copy(s.definitions, definitions)
+}
+
+// DefinitionFor returns the registered catalog definition for eventType and whether it exists.
+func (s *Service) DefinitionFor(eventType Type) (Definition, bool) {
+	if s == nil {
+		return Definition{}, false
+	}
+	definition, ok := s.definitions[eventType]
+	return definition, ok
 }
 
 // Register adds a subscriber, keyed by its name.
@@ -112,7 +133,7 @@ func (s *Service) Publish(ctx context.Context, event Event) error {
 	if event == nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("event is required")))
 	}
-	definition, ok := DefinitionFor(event.Type())
+	definition, ok := s.DefinitionFor(event.Type())
 	if !ok {
 		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("event type %q is not defined in the catalog", event.Type())))
 	}

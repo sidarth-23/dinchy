@@ -1,6 +1,6 @@
 package events
 
-//go:generate go run ../../cmd/codegen event -input catalog -output generated.go
+//go:generate go run ../../cmd/codegen event -features ../features
 
 import (
 	"context"
@@ -96,12 +96,6 @@ type Definition struct {
 	Description  string
 	MetadataKeys []string
 	ChangeKeys   []string
-}
-
-// DefinitionFor returns the catalog definition for eventType and whether it exists.
-func DefinitionFor(eventType Type) (Definition, bool) {
-	definition, ok := Definitions[eventType]
-	return definition, ok
 }
 
 // Target identifies the thing an event applies to.

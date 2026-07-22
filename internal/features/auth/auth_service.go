@@ -133,7 +133,7 @@ func (s *Service) SelectOrganization(ctx context.Context, rawToken, organization
 			return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLogoutPublishEvent), apperrors.WithCause(err))
 		}
 		// Best effort: logout should not fail if audit publication fails.
-		_ = s.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})
+		_ = s.publishEvent(ctx, SecurityAuthLogoutSucceededEvent{EventType: SecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: NewSecurityAuthLogoutSucceededMetadata(loggedOutPrincipal.Email)})
 	}
 	return s.sessions.Create(ctx, principal.UserID, organization.ID, ip, userAgent)
 }

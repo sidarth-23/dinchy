@@ -15,7 +15,6 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/config"
-	"github.com/sidarth-23/dinchy/internal/events"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
@@ -100,7 +99,7 @@ func TestConfirmTOTP_Success(t *testing.T) {
 
 	require.NoError(t, svc.ConfirmTOTP(testCtx, testUserID, "User", validTOTPCode(t)))
 	require.NotNil(t, publisher.event)
-	require.Equal(t, events.AuthSecurityTwoFactorEnabled, publisher.event.Type())
+	require.Equal(t, SecurityTwoFactorEnabled, publisher.event.Type())
 	envelope := publisher.event.EnvelopeData()
 	assert.Equal(t, "user", envelope.TargetType)
 	assert.Equal(t, testUserID, envelope.TargetID)
@@ -141,7 +140,7 @@ func TestDisableTOTP_DelegatesToStore(t *testing.T) {
 
 	require.NoError(t, svc.DisableTOTP(testCtx, testUserID, "User"))
 	require.NotNil(t, publisher.event)
-	require.Equal(t, events.AuthSecurityTwoFactorDisabled, publisher.event.Type())
+	require.Equal(t, SecurityTwoFactorDisabled, publisher.event.Type())
 	envelope := publisher.event.EnvelopeData()
 	assert.Equal(t, "user", envelope.TargetType)
 	assert.Equal(t, testUserID, envelope.TargetID)

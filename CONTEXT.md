@@ -50,6 +50,24 @@ imports `config`, `platform`, or any feature. It holds `errors`, `i18n`, `clock`
   *and* its Argon2id parameters/format constants); `security` depends on nothing
   in `config`. **Config validation** is private to `internal/config`.
 
+## Events
+
+- **Event bus** (`internal/events`) — generic transport machinery only: the
+  `Publisher`/`Subscriber` seam, Redis-stream delivery, consumer groups, the base
+  types (`Type`, `Envelope`, `TypedEvent`, `Definition`, `Record`), and the shared
+  `catalog.schema.json`. It imports no feature and owns no feature's vocabulary.
+- **Feature-owned event definitions** — each feature declares its own events in a
+  hand-written `events.json` (one top-level module named after the feature) and a
+  generated `events_generated.go` (package = feature; stripped identifiers like
+  `SecurityAuthLoginSucceeded`; a feature-scoped `EventDefinitions` map). Codegen
+  discovers every `internal/features/*/events.json`, validates them as one catalog
+  so types and names stay globally unique, and writes one generated file per feature.
+- **Registration seam** — features register their `EventDefinitions` on the bus at
+  app wiring (`eventBusSvc.RegisterDefinitions(auth.EventDefinitions)`), mirroring
+  subscriber registration, so the bus can validate published events without
+  importing feature code. Publishers live in the feature that emits the event; the
+  audit feature is the sole subscriber.
+
 ## Ownership principle
 
 Shared platform modules own the *machinery* (email delivery, event transport),

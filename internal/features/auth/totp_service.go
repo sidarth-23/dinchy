@@ -60,10 +60,10 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID, displayName, code str
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthTOTPConfirm), apperrors.WithCause(err))
 	}
-	return s.publishEvent(ctx, events.AuthSecurityTwoFactorEnabledEvent{
-		EventType: events.AuthSecurityTwoFactorEnabled,
+	return s.publishEvent(ctx, SecurityTwoFactorEnabledEvent{
+		EventType: SecurityTwoFactorEnabled,
 		Envelope:  envelope,
-		Metadata:  events.NewAuthSecurityTwoFactorEnabledMetadata(),
+		Metadata:  NewSecurityTwoFactorEnabledMetadata(),
 	})
 }
 
@@ -97,10 +97,10 @@ func (s *Service) DisableTOTP(ctx context.Context, userID, displayName string) e
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthTOTPDisable), apperrors.WithCause(err))
 	}
-	return s.publishEvent(ctx, events.AuthSecurityTwoFactorDisabledEvent{
-		EventType: events.AuthSecurityTwoFactorDisabled,
+	return s.publishEvent(ctx, SecurityTwoFactorDisabledEvent{
+		EventType: SecurityTwoFactorDisabled,
 		Envelope:  envelope,
-		Metadata:  events.NewAuthSecurityTwoFactorDisabledMetadata(),
+		Metadata:  NewSecurityTwoFactorDisabledMetadata(),
 	})
 }
 

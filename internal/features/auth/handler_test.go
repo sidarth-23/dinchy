@@ -18,7 +18,6 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
-	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
 	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
 	"github.com/sidarth-23/dinchy/internal/platform/security"
@@ -222,7 +221,7 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 	assert.Equal(t, api.sessions.SessionCookieName(), out.SetCookie.Name)
 	assert.Equal(t, -1, out.SetCookie.MaxAge)
 	require.NotNil(t, publisher.event)
-	require.Equal(t, events.AuthSecurityAuthLogoutSucceeded, publisher.event.Type())
+	require.Equal(t, SecurityAuthLogoutSucceeded, publisher.event.Type())
 	envelope := publisher.event.EnvelopeData()
 	assert.Equal(t, "session", envelope.TargetType)
 	assert.Equal(t, testSessionID, envelope.TargetID)

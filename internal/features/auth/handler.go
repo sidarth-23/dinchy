@@ -263,7 +263,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 				return nil, err
 			}
 			// Best effort: logout should not fail if audit publication fails.
-			_ = a.auth.publishEvent(ctx, events.AuthSecurityAuthLogoutSucceededEvent{EventType: events.AuthSecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: events.NewAuthSecurityAuthLogoutSucceededMetadata(principal.Email)})
+			_ = a.auth.publishEvent(ctx, SecurityAuthLogoutSucceededEvent{EventType: SecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: NewSecurityAuthLogoutSucceededMetadata(principal.Email)})
 		}
 	}
 	out := &LogoutOut{}

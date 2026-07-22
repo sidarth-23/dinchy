@@ -168,7 +168,7 @@ func TestSetupFirstUser_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 	require.NotNil(t, publisher.event)
-	require.Equal(t, events.AuthSecurityAuthSetupCompleted, publisher.event.Type())
+	require.Equal(t, SecurityAuthSetupCompleted, publisher.event.Type())
 	envelope := publisher.event.EnvelopeData()
 	assert.Equal(t, "user", envelope.TargetType)
 	assert.Equal(t, createdUserID, envelope.TargetID)

@@ -49,7 +49,7 @@ func (s *Service) SetupFirstUser(ctx context.Context, emailAddress, displayName,
 	if err != nil {
 		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthSetupCreateFirstUser), apperrors.WithCause(err))
 	}
-	if err := s.publishEvent(ctx, events.AuthSecurityAuthSetupCompletedEvent{EventType: events.AuthSecurityAuthSetupCompleted, Envelope: envelope, Metadata: events.NewAuthSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName)}); err != nil {
+	if err := s.publishEvent(ctx, SecurityAuthSetupCompletedEvent{EventType: SecurityAuthSetupCompleted, Envelope: envelope, Metadata: NewSecurityAuthSetupCompletedMetadata(user.Email, user.DisplayName)}); err != nil {
 		return "", apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthSetupCreateFirstUser), apperrors.WithCause(err))
 	}
 	return s.sessions.Create(ctx, user.ID, organizationID, ip, userAgent)

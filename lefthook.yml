@@ -6,8 +6,8 @@ pre-commit:
               parallel: true
               jobs:
                   - name: validate event catalog
-                    glob: "internal/events/catalog/**/*.json"
-                    run: go run ./cmd/validate event -input internal/events/catalog
+                    glob: "internal/features/*/events.json"
+                    run: go run ./cmd/validate event -features internal/features
 
                   - name: validate i18n catalog
                     glob: "internal/foundation/i18n/catalog/**/*.json"
@@ -22,8 +22,8 @@ pre-commit:
                     run: go run ./cmd/coderules logreturn ./...
 
                   - name: generate catalogs
-                    glob: "internal/{events/catalog/**/*.json,i18n/catalog/**/*.json,access/permission/{permissions,roles}.json}"
-                    run: go generate ./internal/foundation/i18n ./internal/events ./internal/access/permission && git add internal/events/generated.go internal/foundation/i18n/generated.go internal/access/permission/permission_generated.go internal/access/permission/role_generated.go
+                    glob: "internal/{features/*/events.json,foundation/i18n/catalog/**/*.json,access/permission/{permissions,roles}.json}"
+                    run: go generate ./internal/foundation/i18n ./internal/events ./internal/access/permission && git add internal/features/*/events_generated.go internal/foundation/i18n/generated.go internal/access/permission/permission_generated.go internal/access/permission/role_generated.go
 
                   - name: generate sqlc
                     glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"

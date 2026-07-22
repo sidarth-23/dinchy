@@ -32,7 +32,7 @@
 * If there is no new context to add, leave a comment explaining why the existing error already carries enough detail.
   * This is a last resort for paths where the returned error already fully identifies the failure.
   * Do not use this as a substitute for adding missing information when the caller would benefit from it.
-* Use `internal/errors.AppError` for user-visible failures and anything that crosses a layer boundary.
+* Use `internal/foundation/errors.AppError` for user-visible failures and anything that crosses a layer boundary.
   * Prefer the typed constructors such as `BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `UnprocessableEntity`, and `Internal`.
   * Keep the stable error code and localized message at the source of the failure.
   * Attach metadata through typed helpers, not ad hoc stringly-typed maps.
@@ -109,6 +109,8 @@
     * `*_type.go` for feature-local types, request/response shapes, enums, and data structures that define the feature contract.
     * `handler.go` for the feature’s transport entrypoint when the feature has a single primary handler file and the name is clearer without a prefix.
     * `*_background_job.go` for background workers, schedulers, queue consumers, and task execution logic owned by the feature.
+    * `events.json` for the feature's hand-written event catalog fragment; it holds exactly one top-level module named after the feature and is validated against `internal/events/catalog.schema.json`.
+    * `events_generated.go` for the generated event constants, `EventDefinitions`, typed metadata, and event aliases produced from `events.json`; it is code-generated and must not be edited by hand.
   * If a file does not fit one of these classes, treat that as a design decision, not a naming accident.
   * Any additional filename class must be explicitly requested, approved, and added to this file before use.
 * Keep feature-local helpers, handlers, services, and types together under the same feature package when that reduces indirection.
@@ -116,13 +118,13 @@
   * Keep package boundaries aligned with the feature surface, not with incidental implementation details.
 * Define API input validation and normalization at the transport boundary.
   * Put validation tags on request input types so the API rejects malformed payloads before handlers run.
-  * Implement `Resolve` on input bodies to canonicalize user input with `internal/platform/transform` before validation reaches services.
+  * Implement `Resolve` on input bodies to canonicalize user input with `internal/foundation/transform` before validation reaches services.
   * Keep handlers and services operating on validated, transformed values only; do not repeat ad hoc normalization in business logic.
 * All environment variables must come from `internal/config`.
   * Do not define environment variable names ad hoc in feature code, helpers, or startup glue.
   * Add new environment variables only through the config layer so defaults and validation stay centralized.
   * If a new env var is needed, add it to config first and wire every use through that config value.
-* When adding error metadata, prefer the typed helpers already defined in `internal/errors` over ad hoc maps.
+* When adding error metadata, prefer the typed helpers already defined in `internal/foundation/errors` over ad hoc maps.
   * Use the typed helpers so metadata stays consistent across handlers, services, and stores.
   * Only use raw maps when the shape is genuinely dynamic and cannot be expressed with the existing helpers.
 * Preserve error codes and metadata through annotation and wrapping paths.

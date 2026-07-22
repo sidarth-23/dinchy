@@ -78,6 +78,7 @@ func (a *App) Start() error {
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
+	eventBusSvc.RegisterDefinitions(auth.EventDefinitions)
 	clk := clock.System{}
 	var sender email.Sender = email.NoopSender{}
 	if a.cfg.SMTP.Enabled() {

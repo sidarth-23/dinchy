@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"sort"
 
@@ -19,35 +21,84 @@ type (
 func runEvent(args []string) error {
 	fs := flag.NewFlagSet("event", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	input := fs.String("input", "catalog", "manifest input path (directory of fragments or single file)")
-	output := fs.String("output", "generated.go", "generated Go output path")
+	features := fs.String("features", "../features", "feature packages directory holding per-feature events.json fragments")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return generateEvent(*input, *output)
+	return generateEvent(*features)
 }
 
-func generateEvent(inputPath, outputPath string) error {
-	mf, err := manifest.LoadEventCatalog(inputPath)
+// generateEvent discovers every feature's events.json fragment, validates them
+// as one catalog so event types and generated names stay globally unique, then
+// writes a per-feature events_generated.go beside each fragment.
+func generateEvent(featuresDir string) error {
+	fragments, err := loadEventFragments(featuresDir)
 	if err != nil {
 		return err
 	}
-	if err := manifest.ValidateEventCatalog(mf); err != nil {
-		return err
-	}
-
-	src, err := renderEventManifest(mf)
+	merged, err := manifest.MergeEventCatalogs(fragmentCatalogs(fragments)...)
 	if err != nil {
 		return err
 	}
-	return writeGeneratedFile(outputPath, src)
+	if err := manifest.ValidateEventCatalog(merged); err != nil {
+		return err
+	}
+	for _, fragment := range fragments {
+		src, err := renderEventManifest(fragment.catalog, fragment.pkg)
+		if err != nil {
+			return err
+		}
+		if err := writeGeneratedFile(filepath.Join(fragment.dir, "events_generated.go"), src); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func renderEventManifest(mf eventManifest) ([]byte, error) {
+type eventFragment struct {
+	pkg     string
+	dir     string
+	catalog eventManifest
+}
+
+func loadEventFragments(featuresDir string) ([]eventFragment, error) {
+	matches, err := filepath.Glob(filepath.Join(featuresDir, "*", "events.json"))
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(matches)
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no event catalog fragments found under %q", featuresDir)
+	}
+	fragments := make([]eventFragment, 0, len(matches))
+	for _, path := range matches {
+		catalog, err := manifest.LoadEventCatalog(path)
+		if err != nil {
+			return nil, err
+		}
+		dir := filepath.Dir(path)
+		pkg := filepath.Base(dir)
+		if len(catalog.Modules) != 1 || catalog.Modules[0].ID != pkg {
+			return nil, fmt.Errorf("event fragment %q must contain exactly one top-level module named %q", path, pkg)
+		}
+		fragments = append(fragments, eventFragment{pkg: pkg, dir: dir, catalog: catalog})
+	}
+	return fragments, nil
+}
+
+func fragmentCatalogs(fragments []eventFragment) []eventManifest {
+	catalogs := make([]eventManifest, 0, len(fragments))
+	for _, fragment := range fragments {
+		catalogs = append(catalogs, fragment.catalog)
+	}
+	return catalogs
+}
+
+func renderEventManifest(mf eventManifest, pkg string) ([]byte, error) {
 	events := flattenEventDefinitions(mf.Modules, nil)
 	sort.Slice(events, func(i, j int) bool { return events[i].Type < events[j].Type })
 
-	view := eventFileView{}
+	view := eventFileView{Package: pkg}
 	for i := range events {
 		ev := eventViewFor(events[i])
 		view.Events = append(view.Events, ev)
@@ -59,6 +110,7 @@ func renderEventManifest(mf eventManifest) ([]byte, error) {
 }
 
 type eventFileView struct {
+	Package   string
 	Events    []eventView
 	NeedsTime bool
 }
@@ -94,6 +146,10 @@ type eventFieldView struct {
 	ParamCurrent  string
 }
 
+// eventViewFor builds the template view for one event. The constant and type
+// names drop the leading module segment (the feature that owns the generated
+// package) so identifiers do not stutter with the package name; the catalog
+// type string and the definition path keep the full module path.
 func eventViewFor(event flattenedEvent) eventView {
 	var category, subcategory string
 	if len(event.Path) > 1 {
@@ -102,13 +158,18 @@ func eventViewFor(event flattenedEvent) eventView {
 	if len(event.Path) > 2 {
 		subcategory = event.Path[2]
 	}
+	localPath := event.Path
+	if len(localPath) > 0 {
+		localPath = localPath[1:]
+	}
+	constantName := manifest.EventConstantName(localPath, event.ID)
 	hasChanges := len(event.ChangeKeys) > 0
-	changesType := "NoChanges"
+	changesType := "events.NoChanges"
 	if hasChanges {
-		changesType = event.ConstantName + "Changes"
+		changesType = constantName + "Changes"
 	}
 	return eventView{
-		ConstantName: event.ConstantName,
+		ConstantName: constantName,
 		Type:         event.Type,
 		ID:           event.ID,
 		Path:         event.Path,
@@ -117,8 +178,8 @@ func eventViewFor(event flattenedEvent) eventView {
 		Action:       event.Action,
 		Outcome:      event.Outcome,
 		Description:  event.Description,
-		Metadata:     eventRecordViewFor(event.ConstantName+"Metadata", "New"+event.ConstantName+"Metadata", event.MetadataKeys),
-		Changes:      eventRecordViewFor(event.ConstantName+"Changes", "New"+event.ConstantName+"Changes", event.ChangeKeys),
+		Metadata:     eventRecordViewFor(constantName+"Metadata", "New"+constantName+"Metadata", event.MetadataKeys),
+		Changes:      eventRecordViewFor(constantName+"Changes", "New"+constantName+"Changes", event.ChangeKeys),
 		HasChanges:   hasChanges,
 		ChangesType:  changesType,
 	}
