@@ -31,7 +31,7 @@ func TestRecover_PanicReturnsJSONErrorAndStructuredLog(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, recorder.Code)
 	require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
-	require.Equal(t, "server.internal_error", decodeErrorCode(t, recorder.Body.Bytes()))
+	require.Equal(t, "platform.server.internal_error", decodeErrorCode(t, recorder.Body.Bytes()))
 
 	lines := strings.Split(strings.TrimSpace(buffer.String()), "\n")
 	require.Len(t, lines, 1)

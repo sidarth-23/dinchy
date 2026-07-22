@@ -78,7 +78,7 @@ func TestForgotPassword_EmailNotConfigured(t *testing.T) {
 	svc, _ := newTestService(t) // NoopSender reports itself unconfigured.
 
 	err := svc.ForgotPassword(testCtx, "user@example.com")
-	require.ErrorIs(t, err, apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured)))
+	require.ErrorIs(t, err, apperrors.Internal(i18n.Msg(i18n.CodeNotificationEmailNotConfigured)))
 }
 
 func TestForgotPassword_UnknownUserIsSilent(t *testing.T) {
@@ -140,7 +140,7 @@ func TestResetPassword_InvalidToken(t *testing.T) {
 				Return(tc.token, nil)
 
 			err := svc.ResetPassword(testCtx, "raw-token", "newpassword123")
-			require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken)))
+			require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthInvalidResetToken)))
 		})
 	}
 }

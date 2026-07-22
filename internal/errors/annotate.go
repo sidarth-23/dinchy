@@ -20,5 +20,5 @@ func Annotate(err error, opts ...Option) error {
 		return annotated
 	}
 	opts = append([]Option{WithCause(err)}, opts...)
-	return Internal(i18n.Msg(i18n.CodeServerInternalError), opts...)
+	return Internal(i18n.Msg(i18n.CodePlatformServerInternalError), opts...)
 }

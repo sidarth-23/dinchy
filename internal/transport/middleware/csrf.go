@@ -40,7 +40,7 @@ func CSRF(renderer *apperrors.Renderer) func(http.Handler) http.Handler {
 			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 				header := r.Header.Get("X-CSRF-Token")
 				if subtle.ConstantTimeCompare([]byte(token), []byte(header)) != 1 {
-					locErr := renderer.Resolve(support.LangFrom(ctx), apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed)))
+					locErr := renderer.Resolve(support.LangFrom(ctx), apperrors.BadRequest(i18n.Msg(i18n.CodeTransportSecurityCSRFFailed)))
 					writeErrorResponse(ctx, w, nil, locErr)
 					return
 				}

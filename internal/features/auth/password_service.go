@@ -42,7 +42,7 @@ type VerificationToken struct {
 // ForgotPassword issues a password reset token and emails it, returning nil for unknown addresses to avoid account enumeration.
 func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error {
 	if !s.Mailer.Configured() {
-		return apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
+		return apperrors.Internal(i18n.Msg(i18n.CodeNotificationEmailNotConfigured), apperrors.WithCause(email.ErrNotConfigured))
 	}
 	start := s.Clock.Now()
 	defer waitUntil(start.Add(config.PasswordResetMinimumDuration))
@@ -51,7 +51,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetFindUser), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetFindUser), apperrors.WithCause(err))
 	}
 	user := userFromFindUserRow(userRow)
 	if user == nil {
@@ -59,7 +59,7 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 	}
 	rawToken, err := security.RandomToken(32)
 	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetGenerateToken), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetGenerateToken), apperrors.WithCause(err))
 	}
 	tokenHash := security.HashToken(rawToken)
 	now := s.Clock.Now()
@@ -73,10 +73,10 @@ func (s *Service) ForgotPassword(ctx context.Context, emailAddress string) error
 		CreatedAt: sqltype.Timestamptz(now),
 		UpdatedAt: sqltype.Timestamptz(now),
 	}); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetCreateVerificationToken), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetCreateVerificationToken), apperrors.WithCause(err))
 	}
 	if err := s.Mailer.SendPasswordReset(ctx, email.PasswordResetEmail{To: emailAddress, Token: rawToken}); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetSendEmail), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetSendEmail), apperrors.WithCause(err))
 	}
 	return nil
 }
@@ -86,9 +86,9 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 	tokenRow, err := s.store.FindVerificationToken(ctx, sqlcgen.FindVerificationTokenParams{TokenHash: security.HashToken(rawToken), Purpose: string(VerificationPurposePasswordReset)})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))
+			return apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthInvalidResetToken))
 		}
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetFindVerificationToken), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetFindVerificationToken), apperrors.WithCause(err))
 	}
 	token := &VerificationToken{
 		ID:              tokenRow.ID.String(),
@@ -103,17 +103,17 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, password string) 
 	}
 	now := s.Clock.Now()
 	if !token.UserIDValid || token.ConsumedAtValid || now.After(token.ExpiresAt) {
-		return apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken))
+		return apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthInvalidResetToken))
 	}
 	hash, err := security.HashPassword(password)
 	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetPasswordHash), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetPasswordHash), apperrors.WithCause(err))
 	}
 	if err := s.store.UpdateUserPasswordHash(ctx, sqlcgen.UpdateUserPasswordHashParams{UserID: id.MustParse(token.UserID), PasswordHash: sqltype.Text(hash), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetPasswordHash), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetPasswordHash), apperrors.WithCause(err))
 	}
 	if err := s.store.ConsumeVerificationToken(ctx, sqlcgen.ConsumeVerificationTokenParams{ID: id.MustParse(token.ID), ConsumedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeAuthPasswordResetConsumeVerificationToken), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthPasswordResetConsumeVerificationToken), apperrors.WithCause(err))
 	}
 	return s.sessions.RevokeForUser(ctx, token.UserID)
 }

@@ -93,6 +93,6 @@ func TestList_MalformedActorUserIDReturnsValidationAppError(t *testing.T) {
 	var appErr *apperrors.AppError
 	require.ErrorAs(t, gotErr, &appErr)
 	assert.Equal(t, http.StatusUnprocessableEntity, appErr.Status())
-	assert.Equal(t, i18n.CodeRequestValidationFailed, appErr.Code())
+	assert.Equal(t, i18n.CodeTransportRequestValidationFailed, appErr.Code())
 	assert.Equal(t, map[string]any{string(apperrors.MetaKeyFieldName): "actor_user_id"}, appErr.Meta())
 }

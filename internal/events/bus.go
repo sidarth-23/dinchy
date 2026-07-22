@@ -54,7 +54,7 @@ type Service struct {
 // NewService constructs a Service; the Redis client is required and a default ID generator is used when idg is nil.
 func NewService(client *goredis.Client, idg *id.Generator, cfg Config) (*Service, error) {
 	if client == nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("redis client is required for the event bus")))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("redis client is required for the event bus")))
 	}
 	if idg == nil {
 		idg = id.NewGenerator()
@@ -110,11 +110,11 @@ func (s *Service) Publish(ctx context.Context, event Event) error {
 		return nil
 	}
 	if event == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event is required")))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("event is required")))
 	}
 	definition, ok := DefinitionFor(event.Type())
 	if !ok {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("event type %q is not defined in the catalog", event.Type())))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("event type %q is not defined in the catalog", event.Type())))
 	}
 	record := newRecord(event, definition)
 	if record.ID == "" {
@@ -125,7 +125,7 @@ func (s *Service) Publish(ctx context.Context, event Event) error {
 	}
 	payload, err := json.Marshal(record)
 	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("marshal event %q: %w", event.Type(), err)))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("marshal event %q: %w", event.Type(), err)))
 	}
 	args := &goredis.XAddArgs{Stream: s.cfg.StreamName, Values: map[string]any{"payload": string(payload)}}
 	if s.cfg.RetentionWindow > 0 {
@@ -145,7 +145,7 @@ func (s *Service) ProcessSubscriber(ctx context.Context, name string) (int64, er
 	}
 	subscriber, ok := s.subscribers[name]
 	if !ok {
-		return 0, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("subscriber %q is not registered", name)))
+		return 0, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("subscriber %q is not registered", name)))
 	}
 	streams, err := s.client.XReadGroup(ctx, &goredis.XReadGroupArgs{Group: s.consumerGroupName(name), Consumer: s.cfg.ConsumerName, Streams: []string{s.cfg.StreamName, ">"}, Count: int64(s.cfg.BatchSize), Block: s.cfg.ReadBlock, Claim: s.cfg.ClaimMinIdle}).Result()
 	if err != nil {
@@ -160,7 +160,7 @@ func (s *Service) ProcessSubscriber(ctx context.Context, name string) (int64, er
 			var record Record
 			payload := fmt.Sprint(message.Values["payload"])
 			if err := json.Unmarshal([]byte(payload), &record); err != nil {
-				return processed, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("decode event stream message %q for subscriber %q: %w", message.ID, name, err)))
+				return processed, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("decode event stream message %q for subscriber %q: %w", message.ID, name, err)))
 			}
 			if err := subscriber.Handle(ctx, record); err != nil {
 				return processed, apperrors.Annotate(err)

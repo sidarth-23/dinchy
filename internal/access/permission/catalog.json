@@ -8,7 +8,7 @@
           "resource": "logs",
           "action": "read",
           "description": "View organization audit logs",
-          "i18n_code": "access.permissions.audit.logs.read"
+          "i18n_code": "account.access.permissions.audit.logs.read"
         }
       ]
     },
@@ -20,13 +20,13 @@
           "resource": "invitations",
           "action": "create",
           "description": "Invite organization members",
-          "i18n_code": "access.permissions.auth.invitations.create"
+          "i18n_code": "account.access.permissions.auth.invitations.create"
         },
         {
           "resource": "roles",
           "action": "manage",
           "description": "Manage organization roles",
-          "i18n_code": "access.permissions.auth.roles.manage"
+          "i18n_code": "account.access.permissions.auth.roles.manage"
         }
       ]
     }
@@ -35,9 +35,9 @@
     {
       "id": "admin",
       "description": "Organization administrator",
-      "i18n_code": "access.roles.admin",
+      "i18n_code": "account.access.roles.admin",
       "permissions": ["audit.logs.read", "auth.invitations.create", "auth.roles.manage"]
     },
-    { "id": "member", "description": "Organization member", "i18n_code": "access.roles.member", "permissions": [] }
+    { "id": "member", "description": "Organization member", "i18n_code": "account.access.roles.member", "permissions": [] }
   ]
 }

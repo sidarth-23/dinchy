@@ -56,7 +56,7 @@ func (w *SessionCleanupWorker) FailureErrorCode() string {
 
 // ExecutionCode returns the error code used to classify execution failures.
 func (w *SessionCleanupWorker) ExecutionCode() i18n.Code {
-	return i18n.CodeWorkersSessionCleanup
+	return i18n.CodeDiagnosticsWorkersSessionCleanup
 }
 
 // Execute deletes ended sessions older than the retention window and reports the count.

@@ -1,0 +1,486 @@
+{
+  "modules": [
+    {
+      "name": "diagnostics",
+      "description": "Internal failure diagnostics",
+      "modules": [
+        {
+          "name": "auth",
+          "description": "Internal authentication failure diagnostics",
+          "modules": [
+            {
+              "name": "login",
+              "description": "Internal login failure diagnostics",
+              "messages": [
+                {
+                  "name": "find_user",
+                  "translations": {
+                    "en": "Look up user during login failed"
+                  }
+                },
+                {
+                  "name": "find_account",
+                  "translations": {
+                    "en": "Look up password account during login failed"
+                  }
+                },
+                {
+                  "name": "find_organisation",
+                  "translations": {
+                    "en": "Resolve organisation during login failed"
+                  }
+                },
+                {
+                  "name": "list_organisations",
+                  "translations": {
+                    "en": "List organisations during login failed"
+                  }
+                },
+                {
+                  "name": "generate_token",
+                  "translations": {
+                    "en": "Generate token during login failed"
+                  }
+                },
+                {
+                  "name": "sso_start",
+                  "translations": {
+                    "en": "Start SSO login failed"
+                  }
+                },
+                {
+                  "name": "sso_callback",
+                  "translations": {
+                    "en": "Complete SSO login failed"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "session",
+              "description": "Internal auth session failure diagnostics",
+              "messages": [
+                {
+                  "name": "find_organisation",
+                  "translations": {
+                    "en": "Resolve organisation during session failed"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "logout",
+              "description": "Internal logout failure diagnostics",
+              "messages": [
+                {
+                  "name": "publish_event",
+                  "translations": {
+                    "en": "Publish logout event failed"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "setup",
+              "description": "Internal first-user setup failure diagnostics",
+              "messages": [
+                {
+                  "name": "create_first_user",
+                  "translations": {
+                    "en": "Create first user failed"
+                  }
+                },
+                {
+                  "name": "begin_tx",
+                  "translations": {
+                    "en": "Begin first-user setup transaction failed"
+                  }
+                },
+                {
+                  "name": "commit",
+                  "translations": {
+                    "en": "Commit first-user setup transaction failed"
+                  }
+                },
+                {
+                  "name": "rollback",
+                  "translations": {
+                    "en": "Roll back first-user setup transaction failed"
+                  }
+                },
+                {
+                  "name": "count_users",
+                  "translations": {
+                    "en": "Count users during setup failed"
+                  }
+                },
+                {
+                  "name": "insert_user",
+                  "translations": {
+                    "en": "Insert user during setup failed"
+                  }
+                },
+                {
+                  "name": "insert_account",
+                  "translations": {
+                    "en": "Insert account during setup failed"
+                  }
+                },
+                {
+                  "name": "insert_organisation",
+                  "translations": {
+                    "en": "Insert organisation during setup failed"
+                  }
+                },
+                {
+                  "name": "insert_organisation_member",
+                  "translations": {
+                    "en": "Insert organisation member during setup failed"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "password_reset",
+              "description": "Internal password reset failure diagnostics",
+              "messages": [
+                {
+                  "name": "find_user",
+                  "translations": {
+                    "en": "Look up user during password reset failed"
+                  }
+                },
+                {
+                  "name": "generate_token",
+                  "translations": {
+                    "en": "Generate password reset token failed"
+                  }
+                },
+                {
+                  "name": "create_verification_token",
+                  "translations": {
+                    "en": "Create password reset verification token failed"
+                  }
+                },
+                {
+                  "name": "send_email",
+                  "translations": {
+                    "en": "Send password reset email failed"
+                  }
+                },
+                {
+                  "name": "find_verification_token",
+                  "translations": {
+                    "en": "Look up password reset verification token failed"
+                  }
+                },
+                {
+                  "name": "password_hash",
+                  "translations": {
+                    "en": "Hash password during reset failed"
+                  }
+                },
+                {
+                  "name": "consume_verification_token",
+                  "translations": {
+                    "en": "Consume password reset verification token failed"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "totp",
+              "description": "Internal two-factor authentication failure diagnostics",
+              "messages": [
+                {
+                  "name": "enroll",
+                  "translations": {
+                    "en": "Enroll two-factor authentication failed"
+                  }
+                },
+                {
+                  "name": "confirm",
+                  "translations": {
+                    "en": "Confirm two-factor authentication failed"
+                  }
+                },
+                {
+                  "name": "disable",
+                  "translations": {
+                    "en": "Disable two-factor authentication failed"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "invitation",
+              "description": "Internal invitation failure diagnostics",
+              "messages": [
+                {
+                  "name": "find_organisation",
+                  "translations": {
+                    "en": "Resolve organisation during invitation failed"
+                  }
+                },
+                {
+                  "name": "find_user",
+                  "translations": {
+                    "en": "Look up user during invitation failed"
+                  }
+                },
+                {
+                  "name": "find_account",
+                  "translations": {
+                    "en": "Look up password account during invitation failed"
+                  }
+                },
+                {
+                  "name": "find_invitation",
+                  "translations": {
+                    "en": "Look up invitation failed"
+                  }
+                },
+                {
+                  "name": "generate_token",
+                  "translations": {
+                    "en": "Generate invitation token failed"
+                  }
+                },
+                {
+                  "name": "create_invitation",
+                  "translations": {
+                    "en": "Create invitation failed"
+                  }
+                },
+                {
+                  "name": "send_email",
+                  "translations": {
+                    "en": "Send invitation email failed"
+                  }
+                },
+                {
+                  "name": "begin_tx",
+                  "translations": {
+                    "en": "Begin invitation transaction failed"
+                  }
+                },
+                {
+                  "name": "accept",
+                  "translations": {
+                    "en": "Accept invitation failed"
+                  }
+                },
+                {
+                  "name": "commit",
+                  "translations": {
+                    "en": "Commit invitation transaction failed"
+                  }
+                },
+                {
+                  "name": "rollback",
+                  "translations": {
+                    "en": "Roll back invitation transaction failed"
+                  }
+                },
+                {
+                  "name": "password_hash",
+                  "translations": {
+                    "en": "Hash password during invitation failed"
+                  }
+                },
+                {
+                  "name": "update_email_verified",
+                  "translations": {
+                    "en": "Update email verification during invitation failed"
+                  }
+                },
+                {
+                  "name": "consume_invitation",
+                  "translations": {
+                    "en": "Consume invitation failed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "session",
+          "description": "Internal session store failure diagnostics",
+          "messages": [
+            {
+              "name": "get_session",
+              "translations": {
+                "en": "Look up session failed"
+              }
+            },
+            {
+              "name": "create_session",
+              "translations": {
+                "en": "Create session failed"
+              }
+            },
+            {
+              "name": "revoke_session",
+              "translations": {
+                "en": "Revoke session failed"
+              }
+            },
+            {
+              "name": "revoke_sessions_for_user",
+              "translations": {
+                "en": "Revoke user sessions failed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "app",
+          "description": "Internal application startup failure diagnostics",
+          "messages": [
+            {
+              "name": "open_store",
+              "translations": {
+                "en": "Open store failed"
+              }
+            },
+            {
+              "name": "setup",
+              "translations": {
+                "en": "Application setup failed"
+              }
+            },
+            {
+              "name": "load_frontend_assets",
+              "translations": {
+                "en": "Load frontend assets failed"
+              }
+            },
+            {
+              "name": "start_task_runtime",
+              "translations": {
+                "en": "Start task runtime failed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "store",
+          "description": "Internal store failure diagnostics",
+          "messages": [
+            {
+              "name": "ensure_default_settings",
+              "translations": {
+                "en": "Ensure default settings failed"
+              }
+            },
+            {
+              "name": "count_users",
+              "translations": {
+                "en": "Count users failed"
+              }
+            },
+            {
+              "name": "get_instance_name",
+              "translations": {
+                "en": "Get instance name failed"
+              }
+            },
+            {
+              "name": "ping",
+              "translations": {
+                "en": "Ping store failed"
+              }
+            },
+            {
+              "name": "close",
+              "translations": {
+                "en": "Close store failed"
+              }
+            }
+          ],
+          "modules": [
+            {
+              "name": "tx",
+              "description": "Internal transaction failure diagnostics",
+              "messages": [
+                {
+                  "name": "begin",
+                  "translations": {
+                    "en": "Begin transaction failed"
+                  }
+                },
+                {
+                  "name": "body",
+                  "translations": {
+                    "en": "Transaction body failed"
+                  }
+                },
+                {
+                  "name": "commit",
+                  "translations": {
+                    "en": "Commit transaction failed"
+                  }
+                },
+                {
+                  "name": "rollback",
+                  "translations": {
+                    "en": "Roll back transaction failed"
+                  }
+                },
+                {
+                  "name": "passthrough",
+                  "translations": {
+                    "en": "Nested transaction body failed"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "workers",
+          "description": "Internal background worker failure diagnostics",
+          "messages": [
+            {
+              "name": "ensure_task",
+              "translations": {
+                "en": "Register worker task failed"
+              }
+            },
+            {
+              "name": "claim_task",
+              "translations": {
+                "en": "Claim worker task failed"
+              }
+            },
+            {
+              "name": "finish_failed_run",
+              "translations": {
+                "en": "Record failed worker run failed"
+              }
+            },
+            {
+              "name": "finish_success",
+              "translations": {
+                "en": "Record successful worker run failed"
+              }
+            },
+            {
+              "name": "session_cleanup",
+              "translations": {
+                "en": "Session cleanup worker execution failed"
+              }
+            },
+            {
+              "name": "event_processing",
+              "translations": {
+                "en": "Event subscriber processing failed"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

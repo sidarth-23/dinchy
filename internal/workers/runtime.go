@@ -98,7 +98,7 @@ func (r *Runtime) registerWorker(ctx context.Context, worker Worker) error {
 		NextRunAt:               sqltype.Timestamptz(now),
 		UpdatedAt:               sqltype.Timestamptz(now),
 	}); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeWorkersEnsureTask),
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsWorkersEnsureTask),
 			apperrors.WithCause(err),
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
 		)
@@ -124,7 +124,7 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 		NextRunAtCutoff:      sqltype.Timestamptz(now),
 	})
 	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeWorkersClaimTask),
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsWorkersClaimTask),
 			apperrors.WithCause(err),
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
 		)
@@ -144,7 +144,7 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 			UpdatedAt:        sqltype.Timestamptz(now),
 			TaskName:         worker.TaskName(),
 		}); finishErr != nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeWorkersFinishFailedRun),
+			return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsWorkersFinishFailedRun),
 				apperrors.WithCause(finishErr),
 				apperrors.WithTask(apperrors.Task(worker.TaskName())),
 			)
@@ -162,7 +162,7 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 		UpdatedAt:      sqltype.Timestamptz(now),
 		TaskName:       worker.TaskName(),
 	}); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeWorkersFinishSuccess),
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsWorkersFinishSuccess),
 			apperrors.WithCause(err),
 			apperrors.WithTask(apperrors.Task(worker.TaskName())),
 			apperrors.WithDeletedCount(apperrors.DeletedCount(outcome.DeletedCount)),
@@ -174,7 +174,7 @@ func (r *Runtime) runWorker(ctx context.Context, worker Worker) error {
 func executeWorker(ctx context.Context, worker Worker) (outcome WorkerOutcome, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError),
+			err = apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError),
 				apperrors.WithCause(fmt.Errorf("worker panicked: %v\n%s", recovered, debug.Stack())))
 		}
 	}()

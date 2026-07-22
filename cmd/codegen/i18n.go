@@ -4,7 +4,6 @@ import (
 	"flag"
 	"io"
 	"maps"
-	"os"
 	"sort"
 
 	manifest "github.com/sidarth-23/dinchy/internal/manifest"
@@ -18,7 +17,7 @@ type (
 func runI18n(args []string) error {
 	fs := flag.NewFlagSet("i18n", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	input := fs.String("input", "catalog.json", "manifest input path")
+	input := fs.String("input", "catalog", "manifest input path (directory of fragments or single file)")
 	output := fs.String("output", "generated.go", "generated Go output path")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -27,12 +26,7 @@ func runI18n(args []string) error {
 }
 
 func generateI18n(inputPath, outputPath string) error {
-	raw, err := os.ReadFile(inputPath)
-	if err != nil {
-		return err
-	}
-
-	mf, err := manifest.DecodeI18nCatalog(raw)
+	mf, err := manifest.LoadI18nCatalog(inputPath)
 	if err != nil {
 		return err
 	}

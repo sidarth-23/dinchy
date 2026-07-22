@@ -64,5 +64,5 @@ func TestSessionCleanupWorker_Contract(t *testing.T) {
 	assert.Equal(t, 15*time.Second, worker.LeaseDuration())
 	assert.Equal(t, 5*time.Minute, worker.RetryDelay())
 	assert.Equal(t, "task.session_cleanup_failed", worker.FailureErrorCode())
-	assert.Equal(t, i18n.CodeWorkersSessionCleanup, worker.ExecutionCode())
+	assert.Equal(t, i18n.CodeDiagnosticsWorkersSessionCleanup, worker.ExecutionCode())
 }

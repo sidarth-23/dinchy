@@ -77,24 +77,24 @@ func (m *Mailer) Configured() bool {
 func (m *Mailer) SendInvitation(ctx context.Context, data InvitationEmail) error {
 	organisation := i18n.P("organisation", data.OrganisationName)
 	return m.send(ctx, data.To, presentation{
-		Subject:  resolve(i18n.Msg(i18n.CodeEmailInvitationSubject, organisation)),
-		Heading:  resolve(i18n.Msg(i18n.CodeEmailInvitationHeading, organisation)),
-		Body:     resolve(i18n.Msg(i18n.CodeEmailInvitationBody, organisation, i18n.P("role", data.Role))),
-		CTALabel: resolve(i18n.Msg(i18n.CodeEmailInvitationCta)),
+		Subject:  resolve(i18n.Msg(i18n.CodeNotificationEmailInvitationSubject, organisation)),
+		Heading:  resolve(i18n.Msg(i18n.CodeNotificationEmailInvitationHeading, organisation)),
+		Body:     resolve(i18n.Msg(i18n.CodeNotificationEmailInvitationBody, organisation, i18n.P("role", data.Role))),
+		CTALabel: resolve(i18n.Msg(i18n.CodeNotificationEmailInvitationCta)),
 		CTAURL:   m.actionURL(pathAcceptInvitation, data.Token),
-		Footer:   resolve(i18n.Msg(i18n.CodeEmailFooter)),
+		Footer:   resolve(i18n.Msg(i18n.CodeNotificationEmailFooter)),
 	})
 }
 
 // SendPasswordReset renders and sends a password reset email.
 func (m *Mailer) SendPasswordReset(ctx context.Context, data PasswordResetEmail) error {
 	return m.send(ctx, data.To, presentation{
-		Subject:  resolve(i18n.Msg(i18n.CodeEmailPasswordResetSubject)),
-		Heading:  resolve(i18n.Msg(i18n.CodeEmailPasswordResetHeading)),
-		Body:     resolve(i18n.Msg(i18n.CodeEmailPasswordResetBody)),
-		CTALabel: resolve(i18n.Msg(i18n.CodeEmailPasswordResetCta)),
+		Subject:  resolve(i18n.Msg(i18n.CodeNotificationEmailPasswordResetSubject)),
+		Heading:  resolve(i18n.Msg(i18n.CodeNotificationEmailPasswordResetHeading)),
+		Body:     resolve(i18n.Msg(i18n.CodeNotificationEmailPasswordResetBody)),
+		CTALabel: resolve(i18n.Msg(i18n.CodeNotificationEmailPasswordResetCta)),
 		CTAURL:   m.actionURL(pathResetPassword, data.Token),
-		Footer:   resolve(i18n.Msg(i18n.CodeEmailFooter)),
+		Footer:   resolve(i18n.Msg(i18n.CodeNotificationEmailFooter)),
 	})
 }
 

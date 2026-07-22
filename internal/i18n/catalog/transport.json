@@ -1,0 +1,40 @@
+{
+  "modules": [
+    {
+      "name": "transport",
+      "description": "Transport and request-layer messages",
+      "modules": [
+        {
+          "name": "request",
+          "description": "Request-level messages",
+          "messages": [
+            {
+              "name": "validation_failed",
+              "translations": {
+                "en": "Some fields need attention."
+              }
+            }
+          ]
+        },
+        {
+          "name": "security",
+          "description": "Transport security messages",
+          "messages": [
+            {
+              "name": "https_required",
+              "translations": {
+                "en": "This endpoint requires a secure (HTTPS) connection."
+              }
+            },
+            {
+              "name": "csrf_failed",
+              "translations": {
+                "en": "Missing or invalid CSRF token."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -56,7 +56,7 @@ func (w *Worker) FailureErrorCode() string {
 
 // ExecutionCode returns the error code attributed to the worker's execution.
 func (w *Worker) ExecutionCode() i18n.Code {
-	return i18n.CodeWorkersEventProcessing
+	return i18n.CodeDiagnosticsWorkersEventProcessing
 }
 
 // Execute processes one batch of events for the subscriber and reports the outcome.

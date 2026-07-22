@@ -86,8 +86,8 @@ func (r *Renderer) ResponseFor(tag language.Tag, status int, errs ...error) *Err
 			meta["fields"] = fields
 		}
 		payload := ResponsePayload{
-			Code:    string(i18n.CodeRequestValidationFailed),
-			Message: r.catalog.Resolve(tag, i18n.Msg(i18n.CodeRequestValidationFailed)),
+			Code:    string(i18n.CodeTransportRequestValidationFailed),
+			Message: r.catalog.Resolve(tag, i18n.Msg(i18n.CodeTransportRequestValidationFailed)),
 			Meta:    meta,
 		}
 		if r.exposeInternal {
@@ -97,8 +97,8 @@ func (r *Renderer) ResponseFor(tag language.Tag, status int, errs ...error) *Err
 	}
 
 	payload := ResponsePayload{
-		Code:    string(i18n.CodeServerInternalError),
-		Message: r.catalog.Resolve(tag, i18n.Msg(i18n.CodeServerInternalError)),
+		Code:    string(i18n.CodePlatformServerInternalError),
+		Message: r.catalog.Resolve(tag, i18n.Msg(i18n.CodePlatformServerInternalError)),
 	}
 	if r.exposeInternal {
 		payload.Debug = debugForErrs(errs...)
@@ -115,7 +115,7 @@ func (r *Renderer) Resolve(tag language.Tag, err error) *ErrorResponse {
 	if appErr, ok := appErrorFrom(err); ok {
 		return r.localizedResponse(tag, appErr)
 	}
-	return r.localizedResponse(tag, Internal(i18n.Msg(i18n.CodeServerInternalError), WithCause(err)))
+	return r.localizedResponse(tag, Internal(i18n.Msg(i18n.CodePlatformServerInternalError), WithCause(err)))
 }
 
 // Render resolves the localized payload for an application error.
@@ -131,8 +131,8 @@ func (r *Renderer) localizedResponse(tag language.Tag, appErr *AppError) *ErrorR
 	var payload ResponsePayload
 	if appErr.status >= http.StatusInternalServerError {
 		payload = ResponsePayload{
-			Code:    string(i18n.CodeServerInternalError),
-			Message: r.catalog.Resolve(tag, i18n.Msg(i18n.CodeServerInternalError)),
+			Code:    string(i18n.CodePlatformServerInternalError),
+			Message: r.catalog.Resolve(tag, i18n.Msg(i18n.CodePlatformServerInternalError)),
 		}
 	} else {
 		payload = ResponsePayload{

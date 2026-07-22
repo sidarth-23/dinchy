@@ -180,7 +180,7 @@ func TestSetupFirstUser_AlreadyCompleted(t *testing.T) {
 	store.EXPECT().CountUsers(gomock.Any()).Return(int64(1), nil)
 
 	_, err := svc.SetupFirstUser(testCtx, "admin@example.com", "Admin", "pass", "", "")
-	require.ErrorIs(t, err, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1))))
+	require.ErrorIs(t, err, apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1))))
 }
 
 func TestLogin_Success(t *testing.T) {
@@ -217,7 +217,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 		Return(passwordAccountRow(testAccountID, testUserID, string(AccountProviderPassword), "password", HashPasswordForTest(t, "correct")), nil)
 
 	_, err := svc.Login(testCtx, "user@example.com", "wrong", "", "", "", "")
-	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
+	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials)))
 }
 
 func TestLogin_UserNotFound(t *testing.T) {
@@ -227,7 +227,7 @@ func TestLogin_UserNotFound(t *testing.T) {
 	store.EXPECT().FindUserByEmail(gomock.Any(), "nobody@example.com").Return(sqlcgen.FindUserByEmailRow{}, nil)
 
 	_, err := svc.Login(testCtx, "nobody@example.com", "pass", "", "", "", "")
-	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)))
+	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials)))
 }
 
 func TestSession_ValidToken(t *testing.T) {

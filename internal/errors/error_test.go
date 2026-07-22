@@ -20,12 +20,12 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 		status int
 		code   i18n.Code
 	}{
-		{"InvalidCredentials", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials)), http.StatusUnauthorized, i18n.CodeAuthInvalidCredentials},
-		{"SetupCompleted", apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 3))), http.StatusConflict, i18n.CodeAuthSetupCompleted},
-		{"Unauthenticated", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated)), http.StatusUnauthorized, i18n.CodeAuthUnauthenticated},
-		{"HTTPSRequired", apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired)), http.StatusForbidden, i18n.CodeSecurityHTTPSRequired},
-		{"CSRFFailed", apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed)), http.StatusBadRequest, i18n.CodeSecurityCSRFFailed},
-		{"Internal", apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(assert.AnError)), http.StatusInternalServerError, i18n.CodeServerInternalError},
+		{"InvalidCredentials", apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials)), http.StatusUnauthorized, i18n.CodeAccountAuthInvalidCredentials},
+		{"SetupCompleted", apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 3))), http.StatusConflict, i18n.CodeAccountAuthSetupCompleted},
+		{"Unauthenticated", apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated)), http.StatusUnauthorized, i18n.CodeAccountAuthUnauthenticated},
+		{"HTTPSRequired", apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired)), http.StatusForbidden, i18n.CodeTransportSecurityHTTPSRequired},
+		{"CSRFFailed", apperrors.BadRequest(i18n.Msg(i18n.CodeTransportSecurityCSRFFailed)), http.StatusBadRequest, i18n.CodeTransportSecurityCSRFFailed},
+		{"Internal", apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(assert.AnError)), http.StatusInternalServerError, i18n.CodePlatformServerInternalError},
 	}
 
 	for _, tc := range cases {
@@ -41,12 +41,12 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 func TestAppError_MethodsExposeStableState(t *testing.T) {
 	t.Parallel()
 
-	err := apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithMetaMap(map[string]any{"key": "value"}))
+	err := apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithMetaMap(map[string]any{"key": "value"}))
 
 	assert.Equal(t, http.StatusInternalServerError, err.Status())
-	assert.Equal(t, i18n.CodeServerInternalError, err.Code())
-	assert.Equal(t, string(i18n.CodeServerInternalError), err.Error())
-	assert.Equal(t, i18n.Msg(i18n.CodeServerInternalError), err.Message())
+	assert.Equal(t, i18n.CodePlatformServerInternalError, err.Code())
+	assert.Equal(t, string(i18n.CodePlatformServerInternalError), err.Error())
+	assert.Equal(t, i18n.Msg(i18n.CodePlatformServerInternalError), err.Message())
 	assert.False(t, err.Logged())
 	assert.Nil(t, err.Unwrap())
 	assert.Equal(t, map[string]any{"key": "value"}, err.Meta())
@@ -55,7 +55,7 @@ func TestAppError_MethodsExposeStableState(t *testing.T) {
 func TestAppError_MetaReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	err := apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed), apperrors.WithMetaMap(map[string]any{"field": "email"}))
+	err := apperrors.BadRequest(i18n.Msg(i18n.CodeTransportSecurityCSRFFailed), apperrors.WithMetaMap(map[string]any{"field": "email"}))
 	meta := err.Meta()
 	meta["field"] = "mutated"
 
@@ -65,7 +65,7 @@ func TestAppError_MetaReturnsCopy(t *testing.T) {
 func TestAppError_IsMatchesByCode(t *testing.T) {
 	t.Parallel()
 
-	err := apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))
-	assert.True(t, stdErrors.Is(err, apperrors.Conflict(i18n.Msg(i18n.CodeAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))))
-	assert.False(t, stdErrors.Is(err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))))
+	err := apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))
+	assert.True(t, stdErrors.Is(err, apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 1)))))
+	assert.False(t, stdErrors.Is(err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials))))
 }

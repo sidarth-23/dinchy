@@ -27,13 +27,13 @@ const (
 )
 
 var definitions = map[Permission]Definition{
-	AuditLogsRead:         {Permission: AuditLogsRead, Module: "audit", Resource: "logs", Action: "read", Description: "View organization audit logs", MessageCode: i18n.Code("access.permissions.audit.logs.read")},
-	AuthInvitationsCreate: {Permission: AuthInvitationsCreate, Module: "auth", Resource: "invitations", Action: "create", Description: "Invite organization members", MessageCode: i18n.Code("access.permissions.auth.invitations.create")},
-	AuthRolesManage:       {Permission: AuthRolesManage, Module: "auth", Resource: "roles", Action: "manage", Description: "Manage organization roles", MessageCode: i18n.Code("access.permissions.auth.roles.manage")},
+	AuditLogsRead:         {Permission: AuditLogsRead, Module: "audit", Resource: "logs", Action: "read", Description: "View organization audit logs", MessageCode: i18n.Code("account.access.permissions.audit.logs.read")},
+	AuthInvitationsCreate: {Permission: AuthInvitationsCreate, Module: "auth", Resource: "invitations", Action: "create", Description: "Invite organization members", MessageCode: i18n.Code("account.access.permissions.auth.invitations.create")},
+	AuthRolesManage:       {Permission: AuthRolesManage, Module: "auth", Resource: "roles", Action: "manage", Description: "Manage organization roles", MessageCode: i18n.Code("account.access.permissions.auth.roles.manage")},
 }
 var roles = map[Role]RoleDefinition{
-	RoleAdmin:  {Role: RoleAdmin, Description: "Organization administrator", MessageCode: i18n.Code("access.roles.admin"), Permissions: []Permission{AuditLogsRead, AuthInvitationsCreate, AuthRolesManage}},
-	RoleMember: {Role: RoleMember, Description: "Organization member", MessageCode: i18n.Code("access.roles.member"), Permissions: []Permission{}},
+	RoleAdmin:  {Role: RoleAdmin, Description: "Organization administrator", MessageCode: i18n.Code("account.access.roles.admin"), Permissions: []Permission{AuditLogsRead, AuthInvitationsCreate, AuthRolesManage}},
+	RoleMember: {Role: RoleMember, Description: "Organization member", MessageCode: i18n.Code("account.access.roles.member"), Permissions: []Permission{}},
 }
 
 func DefinitionFor(value Permission) (Definition, bool) {

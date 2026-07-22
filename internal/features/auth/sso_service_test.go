@@ -256,7 +256,7 @@ func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
 		"127.0.0.1",
 		"ua",
 	)
-	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed)))
+	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthSSOLoginFailed)))
 }
 
 func TestCompleteSSO_RejectsInvalidState(t *testing.T) {
@@ -274,5 +274,5 @@ func TestCompleteSSO_RejectsInvalidState(t *testing.T) {
 		"",
 		"",
 	)
-	require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState)))
+	require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthSSOInvalidState)))
 }

@@ -31,12 +31,12 @@ func requirePermissions(api huma.API, permissions ...permission.Permission) func
 	return func(ctx huma.Context, next func(huma.Context)) {
 		principal := session.PrincipalFrom(ctx.Context())
 		if principal == nil {
-			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "authentication required", apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated)))
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "authentication required", apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated)))
 			return
 		}
 		for _, required := range permissions {
 			if !principal.HasPermission(required) {
-				_ = huma.WriteErr(api, ctx, http.StatusForbidden, "permission required", apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden)))
+				_ = huma.WriteErr(api, ctx, http.StatusForbidden, "permission required", apperrors.Forbidden(i18n.Msg(i18n.CodeAccountAuthForbidden)))
 				return
 			}
 		}

@@ -35,7 +35,7 @@ func applyModsValue(v reflect.Value) error {
 			continue
 		}
 		if field.Type.Kind() != reflect.String {
-			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+			return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("mod tag %q on non-string field %q", spec, field.Name)),
 				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
 				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
@@ -43,7 +43,7 @@ func applyModsValue(v reflect.Value) error {
 		}
 		normalized, ok := transform.Apply(spec, v.Field(i).String())
 		if !ok {
-			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+			return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unknown mod %q on field %q", spec, field.Name)),
 				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
 				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
@@ -89,7 +89,7 @@ func loadFromEnvValue(v reflect.Value) error {
 		case reflect.Int:
 			var parsed int
 			if _, err := fmt.Sscanf(raw, "%d", &parsed); err != nil {
-				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed),
 					apperrors.WithCause(fmt.Errorf("parse integer env %q for %q: %w", envKey, field.Name, err)),
 					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
 					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
@@ -99,7 +99,7 @@ func loadFromEnvValue(v reflect.Value) error {
 		case reflect.Int64:
 			duration, err := time.ParseDuration(raw)
 			if err != nil {
-				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed),
 					apperrors.WithCause(fmt.Errorf("parse duration env %q for %q: %w", envKey, field.Name, err)),
 					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
 					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
@@ -109,7 +109,7 @@ func loadFromEnvValue(v reflect.Value) error {
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			parsed, err := strconv.ParseUint(raw, 10, 64)
 			if err != nil {
-				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed),
 					apperrors.WithCause(fmt.Errorf("parse unsigned integer env %q for %q: %w", envKey, field.Name, err)),
 					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
 					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
@@ -119,7 +119,7 @@ func loadFromEnvValue(v reflect.Value) error {
 		case reflect.Float32, reflect.Float64:
 			parsed, err := strconv.ParseFloat(raw, field.Type.Bits())
 			if err != nil {
-				return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+				return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed),
 					apperrors.WithCause(fmt.Errorf("parse float env %q for %q: %w", envKey, field.Name, err)),
 					apperrors.WithFieldName(apperrors.FieldName(field.Name)),
 					apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
@@ -127,7 +127,7 @@ func loadFromEnvValue(v reflect.Value) error {
 			}
 			v.Field(i).SetFloat(parsed)
 		default:
-			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed),
+			return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed),
 				apperrors.WithCause(fmt.Errorf("unsupported env field type %q for %q", field.Type.Kind().String(), field.Name)),
 				apperrors.WithFieldName(apperrors.FieldName(field.Name)),
 				apperrors.WithFieldKind(apperrors.FieldKindOf(field.Type.Kind())),
@@ -139,7 +139,7 @@ func loadFromEnvValue(v reflect.Value) error {
 
 func loadEnvPath(p string) error {
 	if err := godotenv.Load(p); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err), apperrors.WithPath(apperrors.Path(p)))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed), apperrors.WithCause(err), apperrors.WithPath(apperrors.Path(p)))
 	}
 	return nil
 }
@@ -162,7 +162,7 @@ func loadEnvFile() error {
 	if xdg == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
+			return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed), apperrors.WithCause(err))
 		}
 		xdg = filepath.Join(home, ".config")
 	}

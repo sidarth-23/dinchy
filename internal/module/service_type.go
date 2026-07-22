@@ -48,13 +48,13 @@ func (s Service) Named(moduleName string) *Service {
 // Initialize validates a Service and supplies its optional default dependencies.
 func (s *Service) Initialize() error {
 	if s == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("module service is required")))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("module service is required")))
 	}
 	if s.ModuleName == "" {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("module name is required")))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("module name is required")))
 	}
 	if s.Clock == nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("clock is required for module %q", s.ModuleName)))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("clock is required for module %q", s.ModuleName)))
 	}
 	if s.BaseLogger == nil {
 		s.BaseLogger = slog.Default()
@@ -66,7 +66,7 @@ func (s *Service) Initialize() error {
 		var err error
 		s.Mailer, err = email.NewMailer(email.NoopSender{}, "")
 		if err != nil {
-			return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("create default mailer for module %q: %w", s.ModuleName, err)))
+			return apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("create default mailer for module %q: %w", s.ModuleName, err)))
 		}
 	}
 	return nil

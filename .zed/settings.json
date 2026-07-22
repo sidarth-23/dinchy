@@ -33,18 +33,13 @@
                     "schemas": [
                         {
                             "name": "Dinchy i18n catalog",
-                            "fileMatch": ["internal/i18n/catalog.json"],
+                            "fileMatch": ["internal/i18n/catalog/*.json"],
                             "url": "./internal/i18n/catalog.schema.json"
                         },
                         {
                             "name": "Dinchy event catalog",
                             "fileMatch": ["internal/events/catalog.json"],
                             "url": "./internal/events/catalog.schema.json"
-                        },
-                        {
-                            "name": "Dinchy error catalog",
-                            "fileMatch": ["internal/errors/catalog.json"],
-                            "url": "./internal/errors/catalog.schema.json"
                         }
                     ]
                 }

@@ -97,7 +97,7 @@ func TestCSRF_MutatingRequestWithMismatchedTokenRejected(t *testing.T) {
 	assert.False(t, *called, "next handler must not run when the CSRF check fails")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
-	assert.Equal(t, string(i18n.CodeSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
+	assert.Equal(t, string(i18n.CodeTransportSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
 	require.Empty(t, strings.TrimSpace(buffer.String()))
 }
 
@@ -110,5 +110,5 @@ func TestCSRF_MutatingRequestWithoutTokenRejected(t *testing.T) {
 
 	assert.False(t, *called)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Equal(t, string(i18n.CodeSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
+	assert.Equal(t, string(i18n.CodeTransportSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
 }

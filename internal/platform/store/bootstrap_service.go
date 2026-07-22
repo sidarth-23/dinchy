@@ -15,7 +15,7 @@ import (
 func (s *Store) EnsureDefaultSettings(ctx context.Context) error {
 	now := time.Now().UTC()
 	if err := s.Query().EnsureDefaultSettings(ctx, sqlcgen.EnsureDefaultSettingsParams{CreatedAt: sqltype.Timestamptz(now), UpdatedAt: sqltype.Timestamptz(now)}); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeStoreEnsureDefaultSettings), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsStoreEnsureDefaultSettings), apperrors.WithCause(err))
 	}
 	return nil
 }
@@ -24,11 +24,11 @@ func (s *Store) EnsureDefaultSettings(ctx context.Context) error {
 func (s *Store) Bootstrap(ctx context.Context) (auth.BootstrapState, error) {
 	count, err := s.Query().CountUsers(ctx)
 	if err != nil {
-		return auth.BootstrapState{}, apperrors.Internal(i18n.Msg(i18n.CodeStoreCountUsers), apperrors.WithCause(err))
+		return auth.BootstrapState{}, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsStoreCountUsers), apperrors.WithCause(err))
 	}
 	name, err := s.Query().GetInstanceName(ctx)
 	if err != nil {
-		return auth.BootstrapState{}, apperrors.Internal(i18n.Msg(i18n.CodeStoreGetInstanceName), apperrors.WithCause(err))
+		return auth.BootstrapState{}, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsStoreGetInstanceName), apperrors.WithCause(err))
 	}
 	return auth.BootstrapState{SetupRequired: count == 0, InstanceName: name}, nil
 }

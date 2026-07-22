@@ -74,7 +74,7 @@ func TestError_SkipsClientErrors(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	logging.Error(context.Background(), logger, "request failed", apperrors.BadRequest(i18n.Msg(i18n.CodeRequestValidationFailed)))
+	logging.Error(context.Background(), logger, "request failed", apperrors.BadRequest(i18n.Msg(i18n.CodeTransportRequestValidationFailed)))
 
 	require.Empty(t, strings.TrimSpace(buffer.String()))
 }
@@ -83,11 +83,11 @@ func TestError_LogsInternalErrors(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	logging.Error(context.Background(), logger, "request failed", apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("boom"))))
+	logging.Error(context.Background(), logger, "request failed", apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("boom"))))
 
 	record := decodeLogRecord(t, buffer.String())
 	require.Equal(t, "request failed", record["msg"])
-	require.Equal(t, "server.internal_error", record["code"])
+	require.Equal(t, "platform.server.internal_error", record["code"])
 	require.Equal(t, float64(500), record["status"])
 	require.Equal(t, "boom", record["cause"])
 }
@@ -96,7 +96,7 @@ func TestError_LogsOnlyOnceForSameAppError(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	err := apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("boom")))
+	err := apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("boom")))
 	logging.Error(context.Background(), logger, "request failed", err)
 	logging.Error(context.Background(), logger, "request failed", err)
 
@@ -108,7 +108,7 @@ func TestError_DoesNotMarkSuppressedClientErrors(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
-	err := apperrors.BadRequest(i18n.Msg(i18n.CodeRequestValidationFailed))
+	err := apperrors.BadRequest(i18n.Msg(i18n.CodeTransportRequestValidationFailed))
 	logging.Error(context.Background(), logger, "request failed", err)
 
 	require.Empty(t, strings.TrimSpace(buffer.String()))

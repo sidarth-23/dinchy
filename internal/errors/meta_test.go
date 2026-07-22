@@ -13,7 +13,7 @@ import (
 func TestWithMetaMapCopiesInput(t *testing.T) {
 	t.Parallel()
 
-	err := Internal(i18n.Msg(i18n.CodeServerInternalError), WithMetaMap(map[string]any{"key": "value"}))
+	err := Internal(i18n.Msg(i18n.CodePlatformServerInternalError), WithMetaMap(map[string]any{"key": "value"}))
 	meta := err.Meta()
 	assert.Equal(t, "value", meta["key"])
 

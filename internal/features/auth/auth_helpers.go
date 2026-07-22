@@ -38,23 +38,23 @@ func (s *Service) findUserWithPassword(ctx context.Context, emailAddress, passwo
 	row, err := s.store.FindUserByEmail(ctx, emailAddress)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
+			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials))
 		}
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindUser), apperrors.WithCause(err))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginFindUser), apperrors.WithCause(err))
 	}
 	user := userFromFindUserRow(row)
 	if user == nil {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials))
 	}
 	accountRow, err := s.store.FindPasswordAccountByUserID(ctx, id.MustParse(user.ID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
+			return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials))
 		}
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindAccount), apperrors.WithCause(err))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginFindAccount), apperrors.WithCause(err))
 	}
 	if !security.VerifyPassword(password, accountRow.PasswordHash.String) {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthInvalidCredentials))
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials))
 	}
 	return user, nil
 }
@@ -64,22 +64,22 @@ func (s *Service) resolveLoginOrganisation(ctx context.Context, userID, organisa
 		row, err := s.store.FindOrganisationBySlugForUser(ctx, sqlcgen.FindOrganisationBySlugForUserParams{UserID: id.MustParse(userID), Slug: organisationSlug})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return Organization{}, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
+				return Organization{}, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganisationNotFound))
 			}
-			return Organization{}, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginFindOrganisation), apperrors.WithCause(err))
+			return Organization{}, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginFindOrganisation), apperrors.WithCause(err))
 		}
 		org := organisationFromFindOrganisationRow(row)
 		if org == nil {
-			return Organization{}, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
+			return Organization{}, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthOrganisationNotFound))
 		}
 		return *org, nil
 	}
 	rows, err := s.store.ListOrganisationsForUser(ctx, id.MustParse(userID))
 	if err != nil {
-		return Organization{}, apperrors.Internal(i18n.Msg(i18n.CodeAuthLoginListOrganisations), apperrors.WithCause(err))
+		return Organization{}, apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginListOrganisations), apperrors.WithCause(err))
 	}
 	if len(rows) == 0 {
-		return Organization{}, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthOrganisationNotFound))
+		return Organization{}, apperrors.Forbidden(i18n.Msg(i18n.CodeAccountAuthOrganisationNotFound))
 	}
 	return organisationFromListOrganisationRow(rows[0]), nil
 }

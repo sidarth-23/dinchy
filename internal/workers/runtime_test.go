@@ -58,7 +58,7 @@ func newStubWorker() *stubWorker {
 		lease:    15 * time.Second,
 		retry:    5 * time.Minute,
 		failCode: "task.cleanup_failed",
-		execCode: i18n.CodeWorkersSessionCleanup,
+		execCode: i18n.CodeDiagnosticsWorkersSessionCleanup,
 	}
 }
 
@@ -101,7 +101,7 @@ func TestRuntime_RegisterWorker_AnnotatesEnsureError(t *testing.T) {
 	worker := newStubWorker()
 
 	store.EXPECT().EnsureTask(gomock.Any(), gomock.Any()).
-		Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError)))
+		Return(apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError)))
 
 	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, worker)
 	err := runtime.registerWorker(context.Background(), worker)
@@ -109,7 +109,7 @@ func TestRuntime_RegisterWorker_AnnotatesEnsureError(t *testing.T) {
 
 	meta := metaOf(t, err)
 	assert.Equal(t, worker.name, meta["task"])
-	assert.Equal(t, i18n.CodeWorkersEnsureTask, codeOf(t, err))
+	assert.Equal(t, i18n.CodeDiagnosticsWorkersEnsureTask, codeOf(t, err))
 }
 
 func TestRuntime_RunWorker_SkipsExecuteWhenNotClaimed(t *testing.T) {
@@ -197,7 +197,7 @@ func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T)
 			Return(pgconn.NewCommandTag("UPDATE 1"), nil),
 		store.EXPECT().
 			FinishTask(gomock.Any(), gomock.Any()).
-			Return(apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError))),
+			Return(apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError))),
 	)
 
 	runtime := NewRuntime(store, clock.Fixed(fixedTime), nil, worker)
@@ -206,7 +206,7 @@ func TestRuntime_RunWorker_FinishSuccessErrorAnnotatesDeletedCount(t *testing.T)
 
 	meta := metaOf(t, err)
 	assert.Equal(t, worker.name, meta["task"])
-	assert.Equal(t, i18n.CodeWorkersFinishSuccess, codeOf(t, err))
+	assert.Equal(t, i18n.CodeDiagnosticsWorkersFinishSuccess, codeOf(t, err))
 	assert.Equal(t, 9, meta["deleted_count"])
 }
 

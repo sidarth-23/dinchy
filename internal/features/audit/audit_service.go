@@ -22,13 +22,13 @@ type Service struct {
 // NewService builds an audit Service, requiring a non-nil store and clock.
 func NewService(base *module.Service, store Store) (*Service, error) {
 	if base == nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit module service is required")))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("audit module service is required")))
 	}
 	if err := base.Initialize(); err != nil {
 		return nil, apperrors.Annotate(err)
 	}
 	if store == nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(fmt.Errorf("audit store is required")))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("audit store is required")))
 	}
 	return &Service{Service: base, store: store}, nil
 }
@@ -60,7 +60,7 @@ var (
 func (s *Service) List(ctx context.Context, in ListInput) ([]events.Record, error) {
 	actorUserID, err := id.NullUUID(in.ActorUserID, in.ActorUserID != "")
 	if err != nil {
-		return nil, apperrors.UnprocessableEntity(i18n.Msg(i18n.CodeRequestValidationFailed),
+		return nil, apperrors.UnprocessableEntity(i18n.Msg(i18n.CodeTransportRequestValidationFailed),
 			apperrors.WithFieldName(apperrors.FieldName("actor_user_id")),
 			apperrors.WithCause(err))
 	}

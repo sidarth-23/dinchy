@@ -36,10 +36,10 @@ func Register(h huma.API, service *Service) {
 func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
 	principal := session.PrincipalFrom(ctx)
 	if principal == nil {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
 	if !principal.HasPermission(permission.AuditLogsRead) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthUnauthenticated))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
 	logs, err := a.service.List(ctx, ListInput{
 		Category: in.Category, Subcategory: in.Subcategory, EventType: in.EventType,

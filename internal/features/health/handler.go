@@ -22,7 +22,7 @@ type API struct {
 // NewAPI builds the health API.
 func NewAPI(base *module.Service, db Pinger) (*API, error) {
 	if base == nil {
-		return nil, apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("health module service is required")))
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("health module service is required")))
 	}
 	if err := base.Initialize(); err != nil {
 		return nil, apperrors.Annotate(err)

@@ -9,221 +9,221 @@ import (
 type Code string
 
 const (
-	CodeAccessPermissionsAuditLogsRead            Code = "access.permissions.audit.logs.read"
-	CodeAccessPermissionsAuthInvitationsCreate    Code = "access.permissions.auth.invitations.create"
-	CodeAccessPermissionsAuthRolesManage          Code = "access.permissions.auth.roles.manage"
-	CodeAccessRolesAdmin                          Code = "access.roles.admin"
-	CodeAccessRolesMember                         Code = "access.roles.member"
-	CodeAppLoadFrontendAssets                     Code = "app.load_frontend_assets"
-	CodeAppOpenStore                              Code = "app.open_store"
-	CodeAppSetup                                  Code = "app.setup"
-	CodeAppStartTaskRuntime                       Code = "app.start_task_runtime"
-	CodeAuthForbidden                             Code = "auth.forbidden"
-	CodeAuthInvalidCredentials                    Code = "auth.invalid_credentials"
-	CodeAuthInvalidResetToken                     Code = "auth.invalid_reset_token"
-	CodeAuthInvalidTOTP                           Code = "auth.invalid_totp"
-	CodeAuthInvitationAccept                      Code = "auth.invitation.accept"
-	CodeAuthInvitationBeginTx                     Code = "auth.invitation.begin_tx"
-	CodeAuthInvitationCommit                      Code = "auth.invitation.commit"
-	CodeAuthInvitationConsumeInvitation           Code = "auth.invitation.consume_invitation"
-	CodeAuthInvitationCreateInvitation            Code = "auth.invitation.create_invitation"
-	CodeAuthInvitationFindAccount                 Code = "auth.invitation.find_account"
-	CodeAuthInvitationFindInvitation              Code = "auth.invitation.find_invitation"
-	CodeAuthInvitationFindOrganisation            Code = "auth.invitation.find_organisation"
-	CodeAuthInvitationFindUser                    Code = "auth.invitation.find_user"
-	CodeAuthInvitationGenerateToken               Code = "auth.invitation.generate_token"
-	CodeAuthInvitationPasswordHash                Code = "auth.invitation.password_hash"
-	CodeAuthInvitationRollback                    Code = "auth.invitation.rollback"
-	CodeAuthInvitationSendEmail                   Code = "auth.invitation.send_email"
-	CodeAuthInvitationUpdateEmailVerified         Code = "auth.invitation.update_email_verified"
-	CodeAuthInvitationExists                      Code = "auth.invitation_exists"
-	CodeAuthInvitationInvalid                     Code = "auth.invitation_invalid"
-	CodeAuthLoginFindAccount                      Code = "auth.login.find_account"
-	CodeAuthLoginFindOrganisation                 Code = "auth.login.find_organisation"
-	CodeAuthLoginFindUser                         Code = "auth.login.find_user"
-	CodeAuthLoginGenerateToken                    Code = "auth.login.generate_token"
-	CodeAuthLoginListOrganisations                Code = "auth.login.list_organisations"
-	CodeAuthLoginSSOCallback                      Code = "auth.login.sso_callback"
-	CodeAuthLoginSSOStart                         Code = "auth.login.sso_start"
-	CodeAuthLogoutPublishEvent                    Code = "auth.logout.publish_event"
-	CodeAuthOIDCInvalidState                      Code = "auth.oidc.invalid_state"
-	CodeAuthOIDCLoginFailed                       Code = "auth.oidc.login_failed"
-	CodeAuthOIDCProviderNotFound                  Code = "auth.oidc.provider_not_found"
-	CodeAuthOrganisationNotFound                  Code = "auth.organisation_not_found"
-	CodeAuthOrganisationRequired                  Code = "auth.organisation_required"
-	CodeAuthPasswordResetConsumeVerificationToken Code = "auth.password_reset.consume_verification_token"
-	CodeAuthPasswordResetCreateVerificationToken  Code = "auth.password_reset.create_verification_token"
-	CodeAuthPasswordResetFindUser                 Code = "auth.password_reset.find_user"
-	CodeAuthPasswordResetFindVerificationToken    Code = "auth.password_reset.find_verification_token"
-	CodeAuthPasswordResetGenerateToken            Code = "auth.password_reset.generate_token"
-	CodeAuthPasswordResetPasswordHash             Code = "auth.password_reset.password_hash"
-	CodeAuthPasswordResetSendEmail                Code = "auth.password_reset.send_email"
-	CodeAuthSessionFindOrganisation               Code = "auth.session.find_organisation"
-	CodeAuthSetupBeginTx                          Code = "auth.setup.begin_tx"
-	CodeAuthSetupCommit                           Code = "auth.setup.commit"
-	CodeAuthSetupCountUsers                       Code = "auth.setup.count_users"
-	CodeAuthSetupCreateFirstUser                  Code = "auth.setup.create_first_user"
-	CodeAuthSetupInsertAccount                    Code = "auth.setup.insert_account"
-	CodeAuthSetupInsertOrganisation               Code = "auth.setup.insert_organisation"
-	CodeAuthSetupInsertOrganisationMember         Code = "auth.setup.insert_organisation_member"
-	CodeAuthSetupInsertUser                       Code = "auth.setup.insert_user"
-	CodeAuthSetupRollback                         Code = "auth.setup.rollback"
-	CodeAuthSetupCompleted                        Code = "auth.setup_completed"
-	CodeAuthSSOCacheRequired                      Code = "auth.sso.cache_required"
-	CodeAuthSSOInvalidState                       Code = "auth.sso.invalid_state"
-	CodeAuthSSOLoginFailed                        Code = "auth.sso.login_failed"
-	CodeAuthSSOProviderNotFound                   Code = "auth.sso.provider_not_found"
-	CodeAuthTOTPConfirm                           Code = "auth.totp.confirm"
-	CodeAuthTOTPDisable                           Code = "auth.totp.disable"
-	CodeAuthTOTPEnroll                            Code = "auth.totp.enroll"
-	CodeAuthTOTPLocked                            Code = "auth.totp_locked"
-	CodeAuthTOTPRequired                          Code = "auth.totp_required"
-	CodeAuthUnauthenticated                       Code = "auth.unauthenticated"
-	CodeConfigLoadFailed                          Code = "config.load_failed"
-	CodeConfigValidationFailed                    Code = "config.validation_failed"
-	CodeEmailFooter                               Code = "email.footer"
-	CodeEmailInvitationBody                       Code = "email.invitation_body"
-	CodeEmailInvitationCta                        Code = "email.invitation_cta"
-	CodeEmailInvitationHeading                    Code = "email.invitation_heading"
-	CodeEmailInvitationSubject                    Code = "email.invitation_subject"
-	CodeEmailNotConfigured                        Code = "email.not_configured"
-	CodeEmailPasswordResetBody                    Code = "email.password_reset_body"
-	CodeEmailPasswordResetCta                     Code = "email.password_reset_cta"
-	CodeEmailPasswordResetHeading                 Code = "email.password_reset_heading"
-	CodeEmailPasswordResetSubject                 Code = "email.password_reset_subject"
-	CodeRequestValidationFailed                   Code = "request.validation_failed"
-	CodeSecurityCSRFFailed                        Code = "security.csrf_failed"
-	CodeSecurityHTTPSRequired                     Code = "security.https_required"
-	CodeServerInternalError                       Code = "server.internal_error"
-	CodeSessionCreateSession                      Code = "session.create_session"
-	CodeSessionGetSession                         Code = "session.get_session"
-	CodeSessionRevokeSession                      Code = "session.revoke_session"
-	CodeSessionRevokeSessionsForUser              Code = "session.revoke_sessions_for_user"
-	CodeStoreClose                                Code = "store.close"
-	CodeStoreCountUsers                           Code = "store.count_users"
-	CodeStoreEnsureDefaultSettings                Code = "store.ensure_default_settings"
-	CodeStoreGetInstanceName                      Code = "store.get_instance_name"
-	CodeStorePing                                 Code = "store.ping"
-	CodeStoreTxBegin                              Code = "store.tx.begin"
-	CodeStoreTxBody                               Code = "store.tx.body"
-	CodeStoreTxCommit                             Code = "store.tx.commit"
-	CodeStoreTxPassthrough                        Code = "store.tx.passthrough"
-	CodeStoreTxRollback                           Code = "store.tx.rollback"
-	CodeWorkersClaimTask                          Code = "workers.claim_task"
-	CodeWorkersEnsureTask                         Code = "workers.ensure_task"
-	CodeWorkersEventProcessing                    Code = "workers.event_processing"
-	CodeWorkersFinishFailedRun                    Code = "workers.finish_failed_run"
-	CodeWorkersFinishSuccess                      Code = "workers.finish_success"
-	CodeWorkersSessionCleanup                     Code = "workers.session_cleanup"
+	CodeAccountAccessPermissionsAuditLogsRead                Code = "account.access.permissions.audit.logs.read"
+	CodeAccountAccessPermissionsAuthInvitationsCreate        Code = "account.access.permissions.auth.invitations.create"
+	CodeAccountAccessPermissionsAuthRolesManage              Code = "account.access.permissions.auth.roles.manage"
+	CodeAccountAccessRolesAdmin                              Code = "account.access.roles.admin"
+	CodeAccountAccessRolesMember                             Code = "account.access.roles.member"
+	CodeAccountAuthForbidden                                 Code = "account.auth.forbidden"
+	CodeAccountAuthInvalidCredentials                        Code = "account.auth.invalid_credentials"
+	CodeAccountAuthInvalidResetToken                         Code = "account.auth.invalid_reset_token"
+	CodeAccountAuthInvalidTOTP                               Code = "account.auth.invalid_totp"
+	CodeAccountAuthInvitationExists                          Code = "account.auth.invitation_exists"
+	CodeAccountAuthInvitationInvalid                         Code = "account.auth.invitation_invalid"
+	CodeAccountAuthOIDCInvalidState                          Code = "account.auth.oidc.invalid_state"
+	CodeAccountAuthOIDCLoginFailed                           Code = "account.auth.oidc.login_failed"
+	CodeAccountAuthOIDCProviderNotFound                      Code = "account.auth.oidc.provider_not_found"
+	CodeAccountAuthOrganisationNotFound                      Code = "account.auth.organisation_not_found"
+	CodeAccountAuthOrganisationRequired                      Code = "account.auth.organisation_required"
+	CodeAccountAuthSetupCompleted                            Code = "account.auth.setup_completed"
+	CodeAccountAuthSSOCacheRequired                          Code = "account.auth.sso.cache_required"
+	CodeAccountAuthSSOInvalidState                           Code = "account.auth.sso.invalid_state"
+	CodeAccountAuthSSOLoginFailed                            Code = "account.auth.sso.login_failed"
+	CodeAccountAuthSSOProviderNotFound                       Code = "account.auth.sso.provider_not_found"
+	CodeAccountAuthTOTPLocked                                Code = "account.auth.totp_locked"
+	CodeAccountAuthTOTPRequired                              Code = "account.auth.totp_required"
+	CodeAccountAuthUnauthenticated                           Code = "account.auth.unauthenticated"
+	CodeDiagnosticsAppLoadFrontendAssets                     Code = "diagnostics.app.load_frontend_assets"
+	CodeDiagnosticsAppOpenStore                              Code = "diagnostics.app.open_store"
+	CodeDiagnosticsAppSetup                                  Code = "diagnostics.app.setup"
+	CodeDiagnosticsAppStartTaskRuntime                       Code = "diagnostics.app.start_task_runtime"
+	CodeDiagnosticsAuthInvitationAccept                      Code = "diagnostics.auth.invitation.accept"
+	CodeDiagnosticsAuthInvitationBeginTx                     Code = "diagnostics.auth.invitation.begin_tx"
+	CodeDiagnosticsAuthInvitationCommit                      Code = "diagnostics.auth.invitation.commit"
+	CodeDiagnosticsAuthInvitationConsumeInvitation           Code = "diagnostics.auth.invitation.consume_invitation"
+	CodeDiagnosticsAuthInvitationCreateInvitation            Code = "diagnostics.auth.invitation.create_invitation"
+	CodeDiagnosticsAuthInvitationFindAccount                 Code = "diagnostics.auth.invitation.find_account"
+	CodeDiagnosticsAuthInvitationFindInvitation              Code = "diagnostics.auth.invitation.find_invitation"
+	CodeDiagnosticsAuthInvitationFindOrganisation            Code = "diagnostics.auth.invitation.find_organisation"
+	CodeDiagnosticsAuthInvitationFindUser                    Code = "diagnostics.auth.invitation.find_user"
+	CodeDiagnosticsAuthInvitationGenerateToken               Code = "diagnostics.auth.invitation.generate_token"
+	CodeDiagnosticsAuthInvitationPasswordHash                Code = "diagnostics.auth.invitation.password_hash"
+	CodeDiagnosticsAuthInvitationRollback                    Code = "diagnostics.auth.invitation.rollback"
+	CodeDiagnosticsAuthInvitationSendEmail                   Code = "diagnostics.auth.invitation.send_email"
+	CodeDiagnosticsAuthInvitationUpdateEmailVerified         Code = "diagnostics.auth.invitation.update_email_verified"
+	CodeDiagnosticsAuthLoginFindAccount                      Code = "diagnostics.auth.login.find_account"
+	CodeDiagnosticsAuthLoginFindOrganisation                 Code = "diagnostics.auth.login.find_organisation"
+	CodeDiagnosticsAuthLoginFindUser                         Code = "diagnostics.auth.login.find_user"
+	CodeDiagnosticsAuthLoginGenerateToken                    Code = "diagnostics.auth.login.generate_token"
+	CodeDiagnosticsAuthLoginListOrganisations                Code = "diagnostics.auth.login.list_organisations"
+	CodeDiagnosticsAuthLoginSSOCallback                      Code = "diagnostics.auth.login.sso_callback"
+	CodeDiagnosticsAuthLoginSSOStart                         Code = "diagnostics.auth.login.sso_start"
+	CodeDiagnosticsAuthLogoutPublishEvent                    Code = "diagnostics.auth.logout.publish_event"
+	CodeDiagnosticsAuthPasswordResetConsumeVerificationToken Code = "diagnostics.auth.password_reset.consume_verification_token"
+	CodeDiagnosticsAuthPasswordResetCreateVerificationToken  Code = "diagnostics.auth.password_reset.create_verification_token"
+	CodeDiagnosticsAuthPasswordResetFindUser                 Code = "diagnostics.auth.password_reset.find_user"
+	CodeDiagnosticsAuthPasswordResetFindVerificationToken    Code = "diagnostics.auth.password_reset.find_verification_token"
+	CodeDiagnosticsAuthPasswordResetGenerateToken            Code = "diagnostics.auth.password_reset.generate_token"
+	CodeDiagnosticsAuthPasswordResetPasswordHash             Code = "diagnostics.auth.password_reset.password_hash"
+	CodeDiagnosticsAuthPasswordResetSendEmail                Code = "diagnostics.auth.password_reset.send_email"
+	CodeDiagnosticsAuthSessionFindOrganisation               Code = "diagnostics.auth.session.find_organisation"
+	CodeDiagnosticsAuthSetupBeginTx                          Code = "diagnostics.auth.setup.begin_tx"
+	CodeDiagnosticsAuthSetupCommit                           Code = "diagnostics.auth.setup.commit"
+	CodeDiagnosticsAuthSetupCountUsers                       Code = "diagnostics.auth.setup.count_users"
+	CodeDiagnosticsAuthSetupCreateFirstUser                  Code = "diagnostics.auth.setup.create_first_user"
+	CodeDiagnosticsAuthSetupInsertAccount                    Code = "diagnostics.auth.setup.insert_account"
+	CodeDiagnosticsAuthSetupInsertOrganisation               Code = "diagnostics.auth.setup.insert_organisation"
+	CodeDiagnosticsAuthSetupInsertOrganisationMember         Code = "diagnostics.auth.setup.insert_organisation_member"
+	CodeDiagnosticsAuthSetupInsertUser                       Code = "diagnostics.auth.setup.insert_user"
+	CodeDiagnosticsAuthSetupRollback                         Code = "diagnostics.auth.setup.rollback"
+	CodeDiagnosticsAuthTOTPConfirm                           Code = "diagnostics.auth.totp.confirm"
+	CodeDiagnosticsAuthTOTPDisable                           Code = "diagnostics.auth.totp.disable"
+	CodeDiagnosticsAuthTOTPEnroll                            Code = "diagnostics.auth.totp.enroll"
+	CodeDiagnosticsSessionCreateSession                      Code = "diagnostics.session.create_session"
+	CodeDiagnosticsSessionGetSession                         Code = "diagnostics.session.get_session"
+	CodeDiagnosticsSessionRevokeSession                      Code = "diagnostics.session.revoke_session"
+	CodeDiagnosticsSessionRevokeSessionsForUser              Code = "diagnostics.session.revoke_sessions_for_user"
+	CodeDiagnosticsStoreClose                                Code = "diagnostics.store.close"
+	CodeDiagnosticsStoreCountUsers                           Code = "diagnostics.store.count_users"
+	CodeDiagnosticsStoreEnsureDefaultSettings                Code = "diagnostics.store.ensure_default_settings"
+	CodeDiagnosticsStoreGetInstanceName                      Code = "diagnostics.store.get_instance_name"
+	CodeDiagnosticsStorePing                                 Code = "diagnostics.store.ping"
+	CodeDiagnosticsStoreTxBegin                              Code = "diagnostics.store.tx.begin"
+	CodeDiagnosticsStoreTxBody                               Code = "diagnostics.store.tx.body"
+	CodeDiagnosticsStoreTxCommit                             Code = "diagnostics.store.tx.commit"
+	CodeDiagnosticsStoreTxPassthrough                        Code = "diagnostics.store.tx.passthrough"
+	CodeDiagnosticsStoreTxRollback                           Code = "diagnostics.store.tx.rollback"
+	CodeDiagnosticsWorkersClaimTask                          Code = "diagnostics.workers.claim_task"
+	CodeDiagnosticsWorkersEnsureTask                         Code = "diagnostics.workers.ensure_task"
+	CodeDiagnosticsWorkersEventProcessing                    Code = "diagnostics.workers.event_processing"
+	CodeDiagnosticsWorkersFinishFailedRun                    Code = "diagnostics.workers.finish_failed_run"
+	CodeDiagnosticsWorkersFinishSuccess                      Code = "diagnostics.workers.finish_success"
+	CodeDiagnosticsWorkersSessionCleanup                     Code = "diagnostics.workers.session_cleanup"
+	CodeNotificationEmailFooter                              Code = "notification.email.footer"
+	CodeNotificationEmailInvitationBody                      Code = "notification.email.invitation_body"
+	CodeNotificationEmailInvitationCta                       Code = "notification.email.invitation_cta"
+	CodeNotificationEmailInvitationHeading                   Code = "notification.email.invitation_heading"
+	CodeNotificationEmailInvitationSubject                   Code = "notification.email.invitation_subject"
+	CodeNotificationEmailNotConfigured                       Code = "notification.email.not_configured"
+	CodeNotificationEmailPasswordResetBody                   Code = "notification.email.password_reset_body"
+	CodeNotificationEmailPasswordResetCta                    Code = "notification.email.password_reset_cta"
+	CodeNotificationEmailPasswordResetHeading                Code = "notification.email.password_reset_heading"
+	CodeNotificationEmailPasswordResetSubject                Code = "notification.email.password_reset_subject"
+	CodePlatformConfigLoadFailed                             Code = "platform.config.load_failed"
+	CodePlatformConfigValidationFailed                       Code = "platform.config.validation_failed"
+	CodePlatformServerInternalError                          Code = "platform.server.internal_error"
+	CodeTransportRequestValidationFailed                     Code = "transport.request.validation_failed"
+	CodeTransportSecurityCSRFFailed                          Code = "transport.security.csrf_failed"
+	CodeTransportSecurityHTTPSRequired                       Code = "transport.security.https_required"
 )
 
 var CatalogData = map[language.Tag]map[Code]string{
 	language.English: {
-		CodeAccessPermissionsAuditLogsRead:            "View audit logs",
-		CodeAccessPermissionsAuthInvitationsCreate:    "Create invitations",
-		CodeAccessPermissionsAuthRolesManage:          "Manage roles",
-		CodeAccessRolesAdmin:                          "Administrator",
-		CodeAccessRolesMember:                         "Member",
-		CodeAppLoadFrontendAssets:                     "Load frontend assets failed",
-		CodeAppOpenStore:                              "Open store failed",
-		CodeAppSetup:                                  "Application setup failed",
-		CodeAppStartTaskRuntime:                       "Start task runtime failed",
-		CodeAuthForbidden:                             "You do not have permission to perform this action.",
-		CodeAuthInvalidCredentials:                    "Invalid email or password.",
-		CodeAuthInvalidResetToken:                     "The password reset token is invalid or has expired.",
-		CodeAuthInvalidTOTP:                           "Invalid two-factor authentication code.",
-		CodeAuthInvitationAccept:                      "Accept invitation failed",
-		CodeAuthInvitationBeginTx:                     "Begin invitation transaction failed",
-		CodeAuthInvitationCommit:                      "Commit invitation transaction failed",
-		CodeAuthInvitationConsumeInvitation:           "Consume invitation failed",
-		CodeAuthInvitationCreateInvitation:            "Create invitation failed",
-		CodeAuthInvitationFindAccount:                 "Look up password account during invitation failed",
-		CodeAuthInvitationFindInvitation:              "Look up invitation failed",
-		CodeAuthInvitationFindOrganisation:            "Resolve organisation during invitation failed",
-		CodeAuthInvitationFindUser:                    "Look up user during invitation failed",
-		CodeAuthInvitationGenerateToken:               "Generate invitation token failed",
-		CodeAuthInvitationPasswordHash:                "Hash password during invitation failed",
-		CodeAuthInvitationRollback:                    "Roll back invitation transaction failed",
-		CodeAuthInvitationSendEmail:                   "Send invitation email failed",
-		CodeAuthInvitationUpdateEmailVerified:         "Update email verification during invitation failed",
-		CodeAuthInvitationExists:                      "An active invitation already exists for that email address.",
-		CodeAuthInvitationInvalid:                     "The invitation is invalid or has expired.",
-		CodeAuthLoginFindAccount:                      "Look up password account during login failed",
-		CodeAuthLoginFindOrganisation:                 "Resolve organisation during login failed",
-		CodeAuthLoginFindUser:                         "Look up user during login failed",
-		CodeAuthLoginGenerateToken:                    "Generate token during login failed",
-		CodeAuthLoginListOrganisations:                "List organisations during login failed",
-		CodeAuthLoginSSOCallback:                      "Complete SSO login failed",
-		CodeAuthLoginSSOStart:                         "Start SSO login failed",
-		CodeAuthLogoutPublishEvent:                    "Publish logout event failed",
-		CodeAuthOIDCInvalidState:                      "The OIDC login flow is invalid or has expired.",
-		CodeAuthOIDCLoginFailed:                       "Unable to sign in with that OIDC provider.",
-		CodeAuthOIDCProviderNotFound:                  "The selected OIDC provider is not available.",
-		CodeAuthOrganisationNotFound:                  "The selected organisation is not available.",
-		CodeAuthOrganisationRequired:                  "Choose an organisation to continue.",
-		CodeAuthPasswordResetConsumeVerificationToken: "Consume password reset verification token failed",
-		CodeAuthPasswordResetCreateVerificationToken:  "Create password reset verification token failed",
-		CodeAuthPasswordResetFindUser:                 "Look up user during password reset failed",
-		CodeAuthPasswordResetFindVerificationToken:    "Look up password reset verification token failed",
-		CodeAuthPasswordResetGenerateToken:            "Generate password reset token failed",
-		CodeAuthPasswordResetPasswordHash:             "Hash password during reset failed",
-		CodeAuthPasswordResetSendEmail:                "Send password reset email failed",
-		CodeAuthSessionFindOrganisation:               "Resolve organisation during session failed",
-		CodeAuthSetupBeginTx:                          "Begin first-user setup transaction failed",
-		CodeAuthSetupCommit:                           "Commit first-user setup transaction failed",
-		CodeAuthSetupCountUsers:                       "Count users during setup failed",
-		CodeAuthSetupCreateFirstUser:                  "Create first user failed",
-		CodeAuthSetupInsertAccount:                    "Insert account during setup failed",
-		CodeAuthSetupInsertOrganisation:               "Insert organisation during setup failed",
-		CodeAuthSetupInsertOrganisationMember:         "Insert organisation member during setup failed",
-		CodeAuthSetupInsertUser:                       "Insert user during setup failed",
-		CodeAuthSetupRollback:                         "Roll back first-user setup transaction failed",
-		CodeAuthSetupCompleted:                        "Setup has already been completed for {{.resource}} ({{.count}} users).",
-		CodeAuthSSOCacheRequired:                      "A cache store is required before SSO can be enabled.",
-		CodeAuthSSOInvalidState:                       "The SSO login flow is invalid or has expired.",
-		CodeAuthSSOLoginFailed:                        "Unable to sign in with that SSO provider.",
-		CodeAuthSSOProviderNotFound:                   "The selected SSO provider is not available.",
-		CodeAuthTOTPConfirm:                           "Confirm two-factor authentication failed",
-		CodeAuthTOTPDisable:                           "Disable two-factor authentication failed",
-		CodeAuthTOTPEnroll:                            "Enroll two-factor authentication failed",
-		CodeAuthTOTPLocked:                            "Two-factor authentication is temporarily locked. Try again later.",
-		CodeAuthTOTPRequired:                          "Two-factor authentication code required.",
-		CodeAuthUnauthenticated:                       "Authentication required.",
-		CodeConfigLoadFailed:                          "Failed to load configuration.",
-		CodeConfigValidationFailed:                    "Configuration is invalid.",
-		CodeEmailFooter:                               "This is an automated message from Dinchy. Please do not reply to this email.",
-		CodeEmailInvitationBody:                       "You have been invited to join {{.organisation}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon.",
-		CodeEmailInvitationCta:                        "Accept invitation",
-		CodeEmailInvitationHeading:                    "Join {{.organisation}} on Dinchy",
-		CodeEmailInvitationSubject:                    "You are invited to join {{.organisation}} on Dinchy",
-		CodeEmailNotConfigured:                        "Email delivery is not configured.",
-		CodeEmailPasswordResetBody:                    "We received a request to reset your Dinchy password. Click the button below to choose a new one. If you did not request this, you can safely ignore this email.",
-		CodeEmailPasswordResetCta:                     "Reset password",
-		CodeEmailPasswordResetHeading:                 "Reset your password",
-		CodeEmailPasswordResetSubject:                 "Reset your Dinchy password",
-		CodeRequestValidationFailed:                   "Some fields need attention.",
-		CodeSecurityCSRFFailed:                        "Missing or invalid CSRF token.",
-		CodeSecurityHTTPSRequired:                     "This endpoint requires a secure (HTTPS) connection.",
-		CodeServerInternalError:                       "An unexpected error occurred.",
-		CodeSessionCreateSession:                      "Create session failed",
-		CodeSessionGetSession:                         "Look up session failed",
-		CodeSessionRevokeSession:                      "Revoke session failed",
-		CodeSessionRevokeSessionsForUser:              "Revoke user sessions failed",
-		CodeStoreClose:                                "Close store failed",
-		CodeStoreCountUsers:                           "Count users failed",
-		CodeStoreEnsureDefaultSettings:                "Ensure default settings failed",
-		CodeStoreGetInstanceName:                      "Get instance name failed",
-		CodeStorePing:                                 "Ping store failed",
-		CodeStoreTxBegin:                              "Begin transaction failed",
-		CodeStoreTxBody:                               "Transaction body failed",
-		CodeStoreTxCommit:                             "Commit transaction failed",
-		CodeStoreTxPassthrough:                        "Nested transaction body failed",
-		CodeStoreTxRollback:                           "Roll back transaction failed",
-		CodeWorkersClaimTask:                          "Claim worker task failed",
-		CodeWorkersEnsureTask:                         "Register worker task failed",
-		CodeWorkersEventProcessing:                    "Event subscriber processing failed",
-		CodeWorkersFinishFailedRun:                    "Record failed worker run failed",
-		CodeWorkersFinishSuccess:                      "Record successful worker run failed",
-		CodeWorkersSessionCleanup:                     "Session cleanup worker execution failed",
+		CodeAccountAccessPermissionsAuditLogsRead:                "View audit logs",
+		CodeAccountAccessPermissionsAuthInvitationsCreate:        "Create invitations",
+		CodeAccountAccessPermissionsAuthRolesManage:              "Manage roles",
+		CodeAccountAccessRolesAdmin:                              "Administrator",
+		CodeAccountAccessRolesMember:                             "Member",
+		CodeAccountAuthForbidden:                                 "You do not have permission to perform this action.",
+		CodeAccountAuthInvalidCredentials:                        "Invalid email or password.",
+		CodeAccountAuthInvalidResetToken:                         "The password reset token is invalid or has expired.",
+		CodeAccountAuthInvalidTOTP:                               "Invalid two-factor authentication code.",
+		CodeAccountAuthInvitationExists:                          "An active invitation already exists for that email address.",
+		CodeAccountAuthInvitationInvalid:                         "The invitation is invalid or has expired.",
+		CodeAccountAuthOIDCInvalidState:                          "The OIDC login flow is invalid or has expired.",
+		CodeAccountAuthOIDCLoginFailed:                           "Unable to sign in with that OIDC provider.",
+		CodeAccountAuthOIDCProviderNotFound:                      "The selected OIDC provider is not available.",
+		CodeAccountAuthOrganisationNotFound:                      "The selected organisation is not available.",
+		CodeAccountAuthOrganisationRequired:                      "Choose an organisation to continue.",
+		CodeAccountAuthSetupCompleted:                            "Setup has already been completed for {{.resource}} ({{.count}} users).",
+		CodeAccountAuthSSOCacheRequired:                          "A cache store is required before SSO can be enabled.",
+		CodeAccountAuthSSOInvalidState:                           "The SSO login flow is invalid or has expired.",
+		CodeAccountAuthSSOLoginFailed:                            "Unable to sign in with that SSO provider.",
+		CodeAccountAuthSSOProviderNotFound:                       "The selected SSO provider is not available.",
+		CodeAccountAuthTOTPLocked:                                "Two-factor authentication is temporarily locked. Try again later.",
+		CodeAccountAuthTOTPRequired:                              "Two-factor authentication code required.",
+		CodeAccountAuthUnauthenticated:                           "Authentication required.",
+		CodeDiagnosticsAppLoadFrontendAssets:                     "Load frontend assets failed",
+		CodeDiagnosticsAppOpenStore:                              "Open store failed",
+		CodeDiagnosticsAppSetup:                                  "Application setup failed",
+		CodeDiagnosticsAppStartTaskRuntime:                       "Start task runtime failed",
+		CodeDiagnosticsAuthInvitationAccept:                      "Accept invitation failed",
+		CodeDiagnosticsAuthInvitationBeginTx:                     "Begin invitation transaction failed",
+		CodeDiagnosticsAuthInvitationCommit:                      "Commit invitation transaction failed",
+		CodeDiagnosticsAuthInvitationConsumeInvitation:           "Consume invitation failed",
+		CodeDiagnosticsAuthInvitationCreateInvitation:            "Create invitation failed",
+		CodeDiagnosticsAuthInvitationFindAccount:                 "Look up password account during invitation failed",
+		CodeDiagnosticsAuthInvitationFindInvitation:              "Look up invitation failed",
+		CodeDiagnosticsAuthInvitationFindOrganisation:            "Resolve organisation during invitation failed",
+		CodeDiagnosticsAuthInvitationFindUser:                    "Look up user during invitation failed",
+		CodeDiagnosticsAuthInvitationGenerateToken:               "Generate invitation token failed",
+		CodeDiagnosticsAuthInvitationPasswordHash:                "Hash password during invitation failed",
+		CodeDiagnosticsAuthInvitationRollback:                    "Roll back invitation transaction failed",
+		CodeDiagnosticsAuthInvitationSendEmail:                   "Send invitation email failed",
+		CodeDiagnosticsAuthInvitationUpdateEmailVerified:         "Update email verification during invitation failed",
+		CodeDiagnosticsAuthLoginFindAccount:                      "Look up password account during login failed",
+		CodeDiagnosticsAuthLoginFindOrganisation:                 "Resolve organisation during login failed",
+		CodeDiagnosticsAuthLoginFindUser:                         "Look up user during login failed",
+		CodeDiagnosticsAuthLoginGenerateToken:                    "Generate token during login failed",
+		CodeDiagnosticsAuthLoginListOrganisations:                "List organisations during login failed",
+		CodeDiagnosticsAuthLoginSSOCallback:                      "Complete SSO login failed",
+		CodeDiagnosticsAuthLoginSSOStart:                         "Start SSO login failed",
+		CodeDiagnosticsAuthLogoutPublishEvent:                    "Publish logout event failed",
+		CodeDiagnosticsAuthPasswordResetConsumeVerificationToken: "Consume password reset verification token failed",
+		CodeDiagnosticsAuthPasswordResetCreateVerificationToken:  "Create password reset verification token failed",
+		CodeDiagnosticsAuthPasswordResetFindUser:                 "Look up user during password reset failed",
+		CodeDiagnosticsAuthPasswordResetFindVerificationToken:    "Look up password reset verification token failed",
+		CodeDiagnosticsAuthPasswordResetGenerateToken:            "Generate password reset token failed",
+		CodeDiagnosticsAuthPasswordResetPasswordHash:             "Hash password during reset failed",
+		CodeDiagnosticsAuthPasswordResetSendEmail:                "Send password reset email failed",
+		CodeDiagnosticsAuthSessionFindOrganisation:               "Resolve organisation during session failed",
+		CodeDiagnosticsAuthSetupBeginTx:                          "Begin first-user setup transaction failed",
+		CodeDiagnosticsAuthSetupCommit:                           "Commit first-user setup transaction failed",
+		CodeDiagnosticsAuthSetupCountUsers:                       "Count users during setup failed",
+		CodeDiagnosticsAuthSetupCreateFirstUser:                  "Create first user failed",
+		CodeDiagnosticsAuthSetupInsertAccount:                    "Insert account during setup failed",
+		CodeDiagnosticsAuthSetupInsertOrganisation:               "Insert organisation during setup failed",
+		CodeDiagnosticsAuthSetupInsertOrganisationMember:         "Insert organisation member during setup failed",
+		CodeDiagnosticsAuthSetupInsertUser:                       "Insert user during setup failed",
+		CodeDiagnosticsAuthSetupRollback:                         "Roll back first-user setup transaction failed",
+		CodeDiagnosticsAuthTOTPConfirm:                           "Confirm two-factor authentication failed",
+		CodeDiagnosticsAuthTOTPDisable:                           "Disable two-factor authentication failed",
+		CodeDiagnosticsAuthTOTPEnroll:                            "Enroll two-factor authentication failed",
+		CodeDiagnosticsSessionCreateSession:                      "Create session failed",
+		CodeDiagnosticsSessionGetSession:                         "Look up session failed",
+		CodeDiagnosticsSessionRevokeSession:                      "Revoke session failed",
+		CodeDiagnosticsSessionRevokeSessionsForUser:              "Revoke user sessions failed",
+		CodeDiagnosticsStoreClose:                                "Close store failed",
+		CodeDiagnosticsStoreCountUsers:                           "Count users failed",
+		CodeDiagnosticsStoreEnsureDefaultSettings:                "Ensure default settings failed",
+		CodeDiagnosticsStoreGetInstanceName:                      "Get instance name failed",
+		CodeDiagnosticsStorePing:                                 "Ping store failed",
+		CodeDiagnosticsStoreTxBegin:                              "Begin transaction failed",
+		CodeDiagnosticsStoreTxBody:                               "Transaction body failed",
+		CodeDiagnosticsStoreTxCommit:                             "Commit transaction failed",
+		CodeDiagnosticsStoreTxPassthrough:                        "Nested transaction body failed",
+		CodeDiagnosticsStoreTxRollback:                           "Roll back transaction failed",
+		CodeDiagnosticsWorkersClaimTask:                          "Claim worker task failed",
+		CodeDiagnosticsWorkersEnsureTask:                         "Register worker task failed",
+		CodeDiagnosticsWorkersEventProcessing:                    "Event subscriber processing failed",
+		CodeDiagnosticsWorkersFinishFailedRun:                    "Record failed worker run failed",
+		CodeDiagnosticsWorkersFinishSuccess:                      "Record successful worker run failed",
+		CodeDiagnosticsWorkersSessionCleanup:                     "Session cleanup worker execution failed",
+		CodeNotificationEmailFooter:                              "This is an automated message from Dinchy. Please do not reply to this email.",
+		CodeNotificationEmailInvitationBody:                      "You have been invited to join {{.organisation}} as {{.role}}. Click the button below to accept the invitation and set up your account. This invitation will expire soon.",
+		CodeNotificationEmailInvitationCta:                       "Accept invitation",
+		CodeNotificationEmailInvitationHeading:                   "Join {{.organisation}} on Dinchy",
+		CodeNotificationEmailInvitationSubject:                   "You are invited to join {{.organisation}} on Dinchy",
+		CodeNotificationEmailNotConfigured:                       "Email delivery is not configured.",
+		CodeNotificationEmailPasswordResetBody:                   "We received a request to reset your Dinchy password. Click the button below to choose a new one. If you did not request this, you can safely ignore this email.",
+		CodeNotificationEmailPasswordResetCta:                    "Reset password",
+		CodeNotificationEmailPasswordResetHeading:                "Reset your password",
+		CodeNotificationEmailPasswordResetSubject:                "Reset your Dinchy password",
+		CodePlatformConfigLoadFailed:                             "Failed to load configuration.",
+		CodePlatformConfigValidationFailed:                       "Configuration is invalid.",
+		CodePlatformServerInternalError:                          "An unexpected error occurred.",
+		CodeTransportRequestValidationFailed:                     "Some fields need attention.",
+		CodeTransportSecurityCSRFFailed:                          "Missing or invalid CSRF token.",
+		CodeTransportSecurityHTTPSRequired:                       "This endpoint requires a secure (HTTPS) connection.",
 	},
 }

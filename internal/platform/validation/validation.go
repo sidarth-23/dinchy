@@ -21,7 +21,7 @@ func New() *Validator {
 // Struct validates value and returns an internal AppError when any rule fails.
 func (v *Validator) Struct(value any) error {
 	if err := v.validate.Struct(value); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeConfigValidationFailed), apperrors.WithCause(err))
+		return apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigValidationFailed), apperrors.WithCause(err))
 	}
 	return nil
 }

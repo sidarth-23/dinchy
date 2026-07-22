@@ -61,7 +61,7 @@ type Config struct {
 // or any required field fails validation.
 func Load() (Config, error) {
 	if err := loadEnvFile(); err != nil {
-		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed), apperrors.WithCause(err))
 	}
 
 	cfg := Config{

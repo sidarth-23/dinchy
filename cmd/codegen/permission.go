@@ -14,7 +14,7 @@ func runPermission(args []string) error {
 	fs := flag.NewFlagSet("permission", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	input := fs.String("input", "catalog.json", "permission manifest input path")
-	i18nInput := fs.String("i18n-input", "internal/i18n/catalog.json", "i18n manifest input path")
+	i18nInput := fs.String("i18n-input", "internal/i18n/catalog", "i18n manifest input path (directory of fragments or single file)")
 	output := fs.String("output", "permission_type.go", "generated Go output path")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -31,11 +31,7 @@ func generatePermission(inputPath, i18nPath, outputPath string) error {
 	if err != nil {
 		return err
 	}
-	i18nRaw, err := os.ReadFile(i18nPath)
-	if err != nil {
-		return err
-	}
-	i18nCatalog, err := manifest.DecodeI18nCatalog(i18nRaw)
+	i18nCatalog, err := manifest.LoadI18nCatalog(i18nPath)
 	if err != nil {
 		return err
 	}

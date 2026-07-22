@@ -108,5 +108,5 @@ func TestAcceptInvitation_InvalidToken(t *testing.T) {
 	store.EXPECT().FindOrganisationInvitationByToken(gomock.Any(), security.HashToken("bad-token")).Return(sqlcgen.FindOrganisationInvitationByTokenRow{}, pgx.ErrNoRows)
 
 	_, err := svc.AcceptInvitation(testCtx, "bad-token", "Invitee", "password123", "", "")
-	require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvitationInvalid)))
+	require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthInvitationInvalid)))
 }
