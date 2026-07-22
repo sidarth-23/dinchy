@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/foundation/clock"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
-	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/events"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
@@ -21,7 +21,7 @@ const testAuditTime = 1_735_689_600
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	base := (&module.Service{Clock: clock.Fixed(time.Unix(testAuditTime, 0).UTC())}).Named("audit")
+	base := (&features.Service{Clock: clock.Fixed(time.Unix(testAuditTime, 0).UTC())}).Named("audit")
 	svc, err := NewService(base, &failingStore{t: t})
 	require.NoError(t, err)
 	return svc

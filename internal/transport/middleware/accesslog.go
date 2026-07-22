@@ -8,7 +8,7 @@ import (
 
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/sidarth-23/dinchy/internal/access/session"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 )

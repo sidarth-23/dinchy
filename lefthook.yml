@@ -14,7 +14,7 @@ pre-commit:
                     run: go run ./cmd/validate i18n -input internal/foundation/i18n/catalog
 
                   - name: validate permission catalog
-                    glob: "internal/access/permission/{permissions,roles}.json"
+                    glob: "internal/foundation/permission/{permissions,roles}.json"
                     run: go run ./cmd/validate permission
 
                   - name: coderules logreturn
@@ -23,7 +23,7 @@ pre-commit:
 
                   - name: generate catalogs
                     glob: "internal/{features/*/events.json,foundation/i18n/catalog/**/*.json,access/permission/{permissions,roles}.json}"
-                    run: go generate ./internal/foundation/i18n ./internal/platform/events ./internal/access/permission && git add internal/features/*/events_generated.go internal/foundation/i18n/generated.go internal/access/permission/permission_generated.go internal/access/permission/role_generated.go
+                    run: go generate ./internal/foundation/i18n ./internal/platform/events ./internal/foundation/permission && git add internal/features/*/events_generated.go internal/foundation/i18n/generated.go internal/foundation/permission/permission_generated.go internal/foundation/permission/role_generated.go
 
                   - name: generate sqlc
                     glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/sidarth-23/dinchy/internal/access/permission/permissions.schema.json",
+  "$id": "https://github.com/sidarth-23/dinchy/internal/foundation/permission/permissions.schema.json",
   "title": "Dinchy Permission Catalog",
   "type": "object",
   "additionalProperties": false,

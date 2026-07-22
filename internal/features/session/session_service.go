@@ -11,13 +11,13 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
-	"github.com/sidarth-23/dinchy/internal/module"
+	"github.com/sidarth-23/dinchy/internal/foundation/security"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
-	"github.com/sidarth-23/dinchy/internal/platform/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
@@ -26,7 +26,7 @@ import (
 // the cache namespace literal appears.
 const sessionCacheNamespace = "session"
 
-//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/access/session -destination=store_mockdata_test.go -package=session . Store
+//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/session -destination=store_mockdata_test.go -package=session . Store
 
 // Store is the persistence surface the session service depends on.
 type Store interface {
@@ -40,7 +40,7 @@ type Store interface {
 
 // Service owns session token creation, resolution, revocation, and cookie naming.
 type Service struct {
-	*module.Service
+	*features.Service
 	store         Store
 	config        config.SessionConfig
 	principals    cache.Entry[cachedPrincipal]
@@ -49,7 +49,7 @@ type Service struct {
 
 // NewService builds a session Service. A nil or disabled cache makes session
 // resolution read straight through to the store.
-func NewService(base *module.Service, store Store, sessionConfig config.SessionConfig, cacheConfig config.CacheConfig) (*Service, error) {
+func NewService(base *features.Service, store Store, sessionConfig config.SessionConfig, cacheConfig config.CacheConfig) (*Service, error) {
 	if base == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("session module service is required")))
 	}
@@ -69,7 +69,7 @@ func NewService(base *module.Service, store Store, sessionConfig config.SessionC
 	}, nil
 }
 
-var _ module.Module = (*Service)(nil)
+var _ features.Module = (*Service)(nil)
 
 // SessionCookieName returns the configured name of the session cookie.
 func (s *Service) SessionCookieName() string {

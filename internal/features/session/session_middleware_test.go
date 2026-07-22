@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/sidarth-23/dinchy/internal/access/permission"
-	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/foundation/clock"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
-	"github.com/sidarth-23/dinchy/internal/module"
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
@@ -27,7 +27,7 @@ var sessionFixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newSessionService(t *testing.T, store session.Store) *session.Service {
 	t.Helper()
-	base := (&module.Service{Clock: clock.Fixed(sessionFixedTime), IDGenerator: id.NewGenerator()}).Named("session")
+	base := (&features.Service{Clock: clock.Fixed(sessionFixedTime), IDGenerator: id.NewGenerator()}).Named("session")
 	service, err := session.NewService(base, store, config.DefaultSession(), config.DefaultCache())
 	require.NoError(t, err)
 	return service

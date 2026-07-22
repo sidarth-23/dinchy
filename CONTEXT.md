@@ -37,7 +37,8 @@ tests, and design discussion. Keep entries terse and intent-focused.
 `internal/foundation/*` is the base tier: domain-agnostic primitives with zero
 internal dependencies (or, for `errors`, only `i18n`). Nothing in `foundation`
 imports `config`, `platform`, or any feature. It holds `errors`, `i18n`, `clock`,
-`id`, `transform`, and `requestcontext`. Everything else builds on top:
+`id`, `transform`, `requestcontext`, `security` (password hashing and tokens), and
+`permission` (the access-control vocabulary). Everything else builds on top:
 `platform/*` is infrastructure that depends on `config` and `foundation`.
 
 - **requestcontext** (`internal/foundation/requestcontext`) — a foundation leaf
@@ -46,9 +47,32 @@ imports `config`, `platform`, or any feature. It holds `errors`, `i18n`, `clock`
   populates it; any layer reads it, including non-transport code (e.g. the events
   envelope). It replaced the reach from `internal/platform/events` into
   `internal/transport/support`, so the event layer no longer depends on transport.
-- **Password hashing** lives entirely in `internal/platform/security` (algorithm
-  *and* its Argon2id parameters/format constants); `security` depends on nothing
-  in `config`. **Config validation** is private to `internal/config`.
+- **Password hashing** lives entirely in `internal/foundation/security` (algorithm
+  *and* its Argon2id parameters/format constants); `security` is a foundation leaf
+  that depends on nothing internal. **Config validation** is private to
+  `internal/config`.
+- **permission** (`internal/foundation/permission`) — the access-control
+  vocabulary: the generated `Permission`/`Role` constants and their definitions.
+  It is pure vocabulary (its only internal dependency is `i18n`), so it sits in
+  `foundation` beside the other primitives rather than inside any feature. Source
+  catalogs (`permissions.json`, `roles.json`) and codegen live alongside it.
+
+## Features
+
+- **Feature service base** (`internal/features`, `features.Service`) — the shared
+  base every feature service embeds. It bundles the common infrastructure (clock,
+  ID generator, database, Redis, cache keyer, mailer, event publisher, job
+  enqueuer) and supplies a name-scoped contextual logger. `features.Service.Named`
+  stamps a feature name; `Initialize` validates and defaults the dependencies.
+  Feature packages (`internal/features/*`) embed `*features.Service`; the base
+  imports only `platform/*` and `foundation/*`, never a feature, so a feature
+  importing its parent package is cycle-free.
+- **session** (`internal/features/session`) — the authenticated-request feature.
+  It owns the `Principal` (the resolved user and active organization for a
+  request), session token lifecycle (create, resolve, revoke, cache), the session
+  cookie, and the request middleware that attaches the principal to the context.
+  It is a standalone feature so transport middleware and `auth` can both depend on
+  the principal seam without depending on each other.
 
 ## Events
 

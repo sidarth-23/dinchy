@@ -8,19 +8,19 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/sidarth-23/dinchy/internal/features"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
-	"github.com/sidarth-23/dinchy/internal/module"
 )
 
 // API groups the health handlers and their shared dependencies.
 type API struct {
-	*module.Service
+	*features.Service
 	db Pinger
 }
 
 // NewAPI builds the health API.
-func NewAPI(base *module.Service, db Pinger) (*API, error) {
+func NewAPI(base *features.Service, db Pinger) (*API, error) {
 	if base == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("health module service is required")))
 	}
@@ -51,7 +51,7 @@ func (a *API) Register(h huma.API) {
 	}, a.readyz)
 }
 
-var _ module.Module = (*API)(nil)
+var _ features.Module = (*API)(nil)
 
 func (a *API) healthz(context.Context, *struct{}) (*HealthOut, error) {
 	return &HealthOut{

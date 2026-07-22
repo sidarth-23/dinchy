@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sidarth-23/dinchy/internal/features"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
-	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/events"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -15,12 +15,12 @@ import (
 
 // Service records and lists audit events. It implements events.Subscriber.
 type Service struct {
-	*module.Service
+	*features.Service
 	store Store
 }
 
 // NewService builds an audit Service, requiring a non-nil store and clock.
-func NewService(base *module.Service, store Store) (*Service, error) {
+func NewService(base *features.Service, store Store) (*Service, error) {
 	if base == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(fmt.Errorf("audit module service is required")))
 	}
@@ -53,7 +53,7 @@ func (s *Service) Handle(ctx context.Context, event events.Record) error {
 
 var (
 	_ events.Subscriber = (*Service)(nil)
-	_ module.Module     = (*Service)(nil)
+	_ features.Module   = (*Service)(nil)
 )
 
 // List returns audit records matching the given filters.

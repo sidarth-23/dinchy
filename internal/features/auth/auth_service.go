@@ -6,19 +6,19 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features"
+	"github.com/sidarth-23/dinchy/internal/features/session"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
-	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/events"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
 // Service handles authentication, sessions, TOTP, invitations, and SSO for the auth feature.
 type Service struct {
-	*module.Service
+	*features.Service
 	beginTx    func(context.Context) (*setupTransaction, error)
 	store      Store
 	sessions   *session.Service
@@ -28,7 +28,7 @@ type Service struct {
 }
 
 // NewService builds an auth Service, wiring the SSO registry and falling back to a no-op mailer when none is provided.
-func NewService(base *module.Service, store Store, sessions *session.Service, authConfig config.AuthConfig, links config.Links, providers []config.SSOProviderConfig) (*Service, error) {
+func NewService(base *features.Service, store Store, sessions *session.Service, authConfig config.AuthConfig, links config.Links, providers []config.SSOProviderConfig) (*Service, error) {
 	if base == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("auth module service is required")))
 	}
@@ -52,7 +52,7 @@ func NewService(base *module.Service, store Store, sessions *session.Service, au
 	return service, nil
 }
 
-var _ module.Module = (*Service)(nil)
+var _ features.Module = (*Service)(nil)
 
 // Bootstrap reports whether first-user setup is still required and the current instance name.
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapState, error) {

@@ -8,7 +8,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
-	"github.com/sidarth-23/dinchy/internal/access/permission"
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
 	"github.com/sidarth-23/dinchy/internal/foundation/transform"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )

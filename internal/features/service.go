@@ -1,5 +1,5 @@
-// Package module provides shared service foundations for application modules.
-package module
+// Package features provides the shared service base that every feature service embeds.
+package features
 
 import (
 	"context"

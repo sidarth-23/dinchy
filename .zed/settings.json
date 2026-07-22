@@ -43,13 +43,13 @@
                         },
                         {
                             "name": "Dinchy permission catalog",
-                            "fileMatch": ["internal/access/permission/permissions.json"],
-                            "url": "./internal/access/permission/permissions.schema.json"
+                            "fileMatch": ["internal/foundation/permission/permissions.json"],
+                            "url": "./internal/foundation/permission/permissions.schema.json"
                         },
                         {
                             "name": "Dinchy role catalog",
-                            "fileMatch": ["internal/access/permission/roles.json"],
-                            "url": "./internal/access/permission/roles.schema.json"
+                            "fileMatch": ["internal/foundation/permission/roles.json"],
+                            "url": "./internal/foundation/permission/roles.schema.json"
                         }
                     ]
                 }

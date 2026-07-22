@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/foundation/clock"
-	"github.com/sidarth-23/dinchy/internal/module"
 )
 
 type fakePinger struct {
@@ -29,7 +29,7 @@ func newTestHandler(t *testing.T, db Pinger) http.Handler {
 	t.Helper()
 	r := chi.NewRouter()
 	api := humachi.New(r, huma.DefaultConfig("Dinchy Internal API", "0.1.0"))
-	base := (&module.Service{Clock: clock.System{}}).Named("health")
+	base := (&features.Service{Clock: clock.System{}}).Named("health")
 	healthAPI, err := NewAPI(base, db)
 	require.NoError(t, err)
 	healthAPI.Register(api)
@@ -37,7 +37,7 @@ func newTestHandler(t *testing.T, db Pinger) http.Handler {
 }
 
 func TestAPIName(t *testing.T) {
-	base := (&module.Service{Clock: clock.System{}}).Named("health")
+	base := (&features.Service{Clock: clock.System{}}).Named("health")
 	healthAPI, err := NewAPI(base, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "health", healthAPI.Name())
