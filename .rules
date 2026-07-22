@@ -109,7 +109,7 @@
     * `*_type.go` for feature-local types, request/response shapes, enums, and data structures that define the feature contract.
     * `handler.go` for the feature’s transport entrypoint when the feature has a single primary handler file and the name is clearer without a prefix.
     * `*_background_job.go` for background workers, schedulers, queue consumers, and task execution logic owned by the feature.
-    * `events.json` for the feature's hand-written event catalog fragment; it holds exactly one top-level module named after the feature and is validated against `internal/events/catalog.schema.json`.
+    * `events.json` for the feature's hand-written event catalog fragment; it holds exactly one top-level module named after the feature and is validated against `internal/platform/events/catalog.schema.json`.
     * `events_generated.go` for the generated event constants, `EventDefinitions`, typed metadata, and event aliases produced from `events.json`; it is code-generated and must not be edited by hand.
   * If a file does not fit one of these classes, treat that as a design decision, not a naming accident.
   * Any additional filename class must be explicitly requested, approved, and added to this file before use.

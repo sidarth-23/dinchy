@@ -19,7 +19,7 @@ test = "go test ./..."
 lint = "golangci-lint run"
 "lint:fix" = "golangci-lint run --fix"
 fmt = "golangci-lint fmt"
-generate = "go generate ./internal/foundation/errors ./internal/foundation/i18n ./internal/events ./internal/access/permission && sqlc generate"
+generate = "go generate ./internal/foundation/errors ./internal/foundation/i18n ./internal/platform/events ./internal/access/permission && sqlc generate"
 "db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
 "db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }

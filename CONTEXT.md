@@ -44,7 +44,7 @@ imports `config`, `platform`, or any feature. It holds `errors`, `i18n`, `clock`
   carrying request-scoped observability values (client IP, user agent, and
   request/trace/span IDs) across layers via the context. Transport middleware
   populates it; any layer reads it, including non-transport code (e.g. the events
-  envelope). It replaced the reach from `internal/events` into
+  envelope). It replaced the reach from `internal/platform/events` into
   `internal/transport/support`, so the event layer no longer depends on transport.
 - **Password hashing** lives entirely in `internal/platform/security` (algorithm
   *and* its Argon2id parameters/format constants); `security` depends on nothing
@@ -52,7 +52,7 @@ imports `config`, `platform`, or any feature. It holds `errors`, `i18n`, `clock`
 
 ## Events
 
-- **Event bus** (`internal/events`) — generic transport machinery only: the
+- **Event bus** (`internal/platform/events`) — generic transport machinery only: the
   `Publisher`/`Subscriber` seam, Redis-stream delivery, consumer groups, the base
   types (`Type`, `Envelope`, `TypedEvent`, `Definition`, `Record`), and the shared
   `catalog.schema.json`. It imports no feature and owns no feature's vocabulary.

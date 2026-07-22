@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sidarth-23/dinchy/internal/events"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
 	"github.com/sidarth-23/dinchy/internal/module"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )

@@ -21,7 +21,7 @@ type (
 func runEvent(args []string) error {
 	fs := flag.NewFlagSet("event", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	features := fs.String("features", "../features", "feature packages directory holding per-feature events.json fragments")
+	features := fs.String("features", "internal/features", "feature packages directory holding per-feature events.json fragments")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

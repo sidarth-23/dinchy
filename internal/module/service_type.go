@@ -9,13 +9,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/foundation/clock"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
 	"github.com/sidarth-23/dinchy/internal/platform/jobs"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 )

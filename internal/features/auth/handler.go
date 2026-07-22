@@ -10,10 +10,10 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/permission"
 	"github.com/sidarth-23/dinchy/internal/access/session"
-	"github.com/sidarth-23/dinchy/internal/events"
 	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )

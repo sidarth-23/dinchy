@@ -1,6 +1,6 @@
 package events
 
-//go:generate go run ../../cmd/codegen event -features ../features
+//go:generate go run ../../../cmd/codegen event -features ../../features
 
 import (
 	"context"

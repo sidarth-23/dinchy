@@ -3,7 +3,7 @@
 package auth
 
 import (
-	"github.com/sidarth-23/dinchy/internal/events"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
 )
 
 const (

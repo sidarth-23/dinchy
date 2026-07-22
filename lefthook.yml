@@ -23,7 +23,7 @@ pre-commit:
 
                   - name: generate catalogs
                     glob: "internal/{features/*/events.json,foundation/i18n/catalog/**/*.json,access/permission/{permissions,roles}.json}"
-                    run: go generate ./internal/foundation/i18n ./internal/events ./internal/access/permission && git add internal/features/*/events_generated.go internal/foundation/i18n/generated.go internal/access/permission/permission_generated.go internal/access/permission/role_generated.go
+                    run: go generate ./internal/foundation/i18n ./internal/platform/events ./internal/access/permission && git add internal/features/*/events_generated.go internal/foundation/i18n/generated.go internal/access/permission/permission_generated.go internal/access/permission/role_generated.go
 
                   - name: generate sqlc
                     glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"

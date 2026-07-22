@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
 )
 
 func TestNewEnvelope_PopulatesRequestAndTraceMetadata(t *testing.T) {

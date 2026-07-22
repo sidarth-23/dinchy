@@ -16,7 +16,6 @@ import (
 
 	"github.com/sidarth-23/dinchy/internal/access/session"
 	"github.com/sidarth-23/dinchy/internal/config"
-	"github.com/sidarth-23/dinchy/internal/events"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
 	"github.com/sidarth-23/dinchy/internal/features/health"
@@ -27,6 +26,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/module"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
 	"github.com/sidarth-23/dinchy/internal/platform/jobs"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
