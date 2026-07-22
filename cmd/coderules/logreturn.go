@@ -8,15 +8,29 @@ import (
 	"go/types"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
 
-const (
-	loggingPackagePath     = "github.com/sidarth-23/dinchy/internal/platform/logging"
-	sqlcGeneratedDirMarker = "/internal/platform/store/sqlcgen/"
-	allowLogReturnPrefix   = "dinchy:allow-logreturn"
+// loggingSink names methods that count as error logging. An empty typeName matches
+// package-level functions; otherwise it matches methods on a pointer to the named type.
+type loggingSink struct {
+	packagePath string
+	typeName    string
+	methods     []string
+}
+
+var loggingSinks = []loggingSink{
+	{packagePath: "github.com/sidarth-23/dinchy/internal/platform/logging", methods: []string{"Error", "HTTPError", "Panic"}},
+	{packagePath: "log/slog", typeName: "Logger", methods: []string{"Error", "ErrorContext"}},
+}
+
+var (
+	skippedPackagePaths = []string{"github.com/sidarth-23/dinchy/internal/platform/logging"}
+	skippedPathMarkers  = []string{"/internal/platform/store/sqlcgen/"}
+	skippedFileSuffixes = []string{"_test.go"}
 )
 
 type functionUnit struct {
@@ -29,6 +43,12 @@ type functionUnit struct {
 	errorResultIndexes []int
 }
 
+// runLogReturn enforces the project rule "never log and return the same error." It loads
+// the packages matched by args with full type information and flags every function that
+// both calls an error-logging method (see loggingSinks) and returns a non-nil error, unless
+// the function carries a //dinchy:allow-logreturn directive with a reason. Findings are
+// joined into one error; a nil return means the scanned tree is clean.
+//
 //dinchy:allow-logreturn validator entrypoint reports violations by returning an error
 func runLogReturn(args []string) error {
 	patterns := args
@@ -106,20 +126,32 @@ func shouldSkipPackage(pkg *packages.Package) bool {
 	if pkg == nil {
 		return true
 	}
-	if pkg.PkgPath == loggingPackagePath {
+	if slices.Contains(skippedPackagePaths, pkg.PkgPath) {
 		return true
 	}
-	return strings.Contains(filepath.ToSlash(pkg.PkgPath), sqlcGeneratedDirMarker)
+	return pathContainsAny(pkg.PkgPath, skippedPathMarkers)
 }
 
 func shouldSkipFile(filename string) bool {
 	if filename == "" {
 		return true
 	}
-	if strings.HasSuffix(filename, "_test.go") {
-		return true
+	for _, suffix := range skippedFileSuffixes {
+		if strings.HasSuffix(filename, suffix) {
+			return true
+		}
 	}
-	return strings.Contains(filepath.ToSlash(filename), sqlcGeneratedDirMarker)
+	return pathContainsAny(filename, skippedPathMarkers)
+}
+
+func pathContainsAny(path string, markers []string) bool {
+	slashed := filepath.ToSlash(path)
+	for _, marker := range markers {
+		if strings.Contains(slashed, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func fileNameForSyntax(pkg *packages.Package, index int, file *ast.File) string {
@@ -224,13 +256,14 @@ func funcDeclDisplayName(decl *ast.FuncDecl) string {
 
 func analyzeFunctionUnit(fset *token.FileSet, filename string, unit functionUnit) []string {
 	violations := make([]string, 0, 2)
-	if directive := directiveViolation(fset, filename, unit); directive != "" {
-		violations = append(violations, directive)
+	found, reason := allowDirective(fset, unit)
+	if found && reason == "" {
+		violations = append(violations, formatFinding(fset, filename, unit.pos, "allow-logreturn directive requires a reason"))
 	}
 	if len(unit.errorResultIndexes) == 0 {
 		return violations
 	}
-	if exempt := directiveExempts(fset, unit); exempt {
+	if found && reason != "" {
 		return violations
 	}
 	if logreturn := logReturnViolation(fset, filename, unit); logreturn != "" {
@@ -239,17 +272,24 @@ func analyzeFunctionUnit(fset *token.FileSet, filename string, unit functionUnit
 	return violations
 }
 
-func directiveViolation(fset *token.FileSet, filename string, unit functionUnit) string {
-	if group := unit.doc; group != nil {
-		if found, msg := commentGroupDirective(group); found {
-			if msg != "" {
-				return fmt.Sprintf("%s:%d: %s", filename, fset.Position(unit.pos).Line, msg)
-			}
-			return ""
+// allowDirective reports whether the unit carries an allow-logreturn directive and the
+// reason attached to it. reason is empty when the directive is present without one.
+func allowDirective(fset *token.FileSet, unit functionUnit) (found bool, reason string) {
+	for _, group := range directiveGroups(fset, unit) {
+		if ok, r := commentGroupDirective(group); ok {
+			return true, r
 		}
 	}
+	return false, ""
+}
+
+func directiveGroups(fset *token.FileSet, unit functionUnit) []*ast.CommentGroup {
+	groups := make([]*ast.CommentGroup, 0, 2)
+	if unit.doc != nil {
+		groups = append(groups, unit.doc)
+	}
 	if len(unit.comments) == 0 {
-		return ""
+		return groups
 	}
 	startLine := fset.Position(unit.pos).Line
 	endLine := fset.Position(unit.body.End()).Line
@@ -258,46 +298,14 @@ func directiveViolation(fset *token.FileSet, filename string, unit functionUnit)
 			continue
 		}
 		line := fset.Position(group.Pos()).Line
-		if line != startLine && line != endLine {
-			continue
-		}
-		if found, msg := commentGroupDirective(group); found {
-			if msg != "" {
-				return fmt.Sprintf("%s:%d: %s", filename, fset.Position(unit.pos).Line, msg)
-			}
-			return ""
+		if line == startLine || line == endLine {
+			groups = append(groups, group)
 		}
 	}
-	return ""
+	return groups
 }
 
-func directiveExempts(fset *token.FileSet, unit functionUnit) bool {
-	if group := unit.doc; group != nil {
-		if found, msg := commentGroupDirective(group); found {
-			return msg == ""
-		}
-	}
-	if len(unit.comments) == 0 {
-		return false
-	}
-	startLine := fset.Position(unit.pos).Line
-	endLine := fset.Position(unit.body.End()).Line
-	for _, group := range unit.comments {
-		if group == nil || group == unit.doc {
-			continue
-		}
-		line := fset.Position(group.Pos()).Line
-		if line != startLine && line != endLine {
-			continue
-		}
-		if found, msg := commentGroupDirective(group); found {
-			return msg == ""
-		}
-	}
-	return false
-}
-
-func commentGroupDirective(group *ast.CommentGroup) (bool, string) {
+func commentGroupDirective(group *ast.CommentGroup) (found bool, reason string) {
 	if group == nil {
 		return false, ""
 	}
@@ -306,14 +314,11 @@ func commentGroupDirective(group *ast.CommentGroup) (bool, string) {
 			continue
 		}
 		text := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(comment.Text), "//"))
-		if !strings.HasPrefix(text, allowLogReturnPrefix) {
+		reason, ok := strings.CutPrefix(text, "dinchy:allow-logreturn")
+		if !ok {
 			continue
 		}
-		reason := strings.TrimSpace(strings.TrimPrefix(text, allowLogReturnPrefix))
-		if reason == "" {
-			return true, "allow-logreturn directive requires a reason"
-		}
-		return true, ""
+		return true, strings.TrimSpace(reason)
 	}
 	return false, ""
 }
@@ -339,7 +344,11 @@ func logReturnViolation(fset *token.FileSet, filename string, unit functionUnit)
 	if !hasLog || !hasErrorReturn {
 		return ""
 	}
-	return fmt.Sprintf("%s:%d: function %q logs an error and also returns one; log at the owning boundary or return only", filename, fset.Position(unit.pos).Line, unit.name)
+	return formatFinding(fset, filename, unit.pos, fmt.Sprintf("function %q logs an error and also returns one; log at the owning boundary or return only", unit.name))
+}
+
+func formatFinding(fset *token.FileSet, filename string, pos token.Pos, message string) string {
+	return fmt.Sprintf("%s:%d: %s", filename, fset.Position(pos).Line, message)
 }
 
 func isErrorReturn(indexes []int, stmt *ast.ReturnStmt) bool {
@@ -366,10 +375,6 @@ func isNilIdent(expr ast.Expr) bool {
 }
 
 func isLoggingCall(unit functionUnit, call *ast.CallExpr) bool {
-	return isLoggingCallTyped(unit, call)
-}
-
-func isLoggingCallTyped(unit functionUnit, call *ast.CallExpr) bool {
 	if call == nil || unit.info == nil {
 		return false
 	}
@@ -377,24 +382,27 @@ func isLoggingCallTyped(unit functionUnit, call *ast.CallExpr) bool {
 	if !ok {
 		return false
 	}
-	if obj, ok := unit.info.Uses[sel.Sel].(*types.Func); ok && obj.Pkg() != nil && obj.Pkg().Path() == loggingPackagePath {
-		switch obj.Name() {
-		case "Error", "HTTPError", "Panic":
+	for _, sink := range loggingSinks {
+		if sink.matches(unit.info, sel) {
 			return true
-		}
-	}
-	if selInfo, ok := unit.info.Selections[sel]; ok {
-		if isSlogLoggerPointer(selInfo.Recv()) {
-			switch sel.Sel.Name {
-			case "Error", "ErrorContext":
-				return true
-			}
 		}
 	}
 	return false
 }
 
-func isSlogLoggerPointer(t types.Type) bool {
+func (s loggingSink) matches(info *types.Info, sel *ast.SelectorExpr) bool {
+	if !slices.Contains(s.methods, sel.Sel.Name) {
+		return false
+	}
+	if s.typeName == "" {
+		obj, ok := info.Uses[sel.Sel].(*types.Func)
+		return ok && obj.Pkg() != nil && obj.Pkg().Path() == s.packagePath
+	}
+	selInfo, ok := info.Selections[sel]
+	return ok && isPointerToNamed(selInfo.Recv(), s.packagePath, s.typeName)
+}
+
+func isPointerToNamed(t types.Type, packagePath, name string) bool {
 	ptr, ok := t.(*types.Pointer)
 	if !ok {
 		return false
@@ -404,5 +412,5 @@ func isSlogLoggerPointer(t types.Type) bool {
 		return false
 	}
 	obj := named.Obj()
-	return obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == "log/slog" && obj.Name() == "Logger"
+	return obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == packagePath && obj.Name() == name
 }
