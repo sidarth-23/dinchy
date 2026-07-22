@@ -33,7 +33,6 @@ type Service struct {
 	IDGenerator    *id.Generator
 	Database       *pgxpool.Pool
 	RedisClient    *goredis.Client
-	Cache          cache.Cache
 	CacheKeyer     cache.Keyer
 	Mailer         *email.Mailer
 	EventPublisher events.Publisher

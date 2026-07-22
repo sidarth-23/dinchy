@@ -18,18 +18,22 @@ type sample struct {
 	Count int    `json:"count"`
 }
 
-func newTestCache(t *testing.T, enabled bool) (cache.Cache, *miniredis.Miniredis) {
+func newTestClient(t *testing.T) (*goredis.Client, *miniredis.Miniredis) {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return cache.NewRedis(client, cache.NewKeyer("dinchy"), enabled), mr
+	return client, mr
+}
+
+func newEntry(client *goredis.Client, namespace string, ttl time.Duration) cache.Entry[sample] {
+	return cache.NewEntry[sample](client, cache.NewKeyer("dinchy"), namespace, ttl)
 }
 
 func TestEntry_GetMissThenHit(t *testing.T) {
 	t.Parallel()
-	c, _ := newTestCache(t, true)
-	entry := cache.NewEntry[sample](c, "sample", time.Minute)
+	client, _ := newTestClient(t)
+	entry := newEntry(client, "sample", time.Minute)
 	ctx := context.Background()
 
 	_, hit, err := entry.Get(ctx, "a")
@@ -46,8 +50,8 @@ func TestEntry_GetMissThenHit(t *testing.T) {
 
 func TestEntry_SetWithTTLExpires(t *testing.T) {
 	t.Parallel()
-	c, mr := newTestCache(t, true)
-	entry := cache.NewEntry[sample](c, "sample", time.Hour)
+	client, mr := newTestClient(t)
+	entry := newEntry(client, "sample", time.Hour)
 	ctx := context.Background()
 
 	require.NoError(t, entry.SetWithTTL(ctx, "a", sample{Name: "x"}, 30*time.Second))
@@ -63,8 +67,8 @@ func TestEntry_SetWithTTLExpires(t *testing.T) {
 
 func TestEntry_DeleteRemovesKeys(t *testing.T) {
 	t.Parallel()
-	c, _ := newTestCache(t, true)
-	entry := cache.NewEntry[sample](c, "sample", time.Minute)
+	client, _ := newTestClient(t)
+	entry := newEntry(client, "sample", time.Minute)
 	ctx := context.Background()
 
 	require.NoError(t, entry.Set(ctx, "a", sample{Name: "a"}))
@@ -81,10 +85,10 @@ func TestEntry_DeleteRemovesKeys(t *testing.T) {
 
 func TestEntry_NamespacesDoNotCollide(t *testing.T) {
 	t.Parallel()
-	c, _ := newTestCache(t, true)
+	client, _ := newTestClient(t)
 	ctx := context.Background()
-	first := cache.NewEntry[sample](c, "one", time.Minute)
-	second := cache.NewEntry[sample](c, "two", time.Minute)
+	first := newEntry(client, "one", time.Minute)
+	second := newEntry(client, "two", time.Minute)
 
 	require.NoError(t, first.Set(ctx, "id", sample{Name: "first"}))
 	require.NoError(t, second.Set(ctx, "id", sample{Name: "second"}))
@@ -95,22 +99,9 @@ func TestEntry_NamespacesDoNotCollide(t *testing.T) {
 	assert.Equal(t, "first", got.Name)
 }
 
-func TestEntry_DisabledCacheIsNoop(t *testing.T) {
+func TestEntry_NilClientIsNoop(t *testing.T) {
 	t.Parallel()
-	c, _ := newTestCache(t, false)
-	entry := cache.NewEntry[sample](c, "sample", time.Minute)
-	ctx := context.Background()
-
-	require.False(t, entry.Enabled())
-	require.NoError(t, entry.Set(ctx, "a", sample{Name: "x"}))
-	_, hit, err := entry.Get(ctx, "a")
-	require.NoError(t, err)
-	assert.False(t, hit)
-}
-
-func TestEntry_NilCacheIsNoop(t *testing.T) {
-	t.Parallel()
-	entry := cache.NewEntry[sample](nil, "sample", time.Minute)
+	entry := newEntry(nil, "sample", time.Minute)
 	ctx := context.Background()
 
 	require.False(t, entry.Enabled())
@@ -123,8 +114,8 @@ func TestEntry_NilCacheIsNoop(t *testing.T) {
 
 func TestEntry_ReadErrorSurfaces(t *testing.T) {
 	t.Parallel()
-	c, mr := newTestCache(t, true)
-	entry := cache.NewEntry[sample](c, "sample", time.Minute)
+	client, mr := newTestClient(t)
+	entry := newEntry(client, "sample", time.Minute)
 	ctx := context.Background()
 
 	require.NoError(t, entry.Set(ctx, "a", sample{Name: "x"}))

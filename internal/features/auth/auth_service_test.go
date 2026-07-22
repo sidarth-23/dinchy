@@ -48,7 +48,9 @@ func newTestService(t *testing.T) (*Service, *MockStore) {
 	require.NoError(t, err)
 	publisher := &recordingPublisher{}
 	sharedService := module.Service{Clock: clk, IDGenerator: id.NewGenerator(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: noopMailer, EventPublisher: publisher}
-	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), config.DefaultCache())
+	cacheConfig := config.DefaultCache()
+	cacheConfig.Enabled = false
+	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), cacheConfig)
 	require.NoError(t, err)
 	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), nil)
 	require.NoError(t, err)

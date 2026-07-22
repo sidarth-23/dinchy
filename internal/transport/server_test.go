@@ -32,7 +32,7 @@ func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler 
 	svc, err := auth.NewService(sharedService.Named("auth"), nil, sessionSvc, config.DefaultAuth(), nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
-	srv := transport.New(":0", dist, svc, sessionSvc, nil, nil, false, devMode, false, devProxyURL, nil)
+	srv := transport.New(":0", dist, svc, sessionSvc, nil, false, devMode, false, devProxyURL, nil)
 	return srv.Handler
 }
 

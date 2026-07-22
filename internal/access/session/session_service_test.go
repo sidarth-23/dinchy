@@ -81,17 +81,17 @@ func validRow(revoked pgtype.Timestamptz) sqlcgen.GetSessionByTokenHashRow {
 	}
 }
 
-func newCache(t *testing.T, enabled bool) (cache.Cache, *miniredis.Miniredis) {
+func newRedis(t *testing.T) (*goredis.Client, *miniredis.Miniredis) {
 	t.Helper()
 	mr := miniredis.RunT(t)
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return cache.NewRedis(client, cache.NewKeyer("dinchy"), enabled), mr
+	return client, mr
 }
 
-func newService(t *testing.T, store session.Store, c cache.Cache) *session.Service {
+func newService(t *testing.T, store session.Store, client *goredis.Client) *session.Service {
 	t.Helper()
-	base := (&module.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), Cache: c}).Named("session")
+	base := (&module.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), RedisClient: client, CacheKeyer: cache.NewKeyer("dinchy")}).Named("session")
 	service, err := session.NewService(base, store, config.DefaultSession(), config.DefaultCache())
 	require.NoError(t, err)
 	return service
@@ -104,8 +104,8 @@ func TestServiceName(t *testing.T) {
 func TestSession_CachesAfterFirstLookup(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{row: validRow(pgtype.Timestamptz{})}
-	c, _ := newCache(t, true)
-	svc := newService(t, store, c)
+	client, _ := newRedis(t)
+	svc := newService(t, store, client)
 	ctx := context.Background()
 
 	first, err := svc.Session(ctx, testRawToken)
@@ -138,8 +138,8 @@ func TestSession_DisabledCacheAlwaysHitsStore(t *testing.T) {
 func TestSession_DoesNotCacheRevoked(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{row: validRow(sqltype.Timestamptz(fixedTime))}
-	c, _ := newCache(t, true)
-	svc := newService(t, store, c)
+	client, _ := newRedis(t)
+	svc := newService(t, store, client)
 	ctx := context.Background()
 
 	p, err := svc.Session(ctx, testRawToken)
@@ -155,8 +155,8 @@ func TestSession_DoesNotCacheExpired(t *testing.T) {
 	row := validRow(pgtype.Timestamptz{})
 	row.IdleExpiresAt = sqltype.Timestamptz(fixedTime.Add(-time.Minute))
 	store := &fakeStore{row: row}
-	c, _ := newCache(t, true)
-	svc := newService(t, store, c)
+	client, _ := newRedis(t)
+	svc := newService(t, store, client)
 	ctx := context.Background()
 
 	p, err := svc.Session(ctx, testRawToken)
@@ -170,8 +170,8 @@ func TestSession_DoesNotCacheExpired(t *testing.T) {
 func TestSession_TTLCapExpiresEntry(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{row: validRow(pgtype.Timestamptz{})}
-	c, mr := newCache(t, true)
-	svc := newService(t, store, c)
+	client, mr := newRedis(t)
+	svc := newService(t, store, client)
 	ctx := context.Background()
 
 	_, err := svc.Session(ctx, testRawToken)
@@ -188,8 +188,8 @@ func TestSession_TTLCapExpiresEntry(t *testing.T) {
 func TestLogout_InvalidatesCache(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{row: validRow(pgtype.Timestamptz{})}
-	c, _ := newCache(t, true)
-	svc := newService(t, store, c)
+	client, _ := newRedis(t)
+	svc := newService(t, store, client)
 	ctx := context.Background()
 
 	_, err := svc.Session(ctx, testRawToken)
@@ -207,8 +207,8 @@ func TestLogout_InvalidatesCache(t *testing.T) {
 func TestRevokeForUser_InvalidatesCache(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{row: validRow(pgtype.Timestamptz{}), userHashes: []string{security.HashToken(testRawToken)}}
-	c, _ := newCache(t, true)
-	svc := newService(t, store, c)
+	client, _ := newRedis(t)
+	svc := newService(t, store, client)
 	ctx := context.Background()
 
 	_, err := svc.Session(ctx, testRawToken)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/sidarth-23/dinchy/internal/config"
 	apperrors "github.com/sidarth-23/dinchy/internal/errors"
@@ -53,11 +54,15 @@ func NewService(base *module.Service, store Store, sessionConfig config.SessionC
 	if err := base.Initialize(); err != nil {
 		return nil, apperrors.Annotate(err)
 	}
+	var cacheClient *goredis.Client
+	if cacheConfig.Enabled {
+		cacheClient = base.RedisClient
+	}
 	return &Service{
 		Service:       base,
 		store:         store,
 		config:        sessionConfig,
-		principals:    cache.NewEntry[cachedPrincipal](base.Cache, sessionCacheNamespace, cacheConfig.SessionTTLCap),
+		principals:    cache.NewEntry[cachedPrincipal](cacheClient, base.CacheKeyer, sessionCacheNamespace, cacheConfig.SessionTTLCap),
 		sessionTTLCap: cacheConfig.SessionTTLCap,
 	}, nil
 }

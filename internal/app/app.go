@@ -85,8 +85,7 @@ func (a *App) Start() error {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
 	keyer := cache.NewKeyer(a.cfg.Redis.KeyPrefix)
-	sessionCache := cache.NewRedis(redisClient, keyer, a.cfg.Cache.Enabled)
-	sharedService := module.Service{BaseLogger: a.logger, Clock: clk, IDGenerator: id.NewGenerator(), Database: s.Pool(), RedisClient: redisClient, Cache: sessionCache, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc}
+	sharedService := module.Service{BaseLogger: a.logger, Clock: clk, IDGenerator: id.NewGenerator(), Database: s.Pool(), RedisClient: redisClient, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc}
 	auditSvc, err := audit.NewService(sharedService.Named("audit"), queries)
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
@@ -111,7 +110,7 @@ func (a *App) Start() error {
 		}
 		dist = distFS
 	}
-	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.ExposeInternalErrors, a.cfg.DevProxyURL, a.logger)
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.ExposeInternalErrors, a.cfg.DevProxyURL, a.logger)
 	healthAPI, err := health.NewAPI(sharedService.Named("health"), s)
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))

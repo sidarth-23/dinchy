@@ -84,15 +84,8 @@ const (
 	CodeDiagnosticsSessionRevokeSession                      Code = "diagnostics.session.revoke_session"
 	CodeDiagnosticsSessionRevokeSessionsForUser              Code = "diagnostics.session.revoke_sessions_for_user"
 	CodeDiagnosticsStoreClose                                Code = "diagnostics.store.close"
-	CodeDiagnosticsStoreCountUsers                           Code = "diagnostics.store.count_users"
 	CodeDiagnosticsStoreEnsureDefaultSettings                Code = "diagnostics.store.ensure_default_settings"
-	CodeDiagnosticsStoreGetInstanceName                      Code = "diagnostics.store.get_instance_name"
 	CodeDiagnosticsStorePing                                 Code = "diagnostics.store.ping"
-	CodeDiagnosticsStoreTxBegin                              Code = "diagnostics.store.tx.begin"
-	CodeDiagnosticsStoreTxBody                               Code = "diagnostics.store.tx.body"
-	CodeDiagnosticsStoreTxCommit                             Code = "diagnostics.store.tx.commit"
-	CodeDiagnosticsStoreTxPassthrough                        Code = "diagnostics.store.tx.passthrough"
-	CodeDiagnosticsStoreTxRollback                           Code = "diagnostics.store.tx.rollback"
 	CodeDiagnosticsWorkersEventProcessing                    Code = "diagnostics.workers.event_processing"
 	CodeDiagnosticsWorkersSessionCleanup                     Code = "diagnostics.workers.session_cleanup"
 	CodeNotificationEmailFooter                              Code = "notification.email.footer"
@@ -190,15 +183,8 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsSessionRevokeSession:                      "Revoke session failed",
 		CodeDiagnosticsSessionRevokeSessionsForUser:              "Revoke user sessions failed",
 		CodeDiagnosticsStoreClose:                                "Close store failed",
-		CodeDiagnosticsStoreCountUsers:                           "Count users failed",
 		CodeDiagnosticsStoreEnsureDefaultSettings:                "Ensure default settings failed",
-		CodeDiagnosticsStoreGetInstanceName:                      "Get instance name failed",
 		CodeDiagnosticsStorePing:                                 "Ping store failed",
-		CodeDiagnosticsStoreTxBegin:                              "Begin transaction failed",
-		CodeDiagnosticsStoreTxBody:                               "Transaction body failed",
-		CodeDiagnosticsStoreTxCommit:                             "Commit transaction failed",
-		CodeDiagnosticsStoreTxPassthrough:                        "Nested transaction body failed",
-		CodeDiagnosticsStoreTxRollback:                           "Roll back transaction failed",
 		CodeDiagnosticsWorkersEventProcessing:                    "Event subscriber processing failed",
 		CodeDiagnosticsWorkersSessionCleanup:                     "Session cleanup worker execution failed",
 		CodeNotificationEmailFooter:                              "This is an automated message from Dinchy. Please do not reply to this email.",

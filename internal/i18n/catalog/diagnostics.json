@@ -375,18 +375,6 @@
               }
             },
             {
-              "name": "count_users",
-              "translations": {
-                "en": "Count users failed"
-              }
-            },
-            {
-              "name": "get_instance_name",
-              "translations": {
-                "en": "Get instance name failed"
-              }
-            },
-            {
               "name": "ping",
               "translations": {
                 "en": "Ping store failed"
@@ -397,44 +385,6 @@
               "translations": {
                 "en": "Close store failed"
               }
-            }
-          ],
-          "modules": [
-            {
-              "name": "tx",
-              "description": "Internal transaction failure diagnostics",
-              "messages": [
-                {
-                  "name": "begin",
-                  "translations": {
-                    "en": "Begin transaction failed"
-                  }
-                },
-                {
-                  "name": "body",
-                  "translations": {
-                    "en": "Transaction body failed"
-                  }
-                },
-                {
-                  "name": "commit",
-                  "translations": {
-                    "en": "Commit transaction failed"
-                  }
-                },
-                {
-                  "name": "rollback",
-                  "translations": {
-                    "en": "Roll back transaction failed"
-                  }
-                },
-                {
-                  "name": "passthrough",
-                  "translations": {
-                    "en": "Nested transaction body failed"
-                  }
-                }
-              ]
             }
           ]
         },

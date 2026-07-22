@@ -43,7 +43,9 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	mailer, err := email.NewMailer(sender, "https://app.test")
 	require.NoError(t, err)
 	sharedService := module.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: mailer}
-	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), config.DefaultCache())
+	cacheConfig := config.DefaultCache()
+	cacheConfig.Enabled = false
+	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), cacheConfig)
 	require.NoError(t, err)
 	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), nil)
 	require.NoError(t, err)
