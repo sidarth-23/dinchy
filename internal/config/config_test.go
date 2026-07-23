@@ -165,6 +165,15 @@ func TestLoad_NormalizesLogLevel(t *testing.T) {
 	assert.Equal(t, config.LogLevelInfo, cfg.Logging.Level)
 }
 
+func TestLoad_AcceptsTraceLogLevel(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_LOG_LEVEL", "trace")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, config.LogLevelTrace, cfg.Logging.Level)
+}
+
 func TestLoad_TrimsConfigFields(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_EVENT_BUS_CONSUMER_GROUP_PREFIX", "  audit  ")

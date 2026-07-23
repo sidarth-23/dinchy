@@ -7,14 +7,16 @@
 // context-rich results, and only the first layer that can observe the full
 // outcome logs it. Never log the same event in both a callee and its caller.
 //
-// # Events: Info and Warn
+// # Events: Trace, Info, and Warn
 //
 // Use Info for completed milestones and state transitions (application started,
 // worker registered, session cleanup finished). Use Warn for recoverable
 // anomalies and fallbacks that do not fail the operation (a dev proxy URL is
 // invalid, no workers are registered); a warning should say what was skipped,
 // degraded, or fell back. If the condition should fail the request or process,
-// return an error instead of warning.
+// return an error instead of warning. Use Trace (level LevelTrace, one step
+// below Debug) for high-volume internals such as SQL queries and scheduler
+// diagnostics, keeping Debug reserved for application-level detail.
 //
 // # Message style
 //

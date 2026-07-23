@@ -47,8 +47,11 @@ type slogLogger struct{ logger *slog.Logger }
 
 func newSlogLogger(logger *slog.Logger) gocron.Logger { return slogLogger{logger: logger} }
 
-// Debug logs a gocron debug message.
-func (l slogLogger) Debug(msg string, args ...any) { l.logger.Debug(msg, args...) }
+// Debug maps gocron's framework debug diagnostics to the trace level, keeping
+// them out of debug output.
+func (l slogLogger) Debug(msg string, args ...any) {
+	l.logger.Log(context.Background(), logging.LevelTrace, msg, args...)
+}
 
 // Info logs a gocron info message.
 func (l slogLogger) Info(msg string, args ...any) { l.logger.Info(msg, args...) }

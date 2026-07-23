@@ -28,10 +28,11 @@ type consoleHandler struct {
 func newConsoleHandler(out io.Writer, level slog.Level, addSource bool, blockKeys map[string]bool) *consoleHandler {
 	buf := &bytes.Buffer{}
 	inner := tint.NewTextHandler(buf, &tint.Options{
-		Level:      level,
-		AddSource:  addSource,
-		TimeFormat: "15:04:05.000",
-		NoColor:    consoleNoColor(out),
+		Level:       level,
+		AddSource:   addSource,
+		TimeFormat:  "15:04:05.000",
+		NoColor:     consoleNoColor(out),
+		ReplaceAttr: replaceLevelName,
 	})
 	return &consoleHandler{mu: &sync.Mutex{}, out: out, buf: buf, inner: inner, blockKeys: blockKeys}
 }

@@ -3,6 +3,7 @@ package logging
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 	"testing"
@@ -26,6 +27,27 @@ func TestConsoleHandler_RendersBlockAttrAsIndentedLines(t *testing.T) {
 	require.Contains(t, out, `command_tag="UPDATE 0"`)
 	require.Contains(t, out, "\n  SELECT id\n  FROM river_job\n  WHERE state = 'available'\n")
 	require.NotContains(t, out, "query=", "block attribute must not render inline on the main line")
+}
+
+func TestReplaceLevelName_RendersTraceInJSON(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buffer,
+		&slog.HandlerOptions{Level: LevelTrace, ReplaceAttr: replaceLevelName}))
+
+	logger.Log(context.Background(), LevelTrace, "Database query completed")
+
+	var record map[string]any
+	require.NoError(t, json.Unmarshal(buffer.Bytes(), &record))
+	require.Equal(t, "TRACE", record["level"])
+}
+
+func TestReplaceLevelName_RendersTraceInConsole(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(newConsoleHandler(&buffer, LevelTrace, false, nil))
+
+	logger.Log(context.Background(), LevelTrace, "Database query completed")
+
+	require.Contains(t, buffer.String(), "TRACE")
 }
 
 func TestConsoleHandler_KeepsNonBlockAttrsInline(t *testing.T) {

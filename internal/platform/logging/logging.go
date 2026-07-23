@@ -14,12 +14,19 @@ import (
 
 var revealRedacted atomic.Bool
 
+// LevelTrace is the most verbose level, one step below slog.LevelDebug. It
+// carries high-volume, low-signal internals such as SQL queries and scheduler
+// diagnostics, keeping debug reserved for application events.
+const LevelTrace = slog.Level(-8)
+
 // New builds a slog.Logger from cfg, attaching trace context and an optional OpenTelemetry handler.
 func New(cfg config.LoggingConfig, revealSensitive bool, otel slog.Handler) *slog.Logger {
 	SetRedactionVisible(revealSensitive)
 
 	level := slog.LevelInfo
 	switch cfg.Level {
+	case config.LogLevelTrace:
+		level = LevelTrace
 	case config.LogLevelDebug:
 		level = slog.LevelDebug
 	case config.LogLevelWarn:
@@ -32,7 +39,7 @@ func New(cfg config.LoggingConfig, revealSensitive bool, otel slog.Handler) *slo
 	if cfg.Format == config.LogFormatText {
 		base = newConsoleHandler(os.Stdout, level, cfg.AddSource, map[string]bool{"query": true})
 	} else {
-		opts := &slog.HandlerOptions{Level: level, AddSource: cfg.AddSource}
+		opts := &slog.HandlerOptions{Level: level, AddSource: cfg.AddSource, ReplaceAttr: replaceLevelName}
 		base = slog.NewJSONHandler(os.Stdout, opts)
 	}
 	base = traceHandler{next: base}
@@ -40,6 +47,17 @@ func New(cfg config.LoggingConfig, revealSensitive bool, otel slog.Handler) *slo
 		base = multiHandler{handlers: []slog.Handler{base, traceHandler{next: otel}}}
 	}
 	return slog.New(base)
+}
+
+// replaceLevelName renders LevelTrace as "TRACE"; without it slog prints the
+// custom sub-debug level as "DEBUG-4".
+func replaceLevelName(_ []string, attr slog.Attr) slog.Attr {
+	if attr.Key == slog.LevelKey {
+		if level, ok := attr.Value.Any().(slog.Level); ok && level == LevelTrace {
+			attr.Value = slog.StringValue("TRACE")
+		}
+	}
+	return attr
 }
 
 // Default returns the process-wide default logger.
