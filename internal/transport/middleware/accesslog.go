@@ -9,7 +9,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/sidarth-23/dinchy/internal/features/session"
-	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
+	"github.com/sidarth-23/dinchy/internal/foundation/requestmeta"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 )
 
@@ -24,10 +24,10 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 
 			attrs := []any{
-				slog.String("request_id", requestcontext.RequestIDFrom(r.Context())),
+				slog.String("request_id", requestmeta.RequestIDFrom(r.Context())),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.String("remote_ip", requestcontext.RemoteIPFrom(r.Context())),
+				slog.String("remote_ip", requestmeta.RemoteIPFrom(r.Context())),
 			}
 			if principal := session.PrincipalFrom(r.Context()); principal != nil {
 				attrs = append(attrs, slog.String("actor_user_id", principal.UserID), slog.String("actor_organization_id", principal.OrganizationID))

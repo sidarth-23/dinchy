@@ -19,7 +19,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/features/session"
 	"github.com/sidarth-23/dinchy/internal/foundation/id"
 	"github.com/sidarth-23/dinchy/internal/foundation/permission"
-	"github.com/sidarth-23/dinchy/internal/foundation/requestcontext"
+	"github.com/sidarth-23/dinchy/internal/foundation/requestmeta"
 	"github.com/sidarth-23/dinchy/internal/foundation/security"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
@@ -47,7 +47,7 @@ func newHTTPTestAPI(t *testing.T) (*API, *MockStore) {
 }
 
 func testHTTPContext() context.Context {
-	return requestcontext.WithRequestInfo(testCtx, "127.0.0.1", "ua")
+	return requestmeta.WithRequestInfo(testCtx, "127.0.0.1", "ua")
 }
 
 func TestAPILogin_Success(t *testing.T) {
@@ -271,7 +271,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 		requestCookies = append(requestCookies, &cookies[i])
 	}
 	ctx := support.WithSecure(
-		requestcontext.WithRequestInfo(
+		requestmeta.WithRequestInfo(
 			support.WithRequestCookies(context.Background(), requestCookies),
 			"127.0.0.1",
 			"ua",

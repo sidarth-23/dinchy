@@ -1,8 +1,8 @@
-// Package requestcontext carries request-scoped observability values — client IP,
+// Package requestmeta carries request-scoped observability values — client IP,
 // user agent, and request, trace, and span IDs — across layers via the context.
 // Transport middleware populates it; any layer that needs request provenance
 // reads it, including code outside the transport layer.
-package requestcontext
+package requestmeta
 
 import (
 	"context"

@@ -40,11 +40,11 @@ This file is domain facts, not rules of conduct: behavioral rules live in
 `internal/foundation/*` is the base tier: domain-agnostic primitives with zero
 internal dependencies (or, for `errors`, only `i18n`). Nothing in `foundation`
 imports `config`, `platform`, or any feature. It holds `errors`, `i18n`, `clock`,
-`id`, `transform`, `requestcontext`, `security` (password hashing and tokens), and
+`id`, `transform`, `requestmeta`, `security` (password hashing and tokens), and
 `permission` (the access-control vocabulary). Everything else builds on top:
 `platform/*` is infrastructure that depends on `config` and `foundation`.
 
-- **requestcontext** (`internal/foundation/requestcontext`) — a foundation leaf
+- **requestmeta** (`internal/foundation/requestmeta`) — a foundation leaf
   carrying request-scoped observability values (client IP, user agent, and
   request/trace/span IDs) across layers via the context. Transport middleware
   populates it; any layer reads it, including non-transport code (e.g. the events
