@@ -44,3 +44,38 @@ func ExampleInternal() {
 	// 500
 	// disk write failed
 }
+
+// ExampleAnnotate adds field context to a lower layer's structured error without
+// replacing it; the original status and code survive and the metadata is merged.
+func ExampleAnnotate() {
+	lower := apperrors.UnprocessableEntity(i18n.Msg(i18n.CodeTransportRequestValidationFailed))
+
+	annotated := apperrors.Annotate(lower, apperrors.WithFieldName("email"))
+
+	var appErr *apperrors.AppError
+	_ = stdErrors.As(annotated, &appErr)
+	fmt.Println(appErr.Status())
+	fmt.Println(appErr.Code())
+	fmt.Println(appErr.Meta()["field_name"])
+	// Output:
+	// 422
+	// transport.request.validation_failed
+	// email
+}
+
+// ExampleAppError_Meta attaches typed metadata through the With* helpers and
+// reads it back from the merged, defensive copy returned by Meta.
+func ExampleAppError_Meta() {
+	err := apperrors.Internal(
+		i18n.Msg(i18n.CodePlatformServerInternalError),
+		apperrors.WithFieldName("email"),
+		apperrors.WithPath("/tmp/report.csv"),
+	)
+
+	meta := err.Meta()
+	fmt.Println(meta["field_name"])
+	fmt.Println(meta["path"])
+	// Output:
+	// email
+	// /tmp/report.csv
+}

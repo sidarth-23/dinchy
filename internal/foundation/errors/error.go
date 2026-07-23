@@ -1,4 +1,3 @@
-// Package errors provides structured, localizable application errors.
 package errors
 
 import (

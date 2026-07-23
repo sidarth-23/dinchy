@@ -1,8 +1,9 @@
 # Dinchy agent rules
 
-Always-on principles for working in this codebase. Task-specific detail lives in
-the skills referenced under **Reference** below; open the relevant one when a task
-calls for it. Domain vocabulary lives in `CONTEXT.md`.
+Always-on principles for working in this codebase. These are the rules; the full
+usage of a package lives in its godoc — run `go doc <pkg>` — and domain vocabulary
+lives in `CONTEXT.md`. Each area below carries a short example and points to the
+godoc that documents its mechanics in depth.
 
 ## Core principles
 
@@ -15,25 +16,42 @@ calls for it. Domain vocabulary lives in `CONTEXT.md`.
 
 ## Errors
 
-* Always add context when returning an error, and make that context uniquely identify the code path when multiple returns can fail in the same function.
-* Use `internal/foundation/errors.AppError` for user-visible failures and anything crossing a layer boundary. Keep the stable code and localized `i18n` message at the source; annotate (not replace) as it travels up.
+* Always add context when returning an error, and make that context uniquely identify the code path when multiple returns can fail in the same function. Never return a bare `err` when a richer error is available; if there is genuinely no new context, leave a brief comment saying why the existing error suffices.
+* Use `internal/foundation/errors.AppError` for user-visible failures and anything crossing a layer boundary. Prefer the typed constructors (`BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `UnprocessableEntity`, `TooManyRequests`, `Internal`) and keep the stable code and localized `i18n` message at the source:
+  * `return apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthInvitationExists))`
+* Annotate as the error travels up; do not replace it. Preserve the original code and metadata, and convert an unstructured error into a structured internal one at the first boundary that can add context:
+  * `return apperrors.Annotate(err, apperrors.WithTask("purge-sessions"))`
+* Attach metadata through the typed `With*` helpers, not ad hoc maps. Any new user-visible error must add or reuse the matching `i18n.Message` and `i18n.Code` in the same change.
+* Leaf helpers and parsers that do not cross a layer boundary may return plain errors or sentinel booleans; keep that exception narrow and do not let raw errors leak past a boundary.
+* Raw `fmt.Errorf` is only for internal diagnostic causes inside `WithCause`. Use `errors.Join` only to preserve two failures that must both survive (a primary plus a rollback failure); wrap with `%w` only when exposing the underlying error is deliberate. In cause strings use `%q` for user input, IDs, and paths, and `%T` when the concrete type is part of the failure.
+* Do not start error text with `failed to` or `error` (that prefix is for logs); write the action or condition instead.
 * Prefer returning errors all the way up. Only `main` should call `fatal`.
-* Detail — constructors, `Annotate`/`WithCause`, `errors.Join`, `%w`/`%q`/`%T`, i18n workflow, typed metadata: skill `error-handling`.
+* Usage — constructors, `Annotate`, metadata helpers, the log-once marker, the i18n workflow: `go doc ./internal/foundation/errors`.
 
 ## Logging
 
 * Log each application event once, at the boundary that owns it. Do not log the same event in a callee and its caller.
-* Error logging is boundary-only and goes solely through `internal/platform/logging.Error` / `logging.HTTPError`; never call `slog` error methods with an error value outside that package. `AppError` carries a log-once marker, and `go run ./cmd/coderules logreturn ./...` enforces that no function both logs and returns an error (exempt a deliberate dual-failure path with `//dinchy:allow-logreturn <reason>`).
-* Detail — `Info`/`Warn` guidance, message style, structured field names: skill `logging`.
+* Use `Info` for completed milestones and state transitions; use `Warn` for recoverable anomalies and fallbacks that do not fail the operation. If the condition should fail the request or process, return an error instead of warning.
+* Message style: sentence case, present tense for starting or stopping actions and past tense for completed outcomes, capitalize acronyms (`HTTP`, `URL`, `ID`), no trailing period. Prefer stable structured fields (`component`, `operation`, `task`, `status`, `duration`, `request_id`, `trace_id`, `span_id`) over free-form text:
+  * `logging.Info(ctx, logger, "worker run completed", slog.String("task", task))`
+* Error logging is boundary-only and goes solely through `internal/platform/logging.Error` / `logging.HTTPError`; never call `slog` error methods with an error value outside that package. HTTP handlers log only the final 5xx failure at the transport boundary.
+* `AppError` carries a log-once marker, and `go run ./cmd/coderules logreturn ./...` enforces that no function both logs and returns an error (exempt a deliberate dual-failure path with `//dinchy:allow-logreturn <reason>`).
+* Usage — `Info`/`Warn` guidance, message style, boundary-only error logging: `go doc ./internal/platform/logging`.
 
 ## Conventions
 
 * Keep feature-local helpers, handlers, services, and types together under the same feature package when that reduces indirection.
-* Define API input validation and normalization at the transport boundary; handlers and services operate on validated, transformed values only.
+* Feature files use the approved `*_*.go` classes (`*_service.go`, `*_helpers.go`, `*_middleware.go`, `*_type.go`, `handler.go`, `*_background_job.go`, `events.json`, `events_generated.go`) plus `*_mockdata_test.go` for mock data. A file fitting none of these is a design decision, not a naming accident; a new class must be approved and recorded here first.
+* Define API input validation and normalization at the transport boundary; implement `Resolve` to canonicalize input via `internal/foundation/transform`, and keep handlers and services operating on validated, transformed values only.
 * All environment variables must come from `internal/config`; do not define env var names ad hoc.
-* Tests cover caller-visible behavior (error codes, metadata, responses), not implementation trivia.
-* Detail — feature file classes (`*_service.go`, `events.json`, …), the `Resolve` pattern, test and `*_mockdata_test.go` naming: skill `feature-conventions`.
-* Detail — godoc package comments, when a `doc.go` is warranted, and testable `Example` functions: skill `godoc`.
+* Tests cover caller-visible behavior (error codes, metadata, responses), not implementation trivia. Name test files after the parent feature or source file they validate.
+* Usage — feature file classes, the `Resolve` pattern, config, test naming: `go doc ./internal/features`.
+
+### Godoc
+
+* Every package and exported symbol carries a terse, intent-focused doc comment beginning with its name (`// Package errors ...`, `// Annotate preserves ...`), enforced by `revive`. This is the doc-comment side of "keep comments rare": inline comments stay rare, doc comments are always required.
+* One package comment per package. Put it on the package's primary source file; use a dedicated `doc.go` (holding only the package comment and any `//go:generate` directive) when there is no natural home file, or when the package warrants a substantial multi-paragraph usage narrative — as in `internal/foundation/errors`, `internal/platform/logging`, and `internal/features`.
+* Document utility behavior with testable `Example` functions in `example_test.go` (black-box `package <name>_test`), named so godoc attaches them (`Example`, `ExampleApply`, `ExampleAppError_Status`). End a deterministic example with a trailing `// Output:` block; omit it for non-deterministic output. Reference implementations live in `internal/foundation/{transform,id,errors,security}/example_test.go`.
 
 ## Naming and scope
 
@@ -43,10 +61,8 @@ calls for it. Domain vocabulary lives in `CONTEXT.md`.
 
 ## Reference
 
-Task-specific detail is kept out of this always-loaded file. Open by path when relevant:
-
 * Domain vocabulary and module ownership map — `CONTEXT.md`
-* Error construction, annotation, formatting, i18n — `.agents/skills/error-handling/SKILL.md`
-* Logging levels, message style, structured fields — `.agents/skills/logging/SKILL.md`
-* Feature file classes, validation, config, test naming — `.agents/skills/feature-conventions/SKILL.md`
-* Godoc package comments, `doc.go` vs regular file, testable Examples — `.agents/skills/godoc/SKILL.md`
+* Error handling usage — `go doc ./internal/foundation/errors`
+* Logging usage — `go doc ./internal/platform/logging`
+* Feature conventions — `go doc ./internal/features`
+* Godoc reference implementations — `internal/foundation/{transform,id,errors,security}/example_test.go`

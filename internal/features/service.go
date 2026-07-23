@@ -1,4 +1,3 @@
-// Package features provides the shared service base that every feature service embeds.
 package features
 
 import (

@@ -4,7 +4,7 @@ Ubiquitous language for the codebase. Names here are the ones to use in code,
 tests, and design discussion. Keep entries terse and intent-focused.
 
 This file is domain facts, not rules of conduct: behavioral rules live in
-`.rules` and their task-specific detail in `.agents/skills/*`.
+`.rules`, and each package's usage is documented in its godoc (`go doc <pkg>`).
 
 ## Delivery and messaging
 
