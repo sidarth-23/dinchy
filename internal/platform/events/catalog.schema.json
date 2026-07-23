@@ -1,12 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/sidarth-23/dinchy/internal/events/catalog.schema.json",
+  "$id": "https://github.com/sidarth-23/dinchy/internal/platform/events/catalog.schema.json",
   "title": "Dinchy Event Catalog",
   "type": "object",
   "additionalProperties": false,
   "required": ["modules"],
   "properties": {
     "modules": {
+      "description": "Top-level modules that group the event definitions.",
       "type": "array",
       "items": { "$ref": "#/$defs/module" }
     }
@@ -18,17 +19,21 @@
       "required": ["id"],
       "properties": {
         "id": {
+          "description": "Module identifier in snake_case. Nested modules build the event path.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
+          "description": "Human-readable summary of what this module covers.",
           "type": "string"
         },
         "modules": {
+          "description": "Nested submodules.",
           "type": "array",
           "items": { "$ref": "#/$defs/module" }
         },
         "events": {
+          "description": "Events owned by this module.",
           "type": "array",
           "items": { "$ref": "#/$defs/event" }
         }
@@ -40,23 +45,29 @@
       "required": ["id", "action", "outcome"],
       "properties": {
         "id": {
+          "description": "Event identifier in snake_case, unique within the module.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
+          "description": "Human-readable summary of when this event is emitted.",
           "type": "string"
         },
         "action": {
+          "description": "Action the event represents (e.g. create, update, delete).",
           "type": "string"
         },
         "outcome": {
+          "description": "Outcome of the action (e.g. success, failure).",
           "type": "string"
         },
         "metadata_keys": {
+          "description": "Typed metadata fields attached to the event.",
           "type": "array",
           "items": { "$ref": "#/$defs/typed_field" }
         },
         "change_keys": {
+          "description": "Typed fields describing what changed in the event.",
           "type": "array",
           "items": { "$ref": "#/$defs/typed_field" }
         }
@@ -68,9 +79,11 @@
       "required": ["name", "type"],
       "properties": {
         "name": {
+          "description": "Field name as it appears in the emitted event payload.",
           "type": "string"
         },
         "type": {
+          "description": "Go type of the field value.",
           "type": "string",
           "enum": ["string", "bool", "int", "int64", "float64", "time.Time"]
         }

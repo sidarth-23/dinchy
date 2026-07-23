@@ -7,6 +7,7 @@
   "required": ["modules"],
   "properties": {
     "modules": {
+      "description": "Top-level modules that group the permission entries.",
       "type": "array",
       "items": { "$ref": "#/$defs/module" }
     }
@@ -18,13 +19,16 @@
       "required": ["id", "description", "entries"],
       "properties": {
         "id": {
+          "description": "Module identifier in snake_case.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
+          "description": "Human-readable summary of what this module covers.",
           "type": "string"
         },
         "entries": {
+          "description": "Permission entries owned by this module.",
           "type": "array",
           "items": { "$ref": "#/$defs/entry" }
         }
@@ -36,17 +40,21 @@
       "required": ["resource", "action", "description", "i18n_code"],
       "properties": {
         "resource": {
+          "description": "Resource the permission applies to, in snake_case.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "action": {
+          "description": "Action allowed on the resource, in snake_case.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
+          "description": "Human-readable summary of what this permission allows.",
           "type": "string"
         },
         "i18n_code": {
+          "description": "Code referencing the localized label for this permission.",
           "type": "string"
         }
       }

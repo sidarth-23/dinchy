@@ -1,12 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/sidarth-23/dinchy/internal/i18n/catalog.schema.json",
+  "$id": "https://github.com/sidarth-23/dinchy/internal/foundation/i18n/catalog.schema.json",
   "title": "Dinchy I18n Catalog",
   "type": "object",
   "additionalProperties": false,
   "required": ["modules"],
   "properties": {
     "modules": {
+      "description": "Top-level modules that group the catalog messages.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/module"
@@ -20,19 +21,23 @@
       "required": ["name"],
       "properties": {
         "name": {
+          "description": "Module identifier in snake_case. Nested modules build the message path.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
+          "description": "Human-readable summary of what this module covers.",
           "type": "string"
         },
         "modules": {
+          "description": "Nested submodules. A module must define either modules or messages.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/module"
           }
         },
         "messages": {
+          "description": "Messages owned by this module. A module must define either modules or messages.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/message"
@@ -64,19 +69,23 @@
       "required": ["name", "translations"],
       "properties": {
         "name": {
+          "description": "Message identifier in snake_case, unique within the module.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "description": {
+          "description": "Human-readable summary of when this message is shown.",
           "type": "string"
         },
         "params": {
+          "description": "Interpolation parameters referenced by the translation templates.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/param"
           }
         },
         "translations": {
+          "description": "Map of locale code (e.g. en, fr) to the translated template.",
           "type": "object",
           "minProperties": 1,
           "additionalProperties": {
@@ -91,9 +100,11 @@
       "required": ["name", "type"],
       "properties": {
         "name": {
+          "description": "Parameter name as referenced in the translation template.",
           "type": "string"
         },
         "type": {
+          "description": "Parameter value type (e.g. string, int).",
           "type": "string"
         }
       }
