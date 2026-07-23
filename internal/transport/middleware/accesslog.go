@@ -1,3 +1,4 @@
+// Package middleware provides HTTP middleware for the transport layer.
 package middleware
 
 import (
@@ -7,11 +8,12 @@ import (
 
 	chimw "github.com/go-chi/chi/v5/middleware"
 
-	"github.com/sidarth-23/dinchy/internal/features/auth"
+	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/foundation/requestmeta"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
-	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
+// AccessLog returns middleware that binds a request-scoped logger and logs each completed request.
 func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
@@ -22,18 +24,19 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 
 			attrs := []any{
-				slog.String("request_id", support.RequestIDFrom(r.Context())),
+				slog.String("request_id", requestmeta.RequestIDFrom(r.Context())),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.String("remote_ip", support.RemoteIPFrom(r.Context())),
+				slog.String("remote_ip", requestmeta.RemoteIPFrom(r.Context())),
 			}
-			if session := auth.SessionFrom(r.Context()); session != nil {
-				attrs = append(attrs, slog.String("actor_user_id", session.UserID), slog.String("actor_organisation_id", session.OrganisationID))
+			if principal := session.PrincipalFrom(r.Context()); principal != nil {
+				attrs = append(attrs, slog.String("actor_user_id", principal.UserID), slog.String("actor_organization_id", principal.OrganizationID))
 			}
 			requestLogger := logger.With(attrs...)
 			ctx := logging.WithLogger(r.Context(), requestLogger)
 			next.ServeHTTP(ww, r.WithContext(ctx))
-			requestLogger.InfoContext(ctx, "HTTP request completed",
+			requestLogger.InfoContext(
+				ctx, "HTTP request completed",
 				slog.Int("status", ww.Status()),
 				slog.Duration("duration", time.Since(startedAt)),
 			)

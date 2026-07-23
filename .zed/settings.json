@@ -33,18 +33,23 @@
                     "schemas": [
                         {
                             "name": "Dinchy i18n catalog",
-                            "fileMatch": ["internal/i18n/catalog.json"],
-                            "url": "./internal/i18n/catalog.schema.json"
+                            "fileMatch": ["internal/foundation/i18n/catalog/*.json"],
+                            "url": "./internal/foundation/i18n/catalog.schema.json"
                         },
                         {
                             "name": "Dinchy event catalog",
-                            "fileMatch": ["internal/events/catalog.json"],
-                            "url": "./internal/events/catalog.schema.json"
+                            "fileMatch": ["internal/features/*/events.json"],
+                            "url": "./internal/platform/events/catalog.schema.json"
                         },
                         {
-                            "name": "Dinchy error catalog",
-                            "fileMatch": ["internal/errors/catalog.json"],
-                            "url": "./internal/errors/catalog.schema.json"
+                            "name": "Dinchy permission catalog",
+                            "fileMatch": ["internal/foundation/permission/permissions.json"],
+                            "url": "./internal/foundation/permission/permissions.schema.json"
+                        },
+                        {
+                            "name": "Dinchy role catalog",
+                            "fileMatch": ["internal/foundation/permission/roles.json"],
+                            "url": "./internal/foundation/permission/roles.schema.json"
                         }
                     ]
                 }

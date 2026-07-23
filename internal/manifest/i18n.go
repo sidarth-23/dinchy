@@ -2,13 +2,18 @@ package manifest
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
+// I18nCatalog is the root of the localization manifest.
 type I18nCatalog struct {
 	Modules []I18nModule `json:"modules"`
 }
 
+// I18nModule is a namespace grouping localized messages and nested modules.
 type I18nModule struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description,omitempty"`
@@ -16,6 +21,7 @@ type I18nModule struct {
 	Messages    []I18nMessage `json:"messages,omitempty"`
 }
 
+// I18nMessage is a translatable message with its per-language text and params.
 type I18nMessage struct {
 	Name         string            `json:"name"`
 	Description  string            `json:"description,omitempty"`
@@ -23,11 +29,13 @@ type I18nMessage struct {
 	Translations map[string]string `json:"translations"`
 }
 
+// I18nParam is a named, typed substitution slot within a message.
 type I18nParam struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 }
 
+// DecodeI18nCatalog strictly decodes raw JSON into an I18nCatalog.
 func DecodeI18nCatalog(raw []byte) (I18nCatalog, error) {
 	var catalog I18nCatalog
 	if err := decodeStrict(raw, &catalog); err != nil {
@@ -36,6 +44,119 @@ func DecodeI18nCatalog(raw []byte) (I18nCatalog, error) {
 	return catalog, nil
 }
 
+// LoadI18nCatalog loads a catalog from path, which may be either a directory of
+// *.json fragments or a single fragment file. It decodes and merges but does not
+// validate; callers validate the result.
+func LoadI18nCatalog(path string) (I18nCatalog, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return I18nCatalog{}, fmt.Errorf("stat i18n catalog %q: %w", path, err)
+	}
+	if info.IsDir() {
+		return LoadI18nCatalogDir(path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return I18nCatalog{}, fmt.Errorf("read i18n catalog %q: %w", path, err)
+	}
+	return DecodeI18nCatalog(raw)
+}
+
+// LoadI18nCatalogDir reads every *.json fragment in dir (in sorted filename
+// order), strictly decodes each, and deep-merges them into one catalog. It does
+// not validate the result; callers validate the merged catalog. It errors if dir
+// contains no fragments so an empty directory fails loudly at its source.
+func LoadI18nCatalogDir(dir string) (I18nCatalog, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	if err != nil {
+		return I18nCatalog{}, fmt.Errorf("scan i18n catalog directory %q: %w", dir, err)
+	}
+	if len(matches) == 0 {
+		return I18nCatalog{}, fmt.Errorf("no i18n fragments found in %q", dir)
+	}
+	sort.Strings(matches)
+
+	catalogs := make([]I18nCatalog, 0, len(matches))
+	for _, path := range matches {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return I18nCatalog{}, fmt.Errorf("read i18n fragment %q: %w", path, err)
+		}
+		catalog, err := DecodeI18nCatalog(raw)
+		if err != nil {
+			return I18nCatalog{}, fmt.Errorf("decode i18n fragment %q: %w", path, err)
+		}
+		catalogs = append(catalogs, catalog)
+	}
+	return MergeI18nCatalogs(catalogs...)
+}
+
+// MergeI18nCatalogs deep-merges catalogs by module name at each level. Modules
+// sharing a name under the same parent are merged recursively; messages are only
+// concatenated, leaving duplicate detection to ValidateI18nCatalog so its precise
+// errors are preserved. Conflicting non-empty descriptions for the same module
+// are an error.
+func MergeI18nCatalogs(catalogs ...I18nCatalog) (I18nCatalog, error) {
+	var merged I18nCatalog
+	for _, catalog := range catalogs {
+		modules, err := mergeI18nModules(merged.Modules, catalog.Modules)
+		if err != nil {
+			return I18nCatalog{}, err
+		}
+		merged.Modules = modules
+	}
+	return merged, nil
+}
+
+func mergeI18nModules(dst, src []I18nModule) ([]I18nModule, error) {
+	index := make(map[string]int, len(dst))
+	for i, module := range dst {
+		index[module.Name] = i
+	}
+	for _, module := range src {
+		pos, ok := index[module.Name]
+		if !ok {
+			dst = append(dst, module)
+			index[module.Name] = len(dst) - 1
+			continue
+		}
+		combined, err := mergeI18nModule(dst[pos], module)
+		if err != nil {
+			return nil, err
+		}
+		dst[pos] = combined
+	}
+	return dst, nil
+}
+
+func mergeI18nModule(dst, src I18nModule) (I18nModule, error) {
+	description, err := mergeI18nDescription(dst.Name, dst.Description, src.Description)
+	if err != nil {
+		return I18nModule{}, err
+	}
+	dst.Description = description
+	dst.Messages = append(append([]I18nMessage{}, dst.Messages...), src.Messages...)
+	children, err := mergeI18nModules(dst.Modules, src.Modules)
+	if err != nil {
+		return I18nModule{}, err
+	}
+	dst.Modules = children
+	return dst, nil
+}
+
+func mergeI18nDescription(name, existing, incoming string) (string, error) {
+	switch {
+	case existing == "":
+		return incoming, nil
+	case incoming == "" || incoming == existing:
+		return existing, nil
+	default:
+		return "", fmt.Errorf("conflicting descriptions for module %q", name)
+	}
+}
+
+// ValidateI18nCatalog reports whether the catalog is well-formed, has no
+// duplicate codes, constant names, or params, and includes an en translation.
 func ValidateI18nCatalog(catalog I18nCatalog) error {
 	if len(catalog.Modules) == 0 {
 		return fmt.Errorf("i18n catalog must define at least one module")
@@ -47,7 +168,7 @@ func ValidateI18nCatalog(catalog I18nCatalog) error {
 	return validateI18nModules(catalog.Modules, nil, seenCodes, seenNames, langs)
 }
 
-func validateI18nModules(modules []I18nModule, modulePath []string, seenCodes, seenNames map[string]struct{}, langs map[string]struct{}) error {
+func validateI18nModules(modules []I18nModule, modulePath []string, seenCodes, seenNames, langs map[string]struct{}) error {
 	seenModuleNames := map[string]struct{}{}
 	for _, module := range modules {
 		if module.Name == "" {
@@ -126,11 +247,13 @@ func validateI18nModules(modules []I18nModule, modulePath []string, seenCodes, s
 	return nil
 }
 
+// I18nCodeFor returns the dot-joined message code for a module path and name.
 func I18nCodeFor(modulePath []string, messageName string) string {
 	parts := append(append([]string{}, modulePath...), messageName)
 	return strings.Join(parts, ".")
 }
 
+// I18nConstantName returns the generated Go constant name for a message.
 func I18nConstantName(modulePath []string, messageName string) string {
 	parts := append(append([]string{}, modulePath...), messageName)
 	return GoNameFromPath(parts...)

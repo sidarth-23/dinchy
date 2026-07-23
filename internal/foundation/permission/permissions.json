@@ -1,0 +1,34 @@
+{
+  "modules": [
+    {
+      "id": "audit",
+      "description": "Audit-log access",
+      "entries": [
+        {
+          "resource": "logs",
+          "action": "read",
+          "description": "View organization audit logs",
+          "i18n_code": "account.access.permissions.audit.logs.read"
+        }
+      ]
+    },
+    {
+      "id": "auth",
+      "description": "Authentication administration",
+      "entries": [
+        {
+          "resource": "invitations",
+          "action": "create",
+          "description": "Invite organization members",
+          "i18n_code": "account.access.permissions.auth.invitations.create"
+        },
+        {
+          "resource": "roles",
+          "action": "manage",
+          "description": "Manage organization roles",
+          "i18n_code": "account.access.permissions.auth.roles.manage"
+        }
+      ]
+    }
+  ]
+}

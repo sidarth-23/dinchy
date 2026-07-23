@@ -7,17 +7,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/clock"
+	"github.com/sidarth-23/dinchy/internal/features"
+	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/foundation/clock"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/id"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
-	"github.com/sidarth-23/dinchy/internal/platform/id"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
 )
@@ -34,13 +37,33 @@ func (s *fakeSender) Send(_ context.Context, msg email.Message) error {
 	return nil
 }
 
+type fakeEnqueuer struct {
+	enqueued []river.JobArgs
+}
+
+func (f *fakeEnqueuer) Enqueue(_ context.Context, args river.JobArgs, _ *river.InsertOpts) error {
+	f.enqueued = append(f.enqueued, args)
+	return nil
+}
+
+func (f *fakeEnqueuer) EnqueueTx(_ context.Context, _ pgx.Tx, args river.JobArgs, _ *river.InsertOpts) error {
+	f.enqueued = append(f.enqueued, args)
+	return nil
+}
+
 func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockStore) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	store := NewMockStore(ctrl)
-	mailer, err := email.NewMailer(sender, "https://app.test")
+	enqueuer := &fakeEnqueuer{}
+	mailer, err := email.NewMailer(enqueuer, sender.Configured())
 	require.NoError(t, err)
-	svc, err := NewService(nil, store, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, newTestCache(), cachecore.NewKeyer("test"), mailer, nil)
+	sharedService := features.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), RedisClient: newTestRedis(t), CacheKeyer: cache.NewKeyer("test"), Mailer: mailer, Jobs: enqueuer}
+	cacheConfig := config.DefaultCache()
+	cacheConfig.Enabled = false
+	sessionSvc, err := session.NewService(sharedService.Named("session"), store, config.DefaultSession(), cacheConfig)
+	require.NoError(t, err)
+	svc, err := NewService(sharedService.Named("auth"), store, sessionSvc, config.DefaultAuth(), config.NewLinks("https://app.test"), nil)
 	require.NoError(t, err)
 	svc.beginTx = func(context.Context) (*setupTransaction, error) {
 		return &setupTransaction{
@@ -73,7 +96,7 @@ func TestForgotPassword_EmailNotConfigured(t *testing.T) {
 	svc, _ := newTestService(t) // NoopSender reports itself unconfigured.
 
 	err := svc.ForgotPassword(testCtx, "user@example.com")
-	require.ErrorIs(t, err, apperrors.Internal(i18n.Msg(i18n.CodeEmailNotConfigured)))
+	require.ErrorIs(t, err, apperrors.Internal(i18n.Msg(i18n.CodeNotificationEmailNotConfigured)))
 }
 
 func TestForgotPassword_UnknownUserIsSilent(t *testing.T) {
@@ -85,10 +108,10 @@ func TestForgotPassword_UnknownUserIsSilent(t *testing.T) {
 	// No token created and no mail sent for an unknown address (no user enumeration).
 
 	require.NoError(t, svc.ForgotPassword(testCtx, "user@example.com"))
-	assert.Empty(t, sender.sent)
+	assert.Empty(t, svc.Jobs.(*fakeEnqueuer).enqueued, "no email enqueued for an unknown address")
 }
 
-func TestForgotPassword_CreatesTokenAndSends(t *testing.T) {
+func TestForgotPassword_CreatesTokenAndEnqueuesEmail(t *testing.T) {
 	t.Parallel()
 	sender := &fakeSender{configured: true}
 	svc, store := newServiceWithSender(t, sender)
@@ -106,11 +129,16 @@ func TestForgotPassword_CreatesTokenAndSends(t *testing.T) {
 		})
 
 	// Email normalization happens at the transport boundary (ForgotPasswordBody.Resolve),
-	// so the service receives an already-canonical address.
+	// so the service receives an already-canonical address. Delivery is durable: the mailer
+	// enqueues the reset email so a transient SMTP failure is retried rather than lost.
 	require.NoError(t, svc.ForgotPassword(testCtx, "user@example.com"))
-	require.Len(t, sender.sent, 1)
-	assert.Equal(t, "user@example.com", sender.sent[0].To)
-	assert.NotEmpty(t, sender.sent[0].Text)
+
+	enqueuer := svc.Jobs.(*fakeEnqueuer)
+	require.Len(t, enqueuer.enqueued, 1)
+	args, ok := enqueuer.enqueued[0].(email.SendEmailArgs)
+	require.True(t, ok)
+	assert.Equal(t, "user@example.com", args.To)
+	assert.Contains(t, args.Text, "/reset-password?token=", "reset email must carry the reset link")
 }
 
 func TestResetPassword_InvalidToken(t *testing.T) {
@@ -135,7 +163,7 @@ func TestResetPassword_InvalidToken(t *testing.T) {
 				Return(tc.token, nil)
 
 			err := svc.ResetPassword(testCtx, "raw-token", "newpassword123")
-			require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthInvalidResetToken)))
+			require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthInvalidResetToken)))
 		})
 	}
 }

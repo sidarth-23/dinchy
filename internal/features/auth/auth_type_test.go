@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
 )
 
 // Request resolvers normalize input at the transport boundary before validation
@@ -13,10 +15,10 @@ import (
 
 func TestLoginBodyResolve_NormalizesFields(t *testing.T) {
 	t.Parallel()
-	body := LoginBody{Email: "  USER@EXAMPLE.COM  ", OrganisationSlug: "  acme  ", TOTPCode: "  123456  "}
+	body := LoginBody{Email: "  USER@EXAMPLE.COM  ", OrganizationSlug: "  acme  ", TOTPCode: "  123456  "}
 	require.Nil(t, body.Resolve(nil))
 	assert.Equal(t, "user@example.com", body.Email)
-	assert.Equal(t, "acme", body.OrganisationSlug)
+	assert.Equal(t, "acme", body.OrganizationSlug)
 	assert.Equal(t, "123456", body.TOTPCode)
 }
 
@@ -37,10 +39,10 @@ func TestForgotPasswordBodyResolve_NormalizesEmail(t *testing.T) {
 
 func TestCreateInvitationBodyResolve_NormalizesEmail(t *testing.T) {
 	t.Parallel()
-	body := CreateInvitationBody{Email: "  INVITEE@EXAMPLE.COM  ", Role: RoleMember}
+	body := CreateInvitationBody{Email: "  INVITEE@EXAMPLE.COM  ", Role: permission.RoleMember}
 	require.Nil(t, body.Resolve(nil))
 	assert.Equal(t, "invitee@example.com", body.Email)
-	assert.Equal(t, RoleMember, body.Role)
+	assert.Equal(t, permission.RoleMember, body.Role)
 }
 
 func TestAcceptInvitationBodyResolve_TrimsDisplayName(t *testing.T) {
@@ -50,11 +52,11 @@ func TestAcceptInvitationBodyResolve_TrimsDisplayName(t *testing.T) {
 	assert.Equal(t, "Ada", body.DisplayName)
 }
 
-func TestSelectOrganisationBodyResolve_TrimsSlug(t *testing.T) {
+func TestSelectOrganizationBodyResolve_TrimsSlug(t *testing.T) {
 	t.Parallel()
-	body := SelectOrganisationBody{OrganisationSlug: "  acme  "}
+	body := SelectOrganizationBody{OrganizationSlug: "  acme  "}
 	require.Nil(t, body.Resolve(nil))
-	assert.Equal(t, "acme", body.OrganisationSlug)
+	assert.Equal(t, "acme", body.OrganizationSlug)
 }
 
 func TestTOTPConfirmBodyResolve_TrimsCode(t *testing.T) {
@@ -66,7 +68,7 @@ func TestTOTPConfirmBodyResolve_TrimsCode(t *testing.T) {
 
 func TestSSOStartInResolve_TrimsSlug(t *testing.T) {
 	t.Parallel()
-	in := SSOStartIn{OrganisationSlug: "  acme  "}
+	in := SSOStartIn{OrganizationSlug: "  acme  "}
 	require.Nil(t, in.Resolve(nil))
-	assert.Equal(t, "acme", in.OrganisationSlug)
+	assert.Equal(t, "acme", in.OrganizationSlug)
 }

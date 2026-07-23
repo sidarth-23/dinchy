@@ -84,17 +84,64 @@ curl -fsSL https://dinchy.com/install.sh | bash
 
 ## Development
 
-This project uses [mise](https://mise.jdx.dev/) to manage all tooling. Install it, then run:
+This project uses [mise](https://mise.jdx.dev/) to manage all tooling. First-time setup:
 
 ```bash
-mise install          # install pinned Go, Bun, Node, and dev tools
+mise install               # install pinned Go, Bun, Node, dlv, and dev tools
+cp .env.example .env       # your local config (gitignored) — edit as needed
+mise run infra:up          # start Postgres + Redis (podman-compose)
+mise run db:migrate        # apply database migrations
+mise run dev               # run the backend — colored, human-readable logs
+```
+
+`.env.example` is the only committed template. Copy it to `.env` (gitignored) for your
+working config — including `DINCHY_LOG_FORMAT=text`, which produces colored, human-readable
+logs in a terminal, and the Postgres DSN. An optional `.env.local` (also gitignored) can
+hold personal overrides; mise loads both, with `.env.local` winning over `.env`.
+
+Local Postgres + Redis run from `compose.yaml` via **podman-compose** (a mise-managed tool
+that drives podman directly — no Docker daemon or socket). The host ports are **configurable
+via env**: `compose.yaml` interpolates `DINCHY_POSTGRES_PORT` / `DINCHY_REDIS_PORT` from
+`.env` (default `5433` / `6380`, to avoid clashing with anything already on `5432` / `6379`).
+Keep the DSN / `DINCHY_REDIS_ADDR` ports in sync with those keys.
+
+> **WSL2 note:** if `mise run infra:up` fails with `netavark: nftables error`, uncomment
+> `NETAVARK_FW=none` in your `.env` (nftables is unusable on some WSL2 kernels; rootless
+> port forwarding still works without it). On native Linux, leave it unset so podman uses
+> its default nftables firewall.
+
+Everyday tasks:
+
+```bash
 mise run dev          # run the Go backend in development mode
 mise run test         # run the test suite
 mise run lint         # run the linter
 mise run build        # build the production binary
 mise run generate     # regenerate generated Go code and sqlc queries
 mise run db:migrate   # run database migrations against DINCHY_POSTGRES_DSN
+mise run infra:up     # start local Postgres + Redis (podman-compose)
+mise run infra:down   # stop local Postgres + Redis
+mise run infra:logs   # follow pg/redis logs
 ```
+
+> Optional one-time podman hardening: `sudo loginctl enable-linger $USER` gives your user a
+> persistent systemd session so podman uses the systemd cgroup manager and the rootless
+> `cgroupfs`-fallback warnings disappear. Not required — the infra works without it.
+
+### Debugging in Zed
+
+`.zed/debug.json` defines a **dinchy (dev)** configuration that launches `cmd/dinchy` under
+Delve (`dlv`, installed by `mise install`). Set a breakpoint and start that configuration;
+its environment is loaded entirely from `.env` + `.env.local` via `envFile`, so nothing
+sensitive is committed and edits to those files take effect on the next launch.
+`.zed/tasks.json` also exposes the mise tasks (dev, infra up/down, migrate, test, …) in
+Zed's task runner (`task: spawn`).
+
+> **Open this repo as the Zed project root**, not a parent folder. The debug config and
+> tasks resolve paths via `$ZED_WORKTREE_ROOT`, which Zed sets to the folder you opened. If
+> you open an ancestor (e.g. a multi-project workspace), `$ZED_WORKTREE_ROOT` points there
+> and the debugger fails with `package cmd/dinchy is not in std`. Open the directory that
+> contains this `README.md`.
 
 When the frontend exists:
 
@@ -106,7 +153,7 @@ mise run web:build    # build production frontend assets
 
 Bun is the primary JS runtime for this project. Node is available via mise for compatibility, but all frontend tasks run through Bun.
 
-The database is PostgreSQL only. Set `DINCHY_POSTGRES_DSN` before running the app, tests, or migration tasks.
+The database is PostgreSQL only. `DINCHY_POSTGRES_DSN` is supplied by `.env.local` for local dev; set it explicitly in other environments.
 
 ## License
 

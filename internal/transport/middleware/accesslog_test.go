@@ -26,13 +26,14 @@ func TestAccessLog_AttachesRequestLogger(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&buffer, nil))
 
 	handler := chimw.RequestID(middleware.AccessLog(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logging.LoggerFromContext(r.Context()).InfoContext(r.Context(), "inside handler",
+		logging.LoggerFromContext(r.Context()).InfoContext(
+			r.Context(), "inside handler",
 			slog.Any("secret", logging.Redacted("sensitive-value")),
 		)
 		w.WriteHeader(http.StatusCreated)
 	})))
 
-	request := httptest.NewRequest(http.MethodPost, "https://app.example.test/api/auth/login", nil)
+	request := httptest.NewRequest(http.MethodPost, "https://app.example.test/api/auth/login", http.NoBody)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 

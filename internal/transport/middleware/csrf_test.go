@@ -1,23 +1,27 @@
 package middleware_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 func csrfHandler(t *testing.T) (http.Handler, *bool) {
 	t.Helper()
 	called := new(bool)
-	h := middleware.CSRF()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := middleware.CSRF(render.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		*called = true
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -49,7 +53,7 @@ func TestCSRF_SafeRequestIssuesCookie(t *testing.T) {
 	handler, called := csrfHandler(t)
 
 	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody))
 
 	assert.True(t, *called, "safe request should pass through")
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -60,7 +64,7 @@ func TestCSRF_MutatingRequestWithMatchingTokenSucceeds(t *testing.T) {
 	t.Parallel()
 	handler, called := csrfHandler(t)
 
-	req := httptest.NewRequest(http.MethodPost, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodPost, "http://example.test/", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: support.CSRFCookieName, Value: "matching-token"})
 	req.Header.Set("X-CSRF-Token", "matching-token")
 
@@ -72,19 +76,29 @@ func TestCSRF_MutatingRequestWithMatchingTokenSucceeds(t *testing.T) {
 }
 
 func TestCSRF_MutatingRequestWithMismatchedTokenRejected(t *testing.T) {
-	t.Parallel()
+	var buffer bytes.Buffer
+	original := slog.Default()
+	t.Cleanup(func() {
+		slog.SetDefault(original)
+	})
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buffer, nil)))
+
 	handler, called := csrfHandler(t)
 
-	req := httptest.NewRequest(http.MethodPost, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodPost, "http://example.test/", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: support.CSRFCookieName, Value: "cookie-token"})
 	req.Header.Set("X-CSRF-Token", "different-token")
 
 	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	require.NotPanics(t, func() {
+		handler.ServeHTTP(rr, req)
+	})
 
 	assert.False(t, *called, "next handler must not run when the CSRF check fails")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Equal(t, string(i18n.CodeSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+	assert.Equal(t, string(i18n.CodeTransportSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
+	require.Empty(t, strings.TrimSpace(buffer.String()))
 }
 
 func TestCSRF_MutatingRequestWithoutTokenRejected(t *testing.T) {
@@ -92,9 +106,9 @@ func TestCSRF_MutatingRequestWithoutTokenRejected(t *testing.T) {
 	handler, called := csrfHandler(t)
 
 	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "http://example.test/", nil))
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "http://example.test/", http.NoBody))
 
 	assert.False(t, *called)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Equal(t, string(i18n.CodeSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
+	assert.Equal(t, string(i18n.CodeTransportSecurityCSRFFailed), decodeErrorCode(t, rr.Body.Bytes()))
 }

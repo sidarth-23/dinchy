@@ -15,7 +15,7 @@ import (
 const insertAuditLog = `-- name: InsertAuditLog :exec
 INSERT INTO app_audit_logs (
   id, category, subcategory, event_type, action, outcome,
-  actor_user_id, actor_organisation_id, target_type, target_id, target_display,
+  actor_user_id, actor_organization_id, target_type, target_id, target_display,
   request_id, trace_id, span_id, ip_address, user_agent,
   metadata_json, changes_json, created_at
 )
@@ -30,10 +30,10 @@ type InsertAuditLogParams struct {
 	Action              string             `db:"action" json:"action"`
 	Outcome             string             `db:"outcome" json:"outcome"`
 	ActorUserID         uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
-	ActorOrganisationID uuid.NullUUID      `db:"actor_organisation_id" json:"actor_organisation_id"`
-	TargetType          pgtype.Text        `db:"target_type" json:"target_type"`
-	TargetID            pgtype.Text        `db:"target_id" json:"target_id"`
-	TargetDisplay       pgtype.Text        `db:"target_display" json:"target_display"`
+	ActorOrganizationID uuid.NullUUID      `db:"actor_organization_id" json:"actor_organization_id"`
+	TargetType          string             `db:"target_type" json:"target_type"`
+	TargetID            string             `db:"target_id" json:"target_id"`
+	TargetDisplay       string             `db:"target_display" json:"target_display"`
 	RequestID           pgtype.Text        `db:"request_id" json:"request_id"`
 	TraceID             pgtype.Text        `db:"trace_id" json:"trace_id"`
 	SpanID              pgtype.Text        `db:"span_id" json:"span_id"`
@@ -53,7 +53,7 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 		arg.Action,
 		arg.Outcome,
 		arg.ActorUserID,
-		arg.ActorOrganisationID,
+		arg.ActorOrganizationID,
 		arg.TargetType,
 		arg.TargetID,
 		arg.TargetDisplay,
@@ -72,7 +72,7 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 const listAuditLogs = `-- name: ListAuditLogs :many
 SELECT
   id, category, subcategory, event_type, action, outcome,
-  actor_user_id, actor_organisation_id, target_type, target_id, target_display,
+  actor_user_id, actor_organization_id, target_type, target_id, target_display,
   request_id, trace_id, span_id, ip_address, user_agent,
   metadata_json, changes_json, created_at
 FROM app_audit_logs
@@ -98,9 +98,9 @@ type ListAuditLogsParams struct {
 	ActorUserIDFilter string             `db:"actor_user_id_filter" json:"actor_user_id_filter"`
 	ActorUserID       uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
 	TargetTypeFilter  string             `db:"target_type_filter" json:"target_type_filter"`
-	TargetType        pgtype.Text        `db:"target_type" json:"target_type"`
+	TargetType        string             `db:"target_type" json:"target_type"`
 	TargetIDFilter    string             `db:"target_id_filter" json:"target_id_filter"`
-	TargetID          pgtype.Text        `db:"target_id" json:"target_id"`
+	TargetID          string             `db:"target_id" json:"target_id"`
 	OutcomeFilter     string             `db:"outcome_filter" json:"outcome_filter"`
 	Outcome           string             `db:"outcome" json:"outcome"`
 	Before            pgtype.Timestamptz `db:"before" json:"before"`
@@ -141,7 +141,7 @@ func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([
 			&i.Action,
 			&i.Outcome,
 			&i.ActorUserID,
-			&i.ActorOrganisationID,
+			&i.ActorOrganizationID,
 			&i.TargetType,
 			&i.TargetID,
 			&i.TargetDisplay,

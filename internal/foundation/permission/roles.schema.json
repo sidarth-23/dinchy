@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sidarth-23/dinchy/internal/foundation/permission/roles.schema.json",
+  "title": "Dinchy Role Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["roles"],
+  "properties": {
+    "roles": {
+      "description": "Roles available for assignment.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/role" }
+    }
+  },
+  "$defs": {
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "i18n_code", "permissions"],
+      "properties": {
+        "id": {
+          "description": "Role identifier in snake_case.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "description": {
+          "description": "Human-readable summary of the role's purpose.",
+          "type": "string"
+        },
+        "i18n_code": {
+          "description": "Code referencing the localized label for this role.",
+          "type": "string"
+        },
+        "permissions": {
+          "description": "Permission identifiers granted to this role.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

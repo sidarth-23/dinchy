@@ -1,0 +1,244 @@
+{
+  "modules": [
+    {
+      "name": "account",
+      "description": "Account, identity, and access-control messages",
+      "modules": [
+        {
+          "name": "auth",
+          "description": "Authentication and account access messages",
+          "messages": [
+            {
+              "name": "invalid_credentials",
+              "translations": {
+                "en": "Invalid email or password."
+              }
+            },
+            {
+              "name": "setup_completed",
+              "params": [
+                {
+                  "name": "resource",
+                  "type": "string"
+                },
+                {
+                  "name": "count",
+                  "type": "int"
+                }
+              ],
+              "translations": {
+                "en": "Setup has already been completed for {{.resource}} ({{.count}} users)."
+              }
+            },
+            {
+              "name": "unauthenticated",
+              "translations": {
+                "en": "Authentication required."
+              }
+            },
+            {
+              "name": "forbidden",
+              "translations": {
+                "en": "You do not have permission to perform this action."
+              }
+            },
+            {
+              "name": "organization_required",
+              "translations": {
+                "en": "Choose an organization to continue."
+              }
+            },
+            {
+              "name": "organization_not_found",
+              "translations": {
+                "en": "The selected organization is not available."
+              }
+            },
+            {
+              "name": "totp_required",
+              "translations": {
+                "en": "Two-factor authentication code required."
+              }
+            },
+            {
+              "name": "invalid_totp",
+              "translations": {
+                "en": "Invalid two-factor authentication code."
+              }
+            },
+            {
+              "name": "invalid_reset_token",
+              "translations": {
+                "en": "The password reset token is invalid or has expired."
+              }
+            },
+            {
+              "name": "invitation_invalid",
+              "translations": {
+                "en": "The invitation is invalid or has expired."
+              }
+            },
+            {
+              "name": "invitation_exists",
+              "translations": {
+                "en": "An active invitation already exists for that email address."
+              }
+            },
+            {
+              "name": "totp_locked",
+              "translations": {
+                "en": "Two-factor authentication is temporarily locked. Try again later."
+              }
+            }
+          ],
+          "modules": [
+            {
+              "name": "oidc",
+              "description": "OpenID Connect login messages",
+              "messages": [
+                {
+                  "name": "provider_not_found",
+                  "params": [
+                    {
+                      "name": "provider",
+                      "type": "string"
+                    }
+                  ],
+                  "translations": {
+                    "en": "The selected OIDC provider is not available."
+                  }
+                },
+                {
+                  "name": "invalid_state",
+                  "translations": {
+                    "en": "The OIDC login flow is invalid or has expired."
+                  }
+                },
+                {
+                  "name": "login_failed",
+                  "translations": {
+                    "en": "Unable to sign in with that OIDC provider."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "sso",
+              "description": "Single sign-on login messages",
+              "messages": [
+                {
+                  "name": "provider_not_found",
+                  "params": [
+                    {
+                      "name": "provider",
+                      "type": "string"
+                    }
+                  ],
+                  "translations": {
+                    "en": "The selected SSO provider is not available."
+                  }
+                },
+                {
+                  "name": "invalid_state",
+                  "translations": {
+                    "en": "The SSO login flow is invalid or has expired."
+                  }
+                },
+                {
+                  "name": "login_failed",
+                  "translations": {
+                    "en": "Unable to sign in with that SSO provider."
+                  }
+                },
+                {
+                  "name": "cache_required",
+                  "translations": {
+                    "en": "A cache store is required before SSO can be enabled."
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "access",
+          "description": "Access policy labels",
+          "modules": [
+            {
+              "name": "permissions",
+              "description": "Permission labels",
+              "modules": [
+                {
+                  "name": "audit",
+                  "description": "Audit permissions",
+                  "modules": [
+                    {
+                      "name": "logs",
+                      "description": "Audit log permissions",
+                      "messages": [
+                        {
+                          "name": "read",
+                          "translations": {
+                            "en": "View audit logs"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "auth",
+                  "description": "Authentication permissions",
+                  "modules": [
+                    {
+                      "name": "invitations",
+                      "description": "Invitation permissions",
+                      "messages": [
+                        {
+                          "name": "create",
+                          "translations": {
+                            "en": "Create invitations"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "name": "roles",
+                      "description": "Role permissions",
+                      "messages": [
+                        {
+                          "name": "manage",
+                          "translations": {
+                            "en": "Manage roles"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "roles",
+              "description": "Role labels",
+              "messages": [
+                {
+                  "name": "admin",
+                  "translations": {
+                    "en": "Administrator"
+                  }
+                },
+                {
+                  "name": "member",
+                  "translations": {
+                    "en": "Member"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

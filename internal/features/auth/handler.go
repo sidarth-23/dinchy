@@ -8,21 +8,27 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/features/session"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
+	"github.com/sidarth-23/dinchy/internal/foundation/requestmeta"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
+	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // API groups the auth handlers and their shared dependencies.
 type API struct {
 	auth         *Service
+	sessions     *session.Service
 	settings     SettingsReader
 	requireHTTPS bool
 }
 
 // Register mounts the auth operations on the given huma.API instance.
-func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
-	a := &API{auth: svc, settings: sr, requireHTTPS: requireHTTPS}
+func Register(h huma.API, svc *Service, sessions *session.Service, sr SettingsReader, requireHTTPS bool) {
+	a := &API{auth: svc, sessions: sessions, settings: sr, requireHTTPS: requireHTTPS}
 
 	huma.Register(h, huma.Operation{
 		OperationID: "get-bootstrap",
@@ -94,30 +100,31 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 	}, a.ssoCallback)
 
 	huma.Register(h, huma.Operation{
-		OperationID: "auth-select-organisation",
+		OperationID: "auth-select-organization",
 		Method:      http.MethodPost,
-		Path:        "/auth/organisations/select",
-		Summary:     "Switch active organisation",
-		Description: "Sets the active organisation for the current session and reissues the session cookie.",
+		Path:        "/auth/organizations/select",
+		Summary:     "Switch active organization",
+		Description: "Sets the active organization for the current session and reissues the session cookie.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
-	}, a.selectOrganisation)
+	}, a.selectOrganization)
 
 	huma.Register(h, huma.Operation{
 		OperationID: "auth-create-invitation",
 		Method:      http.MethodPost,
 		Path:        "/auth/invitations",
-		Summary:     "Create an organisation invitation",
-		Description: "Invites a member to the current organisation. Requires an owner or admin session.",
+		Summary:     "Create an organization invitation",
+		Description: "Invites a member to the current organization. Requires an owner or admin session.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict, http.StatusUnprocessableEntity},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h, permission.AuthInvitationsCreate)},
 	}, a.createInvitation)
 
 	huma.Register(h, huma.Operation{
 		OperationID: "auth-accept-invitation",
 		Method:      http.MethodPost,
 		Path:        "/auth/invitations/{token}/accept",
-		Summary:     "Accept an organisation invitation",
+		Summary:     "Accept an organization invitation",
 		Description: "Consumes an invitation token, provisions the member account, and issues a session cookie.",
 		Tags:        []string{"Auth"},
 		Errors:      []int{http.StatusBadRequest, http.StatusForbidden, http.StatusUnprocessableEntity},
@@ -151,6 +158,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Description: "Generates a TOTP secret and provisioning URL for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
 		Errors:      []int{http.StatusUnauthorized},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h)},
 	}, a.totpEnroll)
 
 	huma.Register(h, huma.Operation{
@@ -161,6 +169,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Description: "Verifies a TOTP code and enables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusUnprocessableEntity, http.StatusTooManyRequests},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h)},
 	}, a.totpConfirm)
 
 	huma.Register(h, huma.Operation{
@@ -171,6 +180,7 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 		Description: "Disables two-factor authentication for the current user.",
 		Tags:        []string{"Auth", "TOTP"},
 		Errors:      []int{http.StatusUnauthorized},
+		Middlewares: huma.Middlewares{mw.RequirePermissions(h)},
 	}, a.totpDisable)
 
 	huma.Register(h, huma.Operation{
@@ -186,14 +196,11 @@ func Register(h huma.API, svc *Service, sr SettingsReader, requireHTTPS bool) {
 
 func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerBootstrapGet),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
 	out := &BootstrapOut{}
 	out.Body.SetupRequired = bs.SetupRequired
@@ -206,40 +213,31 @@ func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error)
 
 func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	token, err := a.auth.Login(
 		ctx,
 		in.Body.Email,
 		in.Body.Password,
-		in.Body.OrganisationSlug,
+		in.Body.OrganizationSlug,
 		in.Body.TOTPCode,
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		requestmeta.RemoteIPFrom(ctx),
+		requestmeta.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthLogin),
-			apperrors.WithStage(apperrors.StageLogin),
-		)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthLogin),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthLogin),
-			apperrors.WithStage(apperrors.StageSessionLookup),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	out := &LoginOut{}
-	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -251,32 +249,35 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 
 func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
-	sessionToken := support.CookieValueFrom(ctx, a.auth.SessionCookieName())
+	sessionToken := support.CookieValueFrom(ctx, a.sessions.SessionCookieName())
 	if sessionToken != "" {
-		if err := a.auth.Logout(ctx, sessionToken); err != nil {
-			return nil, apperrors.Annotate(err,
-				apperrors.WithHandler(apperrors.HandlerAuthLogout),
-				apperrors.WithStage(apperrors.StageLogout),
-			)
+		principal, err := a.sessions.Logout(ctx, sessionToken)
+		if err != nil {
+			return nil, err
+		}
+		if principal != nil {
+			envelope, err := events.NewEnvelope(ctx, principal.UserID, principal.OrganizationID, events.NewTarget("session", principal.SessionID, principal.DisplayName))
+			if err != nil {
+				return nil, err
+			}
+			// Best effort: logout should not fail if audit publication fails.
+			_ = a.auth.publishEvent(ctx, SecurityAuthLogoutSucceededEvent{EventType: SecurityAuthLogoutSucceeded, Envelope: envelope, Metadata: NewSecurityAuthLogoutSucceededMetadata(principal.Email)})
 		}
 	}
 	out := &LogoutOut{}
-	out.SetCookie = *a.auth.ClearSessionCookie(support.IsSecure(ctx))
+	out.SetCookie = *session.ClearCookie(a.sessions.SessionCookieName(), support.IsSecure(ctx))
 	return out, nil
 }
 
 func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSession),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
 	out := &SessionOut{}
 	out.Body.SetupRequired = bs.SetupRequired
@@ -298,14 +299,11 @@ func (a *API) ssoProviders(ctx context.Context, _ *struct{}) (*SSOProvidersOut, 
 
 func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
-	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganisationSlug)
+	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganizationSlug)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSSOStart),
-			apperrors.WithStage(apperrors.StageSSOStart),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	for i := range cookies {
@@ -316,25 +314,22 @@ func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error
 
 func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	if in.Error != "" {
-		return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOLoginFailed), apperrors.WithCause(errors.New(in.ErrorDetail)))
+		return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthSSOLoginFailed), apperrors.WithCause(errors.New(in.ErrorDetail)))
 	}
 	returnTo, token, clearCookie, err := a.auth.completeSSO(
 		ctx,
 		in.ProviderID,
 		in.State,
 		in.Code,
-		support.CookieValueFrom(ctx, a.auth.SSOStateCookieName()),
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		support.CookieValueFrom(ctx, a.auth.authConfig.SSOStateCookieName),
+		requestmeta.RemoteIPFrom(ctx),
+		requestmeta.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSSOCallback),
-			apperrors.WithStage(apperrors.StageSSOCallback),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	for i := range clearCookie {
@@ -343,25 +338,25 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 	out := &SSOCallbackOut{
 		Status:    http.StatusFound,
 		Location:  returnTo,
-		SetCookie: append([]http.Cookie{*a.auth.SessionCookie(token, secure)}, clearCookie...),
+		SetCookie: append([]http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}, clearCookie...),
 	}
 	return out, nil
 }
 
-func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) (*SelectOrganisationOut, error) {
-	token, err := a.auth.SelectOrganisation(ctx, support.CookieValueFrom(ctx, a.auth.SessionCookieName()), in.Body.OrganisationSlug, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+func (a *API) selectOrganization(ctx context.Context, in *SelectOrganizationIn) (*SelectOrganizationOut, error) {
+	token, err := a.auth.SelectOrganization(ctx, support.CookieValueFrom(ctx, a.sessions.SessionCookieName()), in.Body.OrganizationSlug, requestmeta.RemoteIPFrom(ctx), requestmeta.UserAgentFrom(ctx))
 	if err != nil {
 		return nil, err
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err, apperrors.WithHandler(apperrors.HandlerAuthSession), apperrors.WithStage(apperrors.StageSessionLookup))
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := &SelectOrganisationOut{SetCookie: []http.Cookie{*a.auth.SessionCookie(token, support.IsSecure(ctx))}}
+	out := &SelectOrganizationOut{SetCookie: []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, support.IsSecure(ctx))}}
 	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
 		return nil, err
 	}
@@ -370,21 +365,18 @@ func (a *API) selectOrganisation(ctx context.Context, in *SelectOrganisationIn) 
 
 func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*CreateInvitationOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
-	if sess.Role != RoleOwner && sess.Role != RoleAdmin {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthForbidden))
+	if !sess.HasPermission(permission.AuthInvitationsCreate) {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAccountAuthForbidden))
 	}
-	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, support.RemoteIPFrom(ctx), support.UserAgentFrom(ctx))
+	invitation, err := a.auth.CreateInvitation(ctx, sess, in.Body.Email, in.Body.Role, requestmeta.RemoteIPFrom(ctx), requestmeta.UserAgentFrom(ctx))
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationCreate),
-			apperrors.WithStage(apperrors.StageCreateInvitation),
-		)
+		return nil, err
 	}
 	out := &CreateInvitationOut{}
 	out.Body.Created = invitation.ID != ""
@@ -393,39 +385,30 @@ func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*Cr
 
 func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*AcceptInvitationOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	token, err := a.auth.AcceptInvitation(
 		ctx,
 		in.Token,
 		in.Body.DisplayName,
 		in.Body.Password,
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		requestmeta.RemoteIPFrom(ctx),
+		requestmeta.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
-			apperrors.WithStage(apperrors.StageAcceptInvitation),
-		)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthInvitationAccept),
-			apperrors.WithStage(apperrors.StageSessionLookup),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	out := &AcceptInvitationOut{}
-	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -454,9 +437,9 @@ func (a *API) resetPassword(ctx context.Context, in *ResetPasswordIn) (*ResetPas
 }
 
 func (a *API) totpEnroll(ctx context.Context, _ *struct{}) (*TOTPEnrollOut, error) {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
 	secret, url, err := a.auth.StartTOTPEnrollment(ctx, sess.UserID, sess.Email)
 	if err != nil {
@@ -469,11 +452,11 @@ func (a *API) totpEnroll(ctx context.Context, _ *struct{}) (*TOTPEnrollOut, erro
 }
 
 func (a *API) totpConfirm(ctx context.Context, in *TOTPConfirmIn) (*TOTPConfirmOut, error) {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
-	if err := a.auth.ConfirmTOTP(ctx, sess.UserID, in.Body.Code); err != nil {
+	if err := a.auth.ConfirmTOTP(ctx, sess.UserID, sess.DisplayName, in.Body.Code); err != nil {
 		return nil, err
 	}
 	out := &TOTPConfirmOut{}
@@ -482,11 +465,11 @@ func (a *API) totpConfirm(ctx context.Context, in *TOTPConfirmIn) (*TOTPConfirmO
 }
 
 func (a *API) totpDisable(ctx context.Context, _ *struct{}) (*TOTPConfirmOut, error) {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
-	if err := a.auth.DisableTOTP(ctx, sess.UserID); err != nil {
+	if err := a.auth.DisableTOTP(ctx, sess.UserID, sess.DisplayName); err != nil {
 		return nil, err
 	}
 	out := &TOTPConfirmOut{}
@@ -496,39 +479,30 @@ func (a *API) totpDisable(ctx context.Context, _ *struct{}) (*TOTPConfirmOut, er
 
 func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	if a.requireHTTPS && !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeSecurityHTTPSRequired))
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	token, err := a.auth.SetupFirstUser(
 		ctx,
 		in.Body.Email,
 		in.Body.DisplayName,
 		in.Body.Password,
-		support.RemoteIPFrom(ctx),
-		support.UserAgentFrom(ctx),
+		requestmeta.RemoteIPFrom(ctx),
+		requestmeta.UserAgentFrom(ctx),
 	)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSetup),
-			apperrors.WithStage(apperrors.StageSetupFirstUser),
-		)
+		return nil, err
 	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSetup),
-			apperrors.WithStage(apperrors.StageBootstrap),
-		)
+		return nil, err
 	}
-	sess, err := a.auth.Session(ctx, token)
+	sess, err := a.sessions.Session(ctx, token)
 	if err != nil || sess == nil {
-		return nil, apperrors.Annotate(err,
-			apperrors.WithHandler(apperrors.HandlerAuthSetup),
-			apperrors.WithStage(apperrors.StageSessionLookup),
-		)
+		return nil, err
 	}
 	secure := support.IsSecure(ctx)
 	out := &SetupOut{}
-	out.SetCookie = []http.Cookie{*a.auth.SessionCookie(token, secure)}
+	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
 	out.Body.Authenticated = true
 	out.Body.App.InstanceName = bs.InstanceName
@@ -539,15 +513,15 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 }
 
 func (a *API) attachSession(ctx context.Context, body *BootstrapBody) error {
-	sess := SessionFrom(ctx)
+	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
 		return nil
 	}
 	return a.populateAuthenticatedBody(ctx, body, sess, body.App.InstanceName)
 }
 
-func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody, sess *SessionWithUser, instanceName string) error {
-	orgs, err := a.auth.OrganisationsForUser(ctx, sess.UserID)
+func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody, sess *session.Principal, instanceName string) error {
+	orgs, err := a.auth.OrganizationsForUser(ctx, sess.UserID)
 	if err != nil {
 		return err
 	}
@@ -555,15 +529,15 @@ func (a *API) populateAuthenticatedBody(ctx context.Context, body *BootstrapBody
 	body.Authenticated = true
 	body.App.InstanceName = instanceName
 	body.Viewer = &ViewerOut{Email: sess.Email, DisplayName: sess.DisplayName, Role: string(sess.Role)}
-	body.ActiveOrganisation = &OrganisationOut{ID: sess.OrganisationID, Name: sess.OrganisationName, Slug: sess.OrganisationSlug, Role: string(sess.Role)}
-	body.Organisations = organisationsOut(orgs)
+	body.ActiveOrganization = &OrganizationOut{ID: sess.OrganizationID, Name: sess.OrganizationName, Slug: sess.OrganizationSlug, Role: string(sess.Role)}
+	body.Organizations = organizationsOut(orgs)
 	return nil
 }
 
-func organisationsOut(orgs []Organisation) []OrganisationOut {
-	out := make([]OrganisationOut, 0, len(orgs))
+func organizationsOut(orgs []Organization) []OrganizationOut {
+	out := make([]OrganizationOut, 0, len(orgs))
 	for _, org := range orgs {
-		out = append(out, OrganisationOut{ID: org.ID, Name: org.Name, Slug: org.Slug, Role: string(org.Role)})
+		out = append(out, OrganizationOut{ID: org.ID, Name: org.Name, Slug: org.Slug, Role: string(org.Role)})
 	}
 	return out
 }

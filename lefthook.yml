@@ -1,0 +1,35 @@
+# Git hooks install automatically via `mise install` (see the [hooks] postinstall in mise.toml).
+pre-commit:
+    jobs:
+        - name: validate and generate
+          group:
+              parallel: true
+              jobs:
+                  - name: validate event catalog
+                    glob: "internal/features/*/events.json"
+                    run: go run ./cmd/validate event -features internal/features
+
+                  - name: validate i18n catalog
+                    glob: "internal/foundation/i18n/catalog/**/*.json"
+                    run: go run ./cmd/validate i18n -input internal/foundation/i18n/catalog
+
+                  - name: validate permission catalog
+                    glob: "internal/foundation/permission/{permissions,roles}.json"
+                    run: go run ./cmd/validate permission
+
+                  - name: coderules logreturn
+                    glob: "*.go"
+                    run: go run ./cmd/coderules logreturn ./...
+
+                  - name: generate catalogs
+                    glob: "internal/{features/*/events.json,foundation/i18n/catalog/**/*.json,access/permission/{permissions,roles}.json}"
+                    run: go generate ./internal/foundation/i18n ./internal/platform/events ./internal/foundation/permission && git add internal/features/*/events_generated.go internal/foundation/i18n/generated.go internal/foundation/permission/permission_generated.go internal/foundation/permission/role_generated.go
+
+                  - name: generate sqlc
+                    glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"
+                    run: mise exec -- sqlc generate && git add internal/platform/store/sqlcgen
+
+        - name: golangci-lint
+          glob: "*.go"
+          run: for dir in $(printf '%s\n' {staged_files} | xargs -n1 dirname | sort -u); do mise run lint:fix -- --new-from-rev=HEAD "$dir" || exit $?; done
+          stage_fixed: true

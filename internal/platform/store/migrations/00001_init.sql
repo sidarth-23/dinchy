@@ -32,6 +32,21 @@ CREATE TABLE IF NOT EXISTS organisations (
   updated_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS organisation_roles (
+  id UUID PRIMARY KEY,
+  organisation_id UUID NOT NULL REFERENCES organisations(id),
+  role_key TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE(organisation_id, role_key)
+);
+
+CREATE TABLE IF NOT EXISTS organisation_role_permissions (
+  role_id UUID NOT NULL REFERENCES organisation_roles(id) ON DELETE CASCADE,
+  permission TEXT NOT NULL,
+  PRIMARY KEY(role_id, permission)
+);
+
 CREATE TABLE IF NOT EXISTS organisation_members (
   id UUID PRIMARY KEY,
   organisation_id UUID NOT NULL REFERENCES organisations(id),

@@ -1,0 +1,40 @@
+{
+  "modules": [
+    {
+      "name": "platform",
+      "description": "Platform and process-level messages",
+      "modules": [
+        {
+          "name": "config",
+          "description": "Configuration messages",
+          "messages": [
+            {
+              "name": "load_failed",
+              "translations": {
+                "en": "Failed to load configuration."
+              }
+            },
+            {
+              "name": "validation_failed",
+              "translations": {
+                "en": "Configuration is invalid."
+              }
+            }
+          ]
+        },
+        {
+          "name": "server",
+          "description": "Process-level fallback messages",
+          "messages": [
+            {
+              "name": "internal_error",
+              "translations": {
+                "en": "An unexpected error occurred."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

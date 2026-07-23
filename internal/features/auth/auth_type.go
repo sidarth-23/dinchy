@@ -7,28 +7,23 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
+	"github.com/sidarth-23/dinchy/internal/foundation/transform"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/platform/transform"
 )
 
 //go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
 
-type Role string
-
-const (
-	RoleOwner  Role = "owner"
-	RoleAdmin  Role = "admin"
-	RoleMember Role = "member"
-)
-
+// AccountProvider identifies the authentication provider backing an account.
 type AccountProvider string
 
+// Supported account providers.
 const (
 	AccountProviderPassword AccountProvider = "password"
 )
 
+// User is an authenticated principal.
 type User struct {
 	ID            string
 	Email         string
@@ -37,15 +32,18 @@ type User struct {
 	Disabled      bool
 }
 
-type Organisation struct {
+// Organization describes a user-visible organization and the caller's role in it.
+type Organization struct {
 	ID   string
 	Name string
 	Slug string
-	Role Role
+	Role permission.Role
 }
 
+// InvitationStatus is the lifecycle state of an organization invitation.
 type InvitationStatus string
 
+// Recognized invitation statuses.
 const (
 	InvitationStatusPending  InvitationStatus = "pending"
 	InvitationStatusAccepted InvitationStatus = "accepted"
@@ -53,11 +51,12 @@ const (
 	InvitationStatusCanceled InvitationStatus = "canceled"
 )
 
+// Invitation is a pending or resolved invitation for a user to join an organization.
 type Invitation struct {
 	ID              string
-	OrganisationID  string
+	OrganizationID  string
 	Email           string
-	Role            Role
+	Role            permission.Role
 	Status          InvitationStatus
 	ExpiresAt       time.Time
 	InvitedByUserID string
@@ -65,6 +64,7 @@ type Invitation struct {
 	AcceptedAtValid bool
 }
 
+// TwoFactor is a user's TOTP two-factor enrollment and its verification state.
 type TwoFactor struct {
 	ID                      string
 	UserID                  string
@@ -77,76 +77,63 @@ type TwoFactor struct {
 	LockedUntilValid        bool
 }
 
+// CreateUserInput carries everything needed to provision a user together with their
+// first account, organization, and membership.
 type CreateUserInput struct {
 	ID                   string
 	AccountID            string
-	OrganisationID       string
-	OrganisationMemberID string
+	OrganizationID       string
+	OrganizationMemberID string
+	AdminRoleID          string
+	MemberRoleID         string
 	Email                string
 	PasswordHash         string
 	DisplayName          string
-	OrganisationName     string
-	OrganisationSlug     string
+	OrganizationName     string
+	OrganizationSlug     string
 	Now                  time.Time
 }
 
-type Session struct {
-	ID string
-}
-
-type SessionWithUser struct {
-	SessionID        string
-	UserID           string
-	Email            string
-	DisplayName      string
-	OrganisationID   string
-	OrganisationName string
-	OrganisationSlug string
-	Role             Role
-	IdleExpiresAt    time.Time
-	ExpiresAt        time.Time
-	RevokedAt        pgtype.Timestamptz
-}
-
+// Store is the persistence surface the auth feature depends on.
 type Store interface {
 	CountUsers(ctx context.Context) (int64, error)
 	InsertUser(ctx context.Context, arg sqlcgen.InsertUserParams) error
 	InsertAccount(ctx context.Context, arg sqlcgen.InsertAccountParams) error
-	InsertOrganisation(ctx context.Context, arg sqlcgen.InsertOrganisationParams) error
-	InsertOrganisationMember(ctx context.Context, arg sqlcgen.InsertOrganisationMemberParams) error
+	InsertOrganization(ctx context.Context, arg sqlcgen.InsertOrganizationParams) error
+	InsertOrganizationRole(ctx context.Context, arg sqlcgen.InsertOrganizationRoleParams) error
+	InsertOrganizationRolePermission(ctx context.Context, arg sqlcgen.InsertOrganizationRolePermissionParams) error
+	InsertOrganizationMember(ctx context.Context, arg sqlcgen.InsertOrganizationMemberParams) error
 	FindUserByEmail(ctx context.Context, email string) (sqlcgen.FindUserByEmailRow, error)
 	UpdateUserEmailVerifiedAt(ctx context.Context, arg sqlcgen.UpdateUserEmailVerifiedAtParams) error
 	FindPasswordAccountByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindPasswordAccountByUserIDRow, error)
 	FindUserByProviderAccount(ctx context.Context, arg sqlcgen.FindUserByProviderAccountParams) (sqlcgen.FindUserByProviderAccountRow, error)
-	ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganisationsForUserRow, error)
-	FindOrganisationBySlugForUser(ctx context.Context, arg sqlcgen.FindOrganisationBySlugForUserParams) (sqlcgen.FindOrganisationBySlugForUserRow, error)
-	FindOrganisationByIDForUser(ctx context.Context, arg sqlcgen.FindOrganisationByIDForUserParams) (sqlcgen.FindOrganisationByIDForUserRow, error)
+	ListOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]sqlcgen.ListOrganizationsForUserRow, error)
+	FindOrganizationBySlugForUser(ctx context.Context, arg sqlcgen.FindOrganizationBySlugForUserParams) (sqlcgen.FindOrganizationBySlugForUserRow, error)
+	FindOrganizationByIDForUser(ctx context.Context, arg sqlcgen.FindOrganizationByIDForUserParams) (sqlcgen.FindOrganizationByIDForUserRow, error)
 	UpdateUserPasswordHash(ctx context.Context, arg sqlcgen.UpdateUserPasswordHashParams) error
 	InsertVerificationToken(ctx context.Context, arg sqlcgen.InsertVerificationTokenParams) error
 	FindVerificationToken(ctx context.Context, arg sqlcgen.FindVerificationTokenParams) (sqlcgen.FindVerificationTokenRow, error)
 	ConsumeVerificationToken(ctx context.Context, arg sqlcgen.ConsumeVerificationTokenParams) error
-	InsertOrganisationInvitation(ctx context.Context, arg sqlcgen.InsertOrganisationInvitationParams) error
-	FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganisationInvitationByTokenRow, error)
-	FindPendingOrganisationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganisationInvitationByEmailParams) (sqlcgen.FindPendingOrganisationInvitationByEmailRow, error)
-	ConsumeOrganisationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganisationInvitationParams) error
+	InsertOrganizationInvitation(ctx context.Context, arg sqlcgen.InsertOrganizationInvitationParams) error
+	FindOrganizationInvitationByToken(ctx context.Context, tokenHash string) (sqlcgen.FindOrganizationInvitationByTokenRow, error)
+	FindPendingOrganizationInvitationByEmail(ctx context.Context, arg sqlcgen.FindPendingOrganizationInvitationByEmailParams) (sqlcgen.FindPendingOrganizationInvitationByEmailRow, error)
+	ConsumeOrganizationInvitation(ctx context.Context, arg sqlcgen.ConsumeOrganizationInvitationParams) error
 	InsertOrReplaceTwoFactor(ctx context.Context, arg sqlcgen.InsertOrReplaceTwoFactorParams) error
 	FindTwoFactorByUserID(ctx context.Context, userID uuid.UUID) (sqlcgen.FindTwoFactorByUserIDRow, error)
 	ConfirmTwoFactor(ctx context.Context, arg sqlcgen.ConfirmTwoFactorParams) error
 	MarkTwoFactorUsed(ctx context.Context, arg sqlcgen.MarkTwoFactorUsedParams) error
 	RegisterTwoFactorFailure(ctx context.Context, arg sqlcgen.RegisterTwoFactorFailureParams) error
 	DisableTwoFactor(ctx context.Context, userID uuid.UUID) error
-	InsertSession(ctx context.Context, arg sqlcgen.InsertSessionParams) error
-	GetSessionByTokenHash(ctx context.Context, tokenHash string) (sqlcgen.GetSessionByTokenHashRow, error)
-	RevokeSessionByTokenHash(ctx context.Context, arg sqlcgen.RevokeSessionByTokenHashParams) error
-	RevokeSessionsForUser(ctx context.Context, arg sqlcgen.RevokeSessionsForUserParams) error
 	GetInstanceName(ctx context.Context) (string, error)
 }
 
+// BootstrapState reports whether first-user setup is required and the instance name.
 type BootstrapState struct {
 	SetupRequired bool
 	InstanceName  string
 }
 
+// SettingsReader exposes the instance settings the auth feature reads at bootstrap.
 type SettingsReader interface {
 	Bootstrap(ctx context.Context) (BootstrapState, error)
 }
@@ -158,11 +145,12 @@ type ViewerOut struct {
 	Role        string `json:"role" doc:"User role"`
 }
 
-type OrganisationOut struct {
-	ID   string `json:"id" doc:"Organisation identifier"`
-	Name string `json:"name" doc:"Organisation display name"`
-	Slug string `json:"slug" doc:"Organisation slug"`
-	Role string `json:"role" doc:"Viewer's role in this organisation"`
+// OrganizationOut is an organization projection returned in bootstrap responses.
+type OrganizationOut struct {
+	ID   string `json:"id" doc:"Organization identifier"`
+	Name string `json:"name" doc:"Organization display name"`
+	Slug string `json:"slug" doc:"Organization slug"`
+	Role string `json:"role" doc:"Viewer's role in this organization"`
 }
 
 // AppOut contains application-level metadata returned in every API response body.
@@ -176,8 +164,8 @@ type BootstrapBody struct {
 	Authenticated      bool              `json:"authenticated" doc:"True when the request carries a valid session cookie"`
 	App                AppOut            `json:"app" doc:"Application-level metadata"`
 	Viewer             *ViewerOut        `json:"viewer" doc:"Current authenticated user, or null when not authenticated"`
-	ActiveOrganisation *OrganisationOut  `json:"active_organisation,omitempty"`
-	Organisations      []OrganisationOut `json:"organisations,omitempty"`
+	ActiveOrganization *OrganizationOut  `json:"active_organization,omitempty"`
+	Organizations      []OrganizationOut `json:"organizations,omitempty"`
 }
 
 // BootstrapOut is the response type for the bootstrap endpoint.
@@ -189,7 +177,7 @@ type BootstrapOut struct {
 type LoginBody struct {
 	Email            string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"User email address"`
 	Password         string `json:"password" minLength:"1" maxLength:"128" example:"correct horse battery staple" doc:"User password"`
-	OrganisationSlug string `json:"organisation_slug,omitempty" maxLength:"64" example:"acme" doc:"Organisation slug when the user has multiple memberships"`
+	OrganizationSlug string `json:"organization_slug,omitempty" maxLength:"64" example:"acme" doc:"Organization slug when the user has multiple memberships"`
 	TOTPCode         string `json:"totp_code,omitempty" maxLength:"8" example:"123456" doc:"TOTP code when two-factor authentication is enabled"`
 }
 
@@ -197,7 +185,7 @@ type LoginBody struct {
 // so downstream services receive canonical values.
 func (b *LoginBody) Resolve(huma.Context) []error {
 	transform.ApplyTo(transform.SpecEmail, &b.Email)
-	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+	transform.ApplyTo(transform.SpecTrim, &b.OrganizationSlug)
 	transform.ApplyTo(transform.SpecTrim, &b.TOTPCode)
 	return nil
 }
@@ -213,25 +201,29 @@ type LoginOut struct {
 	Body      BootstrapBody
 }
 
-type SelectOrganisationBody struct {
-	OrganisationSlug string `json:"organisation_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organisation to make active"`
+// SelectOrganizationBody names the organization to make active for the session.
+type SelectOrganizationBody struct {
+	OrganizationSlug string `json:"organization_slug" minLength:"1" maxLength:"64" example:"acme" doc:"Slug of the organization to make active"`
 }
 
-// Resolve trims the organisation slug before it reaches the service.
-func (b *SelectOrganisationBody) Resolve(huma.Context) []error {
-	transform.ApplyTo(transform.SpecTrim, &b.OrganisationSlug)
+// Resolve trims the organization slug before it reaches the service.
+func (b *SelectOrganizationBody) Resolve(huma.Context) []error {
+	transform.ApplyTo(transform.SpecTrim, &b.OrganizationSlug)
 	return nil
 }
 
-type SelectOrganisationIn struct {
-	Body SelectOrganisationBody
+// SelectOrganizationIn is the huma input type for selecting the active organization.
+type SelectOrganizationIn struct {
+	Body SelectOrganizationBody
 }
 
-type SelectOrganisationOut struct {
+// SelectOrganizationOut returns the refreshed bootstrap state and updates the session cookie.
+type SelectOrganizationOut struct {
 	SetCookie []http.Cookie `header:"Set-Cookie"`
 	Body      BootstrapBody
 }
 
+// ForgotPasswordBody carries the email address to send a password reset link to.
 type ForgotPasswordBody struct {
 	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to send the reset link to"`
 }
@@ -242,19 +234,22 @@ func (b *ForgotPasswordBody) Resolve(huma.Context) []error {
 	return nil
 }
 
+// ForgotPasswordIn is the huma input type for requesting a password reset.
 type ForgotPasswordIn struct {
 	Body ForgotPasswordBody
 }
 
+// ForgotPasswordOut always reports acceptance so callers cannot probe for account existence.
 type ForgotPasswordOut struct {
 	Body struct {
 		Accepted bool `json:"accepted"`
 	}
 }
 
+// CreateInvitationBody carries the invitee email and the role to grant them.
 type CreateInvitationBody struct {
-	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to invite"`
-	Role  Role   `json:"role" enum:"member,admin" example:"member" doc:"Role granted to the invited member"`
+	Email string          `json:"email" format:"email" minLength:"3" maxLength:"254" example:"user@example.com" doc:"Email address to invite"`
+	Role  permission.Role `json:"role" enum:"member,admin" example:"member" doc:"Role granted to the invited member"`
 }
 
 // Resolve normalizes the invitee email; the role is validated by its enum.
@@ -263,16 +258,19 @@ func (b *CreateInvitationBody) Resolve(huma.Context) []error {
 	return nil
 }
 
+// CreateInvitationIn is the huma input type for creating an invitation.
 type CreateInvitationIn struct {
 	Body CreateInvitationBody
 }
 
+// CreateInvitationOut reports whether the invitation was created.
 type CreateInvitationOut struct {
 	Body struct {
 		Created bool `json:"created"`
 	}
 }
 
+// AcceptInvitationBody carries the new member's display name and password.
 type AcceptInvitationBody struct {
 	DisplayName string `json:"display_name" minLength:"1" maxLength:"100" example:"Ada Lovelace" doc:"Display name for the new member"`
 	Password    string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"Password (minimum 8 characters)"`
@@ -284,31 +282,37 @@ func (b *AcceptInvitationBody) Resolve(huma.Context) []error {
 	return nil
 }
 
+// AcceptInvitationIn is the huma input type for accepting an invitation via its token.
 type AcceptInvitationIn struct {
 	Token string `path:"token" minLength:"1" doc:"Invitation token from the invite link"`
 	Body  AcceptInvitationBody
 }
 
+// AcceptInvitationOut returns the bootstrap state and sets the session cookie on success.
 type AcceptInvitationOut struct {
 	SetCookie []http.Cookie `header:"Set-Cookie"`
 	Body      BootstrapBody
 }
 
+// ResetPasswordBody carries the reset token and the new password.
 type ResetPasswordBody struct {
 	Token    string `json:"token" minLength:"1" doc:"Reset token from the password reset email"`
 	Password string `json:"password" minLength:"8" maxLength:"128" example:"correct horse battery staple" doc:"New password (minimum 8 characters)"`
 }
 
+// ResetPasswordIn is the huma input type for completing a password reset.
 type ResetPasswordIn struct {
 	Body ResetPasswordBody
 }
 
+// ResetPasswordOut reports whether the password was reset.
 type ResetPasswordOut struct {
 	Body struct {
 		Reset bool `json:"reset"`
 	}
 }
 
+// TOTPEnrollOut returns the generated secret and otpauth URL for enrolling a TOTP device.
 type TOTPEnrollOut struct {
 	Body struct {
 		Secret string `json:"secret"`
@@ -316,6 +320,7 @@ type TOTPEnrollOut struct {
 	}
 }
 
+// TOTPConfirmBody carries the code that confirms a pending TOTP enrollment.
 type TOTPConfirmBody struct {
 	Code string `json:"code" minLength:"6" maxLength:"8" example:"123456" doc:"TOTP code from the authenticator app"`
 }
@@ -326,16 +331,19 @@ func (b *TOTPConfirmBody) Resolve(huma.Context) []error {
 	return nil
 }
 
+// TOTPConfirmIn is the huma input type for confirming TOTP enrollment.
 type TOTPConfirmIn struct {
 	Body TOTPConfirmBody
 }
 
+// TOTPConfirmOut reports whether two-factor authentication is now enabled.
 type TOTPConfirmOut struct {
 	Body struct {
 		Enabled bool `json:"enabled"`
 	}
 }
 
+// LogoutIn is the huma input type for logout; it carries no fields.
 type LogoutIn struct{}
 
 // LogoutOut clears the session cookie.

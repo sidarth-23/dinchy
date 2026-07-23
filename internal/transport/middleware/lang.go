@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 

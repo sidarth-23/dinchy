@@ -5,108 +5,88 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
-type captureSender struct {
-	configured bool
-	sent       []Message
+type captureEnqueuer struct {
+	enqueued []river.JobArgs
 }
 
-func (c *captureSender) Configured() bool { return c.configured }
-
-func (c *captureSender) Send(_ context.Context, msg Message) error {
-	c.sent = append(c.sent, msg)
+func (c *captureEnqueuer) Enqueue(_ context.Context, args river.JobArgs, _ *river.InsertOpts) error {
+	c.enqueued = append(c.enqueued, args)
 	return nil
 }
 
-func TestNewMailer_RequiresBaseURLWhenConfigured(t *testing.T) {
-	t.Parallel()
+func (c *captureEnqueuer) EnqueueTx(_ context.Context, _ pgx.Tx, args river.JobArgs, _ *river.InsertOpts) error {
+	c.enqueued = append(c.enqueued, args)
+	return nil
+}
 
-	if _, err := NewMailer(&captureSender{configured: true}, ""); err == nil {
-		t.Fatal("expected error when a configured sender has no public base URL")
+func (c *captureEnqueuer) only(t *testing.T) SendEmailArgs {
+	t.Helper()
+	if len(c.enqueued) != 1 {
+		t.Fatalf("expected 1 enqueued email, got %d", len(c.enqueued))
 	}
-	if _, err := NewMailer(NoopSender{}, ""); err != nil {
-		t.Fatalf("noop sender should not require a base URL: %v", err)
+	args, ok := c.enqueued[0].(SendEmailArgs)
+	if !ok {
+		t.Fatalf("enqueued job is %T, want SendEmailArgs", c.enqueued[0])
 	}
+	return args
 }
 
 func TestMailer_Configured(t *testing.T) {
 	t.Parallel()
 
-	mailer, err := NewMailer(NoopSender{}, "")
+	mailer, err := NewMailer(nil, false)
 	if err != nil {
 		t.Fatalf("NewMailer: %v", err)
 	}
 	if mailer.Configured() {
-		t.Fatal("noop-backed mailer must report not configured")
+		t.Fatal("unconfigured mailer must report not configured")
 	}
-	if err := mailer.SendPasswordReset(context.Background(), PasswordResetEmail{To: "user@example.com", Token: "tok"}); !errors.Is(err, ErrNotConfigured) {
-		t.Fatalf("expected ErrNotConfigured, got %v", err)
+	if err := mailer.Send(context.Background(), "user@example.com", Content{Subject: "Hi"}); !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("expected ErrNotConfigured when no enqueuer, got %v", err)
 	}
 }
 
-func TestMailer_SendInvitation(t *testing.T) {
+func TestMailer_SendRendersContentIntoLayoutAndEnqueues(t *testing.T) {
 	t.Parallel()
 
-	sender := &captureSender{configured: true}
-	mailer, err := NewMailer(sender, "https://app.test")
+	enqueuer := &captureEnqueuer{}
+	mailer, err := NewMailer(enqueuer, true)
 	if err != nil {
 		t.Fatalf("NewMailer: %v", err)
 	}
 
-	err = mailer.SendInvitation(context.Background(), InvitationEmail{
-		To:               "invitee@example.com",
-		OrganisationName: "Acme",
-		Role:             "member",
-		Token:            "invite-token",
-	})
-	if err != nil {
-		t.Fatalf("SendInvitation: %v", err)
+	content := Content{
+		Subject:  "Join Acme on Dinchy",
+		Heading:  "Join Acme",
+		Body:     "You have been invited to join Acme.",
+		CTALabel: "Accept invitation",
+		CTAURL:   "https://app.test/accept-invitation?token=invite-token",
+		Footer:   "This is an automated message.",
 	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(sender.sent))
+	if err := mailer.Send(context.Background(), "invitee@example.com", content); err != nil {
+		t.Fatalf("Send: %v", err)
 	}
-	msg := sender.sent[0]
+
+	msg := enqueuer.only(t)
 	if msg.To != "invitee@example.com" {
 		t.Errorf("unexpected recipient %q", msg.To)
 	}
-	if !strings.Contains(msg.Subject, "Acme") {
-		t.Errorf("subject should carry the organisation name, got %q", msg.Subject)
+	if msg.Subject != content.Subject {
+		t.Errorf("subject %q should equal content subject %q", msg.Subject, content.Subject)
 	}
-	wantLink := "https://app.test/accept-invitation?token=invite-token"
-	if !strings.Contains(msg.Text, wantLink) {
-		t.Errorf("plaintext body missing CTA link %q:\n%s", wantLink, msg.Text)
+	if !strings.Contains(msg.Text, content.CTAURL) {
+		t.Errorf("plaintext body missing CTA link %q:\n%s", content.CTAURL, msg.Text)
 	}
-	if !strings.Contains(msg.HTML, wantLink) {
-		t.Errorf("HTML body missing CTA link %q", wantLink)
+	if !strings.Contains(msg.HTML, content.CTAURL) {
+		t.Errorf("HTML body missing CTA link %q", content.CTAURL)
 	}
-	if !strings.Contains(msg.Text, "Acme") {
-		t.Errorf("plaintext body should mention the organisation:\n%s", msg.Text)
-	}
-}
-
-func TestMailer_SendPasswordReset(t *testing.T) {
-	t.Parallel()
-
-	sender := &captureSender{configured: true}
-	mailer, err := NewMailer(sender, "https://app.test")
-	if err != nil {
-		t.Fatalf("NewMailer: %v", err)
-	}
-
-	if err := mailer.SendPasswordReset(context.Background(), PasswordResetEmail{To: "user@example.com", Token: "reset-token"}); err != nil {
-		t.Fatalf("SendPasswordReset: %v", err)
-	}
-	if len(sender.sent) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(sender.sent))
-	}
-	msg := sender.sent[0]
-	wantLink := "https://app.test/reset-password?token=reset-token"
-	if !strings.Contains(msg.Text, wantLink) {
-		t.Errorf("plaintext body missing CTA link %q:\n%s", wantLink, msg.Text)
-	}
-	if !strings.Contains(msg.HTML, wantLink) {
-		t.Errorf("HTML body missing CTA link %q", wantLink)
+	if !strings.Contains(msg.Text, content.Heading) {
+		t.Errorf("plaintext body should render the heading:\n%s", msg.Text)
 	}
 	if msg.HTML == "" {
 		t.Error("HTML body must not be empty")

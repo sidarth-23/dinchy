@@ -1,3 +1,5 @@
+// Command validate checks the i18n, event, and permission catalogs against their
+// schemas without regenerating code.
 package main
 
 import (
@@ -13,12 +15,12 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
-	case "error":
-		err = runValidateError(os.Args[2:])
 	case "event":
 		err = runValidateEvent(os.Args[2:])
 	case "i18n":
 		err = runValidateI18n(os.Args[2:])
+	case "permission":
+		err = runValidatePermission(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -33,5 +35,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: validate <error|event|i18n> [flags]")
+	fmt.Fprintln(os.Stderr, "usage: validate <event|i18n|permission> [flags]")
 }

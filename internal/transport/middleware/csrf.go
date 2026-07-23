@@ -5,13 +5,13 @@ package middleware
 
 import (
 	"crypto/subtle"
-	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/security"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/security"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -19,7 +19,7 @@ import (
 // Every request ensures a dinchy_csrf cookie exists; mutating requests
 // (POST, PUT, PATCH, DELETE) additionally require the X-CSRF-Token header
 // to match the cookie value.
-func CSRF() func(http.Handler) http.Handler {
+func CSRF(renderer *render.Renderer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -30,7 +30,7 @@ func CSRF() func(http.Handler) http.Handler {
 			if err != nil || cookie.Value == "" {
 				token, err = security.RandomToken(32)
 				if err != nil {
-					panic(err)
+					panic(fmt.Errorf("csrf: generate random token: %w", err))
 				}
 				http.SetCookie(w, support.CSRFCookie(token, secure))
 			} else {
@@ -41,12 +41,8 @@ func CSRF() func(http.Handler) http.Handler {
 			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 				header := r.Header.Get("X-CSRF-Token")
 				if subtle.ConstantTimeCompare([]byte(token), []byte(header)) != 1 {
-					locErr := apperrors.Resolve(support.LangFrom(ctx), i18n.Default, apperrors.BadRequest(i18n.Msg(i18n.CodeSecurityCSRFFailed)))
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(locErr.GetStatus())
-					if err := json.NewEncoder(w).Encode(locErr); err != nil {
-						log.Printf("failed to encode CSRF error response: %v", err)
-					}
+					locErr := renderer.Resolve(support.LangFrom(ctx), apperrors.BadRequest(i18n.Msg(i18n.CodeTransportSecurityCSRFFailed)))
+					writeErrorResponse(ctx, w, nil, locErr)
 					return
 				}
 			}

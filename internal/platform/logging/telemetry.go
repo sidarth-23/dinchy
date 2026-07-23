@@ -1,4 +1,3 @@
-// Package logging configures structured application logging and telemetry.
 package logging
 
 import (

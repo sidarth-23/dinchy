@@ -1,4 +1,4 @@
-// Package app wires all dependencies and manages the application lifecycle.
+// Package app wires the application dependencies together and owns the server lifecycle.
 package app
 
 import (
@@ -9,18 +9,26 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-co-op/gocron/v2"
+	"github.com/jackc/pgx/v5"
+	goredis "github.com/redis/go-redis/v9"
+	"github.com/riverqueue/river"
+
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/features/health"
+	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/foundation/clock"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/id"
 	"github.com/sidarth-23/dinchy/internal/platform/cache"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/email"
-	"github.com/sidarth-23/dinchy/internal/platform/eventbus"
+	"github.com/sidarth-23/dinchy/internal/platform/events"
 	"github.com/sidarth-23/dinchy/internal/platform/frontend"
-	"github.com/sidarth-23/dinchy/internal/platform/id"
+	"github.com/sidarth-23/dinchy/internal/platform/jobs"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	"github.com/sidarth-23/dinchy/internal/platform/store"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
@@ -28,135 +36,136 @@ import (
 	"github.com/sidarth-23/dinchy/internal/workers"
 )
 
-// App is the top-level application container.
+// App holds the wired dependencies and running servers for one application instance.
 type App struct {
 	cfg      config.Config
 	closer   io.Closer
-	cache    cache.Store
+	redis    *goredis.Client
 	public   *http.Server
 	internal *http.Server
-	workers  *workers.Runtime
+	workers  gocron.Scheduler
+	jobs     *river.Client[pgx.Tx]
 	errCh    chan error
 	logger   *slog.Logger
 }
 
-// NewApp creates an App with the given configuration. Heavy initialization is deferred to Start.
+// NewApp creates an App from config, defaulting the logger when nil.
 func NewApp(cfg config.Config, logger *slog.Logger) (*App, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &App{cfg: cfg, errCh: make(chan error, 3), logger: logger}, nil
+	return &App{cfg: cfg, errCh: make(chan error, 2), logger: logger}, nil
 }
 
-// Start initializes all dependencies, starts the worker runtime, and begins listening
-// on both the public and internal server addresses.
+// Start opens dependencies, wires services, and begins serving public and internal traffic.
 func (a *App) Start() error {
 	ctx := context.Background()
-
 	s, err := store.Open(ctx, a.cfg.Database.PostgresDSN, store.WithLogger(a.logger))
 	if err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageOpenStore),
-		)
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppOpenStore), apperrors.WithCause(err))
 	}
 	a.closer = s
+	if err := jobs.Migrate(ctx, s.Pool(), a.logger); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
 	queries := sqlcgen.New(s.Pool())
-
-	cacheStore, err := cache.Open(ctx, a.cfg.Cache)
+	redisClient, err := cache.OpenRedis(ctx, a.cfg.Redis)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
-	a.cache = cacheStore
-	streamStore, ok := cacheStore.(cachecore.StreamStore)
-	if !ok {
-		return apperrors.Internal(i18n.Msg(i18n.CodeServerInternalError), apperrors.WithCause(errors.New("cache backend does not support the streams required by the event bus")))
-	}
-	eventBusSvc, err := eventbus.NewService(streamStore, id.NewGenerator(), eventbus.Config{
-		StreamName:          a.cfg.EventBus.StreamName,
-		ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix,
-		ConsumerName:        a.cfg.EventBus.ConsumerName,
-		BatchSize:           a.cfg.EventBus.BatchSize,
-		RetentionWindow:     a.cfg.EventBus.RetentionWindow,
-		ClaimMinIdle:        a.cfg.EventBus.ClaimMinIdle,
-		ReadBlock:           a.cfg.EventBus.ReadBlock,
-		WorkerInterval:      a.cfg.EventBus.WorkerInterval,
-	})
+	a.redis = redisClient
+	eventBusSvc, err := events.NewService(redisClient, id.NewGenerator(), events.Config{StreamName: a.cfg.EventBus.StreamName, ConsumerGroupPrefix: a.cfg.EventBus.ConsumerGroupPrefix, ConsumerName: a.cfg.EventBus.ConsumerName, BatchSize: a.cfg.EventBus.BatchSize, RetentionWindow: a.cfg.EventBus.RetentionWindow, ClaimMinIdle: a.cfg.EventBus.ClaimMinIdle, ReadBlock: a.cfg.EventBus.ReadBlock, WorkerInterval: a.cfg.EventBus.WorkerInterval})
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
+	eventBusSvc.RegisterDefinitions(auth.EventDefinitions)
 	clk := clock.System{}
-	auditSvc, err := audit.NewService(queries, clk)
-	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-	}
-	eventBusSvc.Register(auditSvc)
-	if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
-	}
-
 	var sender email.Sender = email.NoopSender{}
 	if a.cfg.SMTP.Enabled() {
 		smtpSender, err := email.NewSMTPSender(a.cfg.SMTP)
 		if err != nil {
-			return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+			return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 		}
 		sender = smtpSender
 	}
-	mailer, err := email.NewMailer(sender, a.cfg.PublicBaseURL)
+	riverWorkers := river.NewWorkers()
+	river.AddWorker(riverWorkers, email.NewSendEmailWorker(sender))
+	riverClient, err := jobs.New(s.Pool(), a.logger, a.cfg.Jobs, riverWorkers)
 	if err != nil {
-		return apperrors.Annotate(err, apperrors.WithStage(apperrors.StageSetup))
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
-	authSvc, err := auth.NewService(s.Pool(), queries, id.NewGenerator(), clk, a.cfg.Auth, a.cfg.SSOProviders, cacheStore, cachecore.NewKeyer(a.cfg.Cache.KeyPrefix), mailer, eventBusSvc)
+	a.jobs = riverClient
+	enqueuer := jobs.NewEnqueuer(riverClient)
+	mailer, err := email.NewMailer(enqueuer, a.cfg.SMTP.Enabled())
 	if err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageSetup),
-		)
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
-
+	keyer := cache.NewKeyer(a.cfg.Redis.KeyPrefix)
+	sharedService := features.Service{BaseLogger: a.logger, Clock: clk, IDGenerator: id.NewGenerator(), Database: s.Pool(), RedisClient: redisClient, CacheKeyer: keyer, Mailer: mailer, EventPublisher: eventBusSvc, Jobs: enqueuer}
+	auditSvc, err := audit.NewService(sharedService.Named("audit"), queries)
+	if err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
+	eventBusSvc.Register(auditSvc)
+	if err := eventBusSvc.EnsureConsumerGroups(ctx); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
+	sessionSvc, err := session.NewService(sharedService.Named("session"), queries, a.cfg.Session, a.cfg.Cache)
+	if err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
+	authSvc, err := auth.NewService(sharedService.Named("auth"), queries, sessionSvc, a.cfg.Auth, config.NewLinks(a.cfg.PublicBaseURL), a.cfg.SSOProviders)
+	if err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
 	var dist fs.FS
 	if !a.cfg.DevMode {
 		distFS, err := frontend.DistFS()
 		if err != nil {
-			return apperrors.Annotate(err,
-				apperrors.WithStage(apperrors.StageFrontendDistFs),
-				apperrors.WithStage(apperrors.StageLoadFrontendAssets),
-			)
+			return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppLoadFrontendAssets), apperrors.WithCause(err))
 		}
 		dist = distFS
 	}
-
-	a.public = transport.New(a.cfg.Addr, dist, authSvc, auditSvc, s, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.DevProxyURL, a.logger)
-	a.internal = transport.NewInternal(a.cfg.InternalAddr, s)
-
-	registeredWorkers := []workers.Worker{
-		workers.NewSessionCleanupWorker(queries, clk),
-		eventbus.NewWorker(eventBusSvc, auditSvc.Name()),
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.ExposeInternalErrors, a.cfg.DevProxyURL, a.logger)
+	healthAPI, err := health.NewAPI(sharedService.Named("health"), s)
+	if err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
-	a.workers = workers.NewRuntime(queries, clk, a.logger, a.errCh, registeredWorkers...)
-	if err := a.workers.Start(ctx); err != nil {
-		return apperrors.Annotate(err,
-			apperrors.WithStage(apperrors.StageStartTaskRuntime),
-		)
+	a.internal = transport.NewInternal(a.cfg.InternalAddr, healthAPI)
+	scheduler, err := workers.New(a.logger, a.cfg.Worker)
+	if err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
 	}
-
+	if err := workers.RegisterSessionCleanup(scheduler, queries, clk); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
+	}
+	if err := events.RegisterWorkers(scheduler, eventBusSvc); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
+	}
+	scheduler.Start()
+	a.workers = scheduler
+	if err := riverClient.Start(ctx); err != nil {
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
+	}
 	go func() { a.errCh <- a.public.ListenAndServe() }()
 	go func() { a.errCh <- a.internal.ListenAndServe() }()
-	logging.Info(ctx, a.logger, "Application started",
-		slog.String("public_addr", a.cfg.Addr),
-		slog.String("internal_addr", a.cfg.InternalAddr),
-		slog.Bool("dev_mode", a.cfg.DevMode),
-	)
+	logging.Info(ctx, a.logger, "Application started", slog.String("public_addr", a.cfg.Addr), slog.String("internal_addr", a.cfg.InternalAddr), slog.Bool("dev_mode", a.cfg.DevMode))
 	return nil
 }
 
-// Shutdown performs a graceful shutdown in dependency order: workers first, then
-// the public server, then the internal server (kept up during public drain), then
-// the database.
+// Shutdown stops workers and servers and closes dependencies, joining any errors.
 func (a *App) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 	logging.Info(ctx, a.logger, "Application stopping")
 	if a.workers != nil {
-		a.workers.Stop()
+		if err := a.workers.ShutdownWithContext(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
+	}
+	if a.jobs != nil {
+		if err := a.jobs.Stop(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
 	}
 	if a.public != nil {
 		if err := a.public.Shutdown(ctx); err != nil {
@@ -168,8 +177,8 @@ func (a *App) Shutdown(ctx context.Context) error {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
-	if a.cache != nil {
-		if err := a.cache.Close(); err != nil {
+	if a.redis != nil {
+		if err := a.redis.Close(); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
@@ -184,7 +193,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 	return shutdownErr
 }
 
-// Wait blocks until both servers exit and returns the first fatal error encountered.
+// Wait blocks until both servers stop, returning the first non-graceful error.
 func (a *App) Wait() error {
 	closed := 0
 	for {

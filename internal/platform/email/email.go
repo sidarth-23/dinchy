@@ -1,3 +1,6 @@
+// Package email renders resolved Content into a shared branded layout and
+// delivers it durably through a background job. It selects no copy and builds no
+// links; callers supply fully-resolved Content and reach delivery through Mailer.
 package email
 
 import (
@@ -9,6 +12,7 @@ import (
 	"github.com/sidarth-23/dinchy/internal/config"
 )
 
+// Message is a single transactional email with optional HTML alternative.
 type Message struct {
 	To      string
 	Subject string
@@ -16,27 +20,36 @@ type Message struct {
 	HTML    string
 }
 
+// Sender delivers transactional email. Send returns ErrNotConfigured when no
+// transport is available, and Configured reports whether Send can deliver.
 type Sender interface {
 	Send(ctx context.Context, msg Message) error
 	Configured() bool
 }
 
+// NoopSender is a Sender that delivers nothing, for when SMTP is disabled.
 type NoopSender struct{}
 
+// Send always fails with ErrNotConfigured.
 func (NoopSender) Send(context.Context, Message) error {
 	return ErrNotConfigured
 }
 
+// Configured always reports false.
 func (NoopSender) Configured() bool {
 	return false
 }
 
+// ErrNotConfigured indicates SMTP is not configured and email cannot be sent.
 var ErrNotConfigured = fmt.Errorf("smtp is not configured")
 
+// SMTPSender delivers email over SMTP using the configured transport.
 type SMTPSender struct {
 	cfg config.SMTPConfig
 }
 
+// NewSMTPSender builds an SMTPSender from cfg, returning ErrNotConfigured when
+// SMTP is disabled and an error when required host or from fields are missing.
 func NewSMTPSender(cfg config.SMTPConfig) (*SMTPSender, error) {
 	if !cfg.Enabled() {
 		return nil, ErrNotConfigured
@@ -47,10 +60,12 @@ func NewSMTPSender(cfg config.SMTPConfig) (*SMTPSender, error) {
 	return &SMTPSender{cfg: cfg}, nil
 }
 
+// Configured always reports true.
 func (s *SMTPSender) Configured() bool {
 	return true
 }
 
+// Send composes msg and delivers it over SMTP using the sender's configuration.
 func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 	m := mail.NewMsg()
 	if err := m.From(s.cfg.From); err != nil {

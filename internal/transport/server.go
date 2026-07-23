@@ -16,24 +16,26 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/text/language"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
 	"github.com/sidarth-23/dinchy/internal/features/audit"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	"github.com/sidarth-23/dinchy/internal/platform/logging"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service, sr auth.SettingsReader, requireHTTPS, devMode bool, devProxyURL string, logger *slog.Logger) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, requireHTTPS, devMode, exposeInternalErrors bool, devProxyURL string, logger *slog.Logger) *http.Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	renderer := render.NewRenderer(i18n.Default, exposeInternalErrors)
 	huma.NewError = func(status int, _ string, errs ...error) huma.StatusError {
-		return apperrors.ResponseFor(language.English, i18n.Default, status, errs...)
+		return renderer.ResponseFor(language.English, status, errs...)
 	}
 	huma.NewErrorWithContext = func(ctx huma.Context, status int, _ string, errs ...error) huma.StatusError {
 		for _, err := range errs {
@@ -43,13 +45,13 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 			logging.HTTPError(ctx.Context(), logger, status, "Request failed", err)
 			break
 		}
-		return apperrors.ResponseFor(support.LangFrom(ctx.Context()), i18n.Default, status, errs...)
+		return renderer.ResponseFor(support.LangFrom(ctx.Context()), status, errs...)
 	}
 
 	r := chi.NewRouter()
 
 	r.Use(mw.RequestID())
-	r.Use(mw.Recover())
+	r.Use(mw.Recover(logger, renderer))
 	r.Use(mw.RealIP())
 	r.Use(mw.CleanPath())
 	r.Use(mw.SecureDetect())
@@ -57,16 +59,18 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 	r.Use(mw.Lang(i18n.Default))
 	r.Use(mw.SecureHeaders(devMode))
 	r.Use(mw.CORS(devMode, devProxyURL))
-	r.Use(mw.CSRF())
-	r.Use(mw.Session(authSvc))
+	r.Use(mw.CSRF(renderer))
+	r.Use(session.RequestMiddleware(sessionSvc.SessionCookieName(), sessionSvc.Session))
 	r.Use(mw.Timeout(30 * time.Second))
 	r.Use(mw.AccessLog(logger))
 
 	apiRouter := chi.NewRouter()
+	apiRouter.Use(mw.NoStore())
 	cfg := huma.DefaultConfig("Dinchy API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
-	auth.Register(api, authSvc, sr, requireHTTPS)
+	api.UseMiddleware(mw.SessionResolutionGuard(api))
+	auth.Register(api, authSvc, sessionSvc, authSvc, requireHTTPS)
 	if auditSvc != nil {
 		audit.Register(api, auditSvc)
 	}
@@ -75,7 +79,8 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, auditSvc *audit.Service
 	if devMode {
 		target, err := url.Parse(devProxyURL)
 		if err != nil {
-			logging.Warn(context.Background(), logger, "Invalid dev proxy URL",
+			logging.Warn(
+				context.Background(), logger, "Invalid dev proxy URL",
 				slog.String("url", devProxyURL),
 				slog.Any("error", err),
 			)

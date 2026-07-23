@@ -20,7 +20,7 @@ func TestSecureHeaders_ProductionCSP(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
 	handler.ServeHTTP(rr, req)
 
 	assert.True(t, sawNext)
@@ -39,7 +39,7 @@ func TestSecureHeaders_DevelopmentCSP(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://example.test/", http.NoBody)
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'", rr.Header().Get("Content-Security-Policy"))

@@ -1,21 +1,37 @@
+// Package health serves liveness and readiness probes for the process.
 package health
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/sidarth-23/dinchy/internal/features"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 // API groups the health handlers and their shared dependencies.
 type API struct {
+	*features.Service
 	db Pinger
 }
 
-// Register mounts the health operations on the given huma.API instance.
-func Register(h huma.API, db Pinger) {
-	a := &API{db: db}
+// NewAPI builds the health API.
+func NewAPI(base *features.Service, db Pinger) (*API, error) {
+	if base == nil {
+		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("health module service is required")))
+	}
+	if err := base.Initialize(); err != nil {
+		return nil, apperrors.Annotate(err)
+	}
+	return &API{Service: base, db: db}, nil
+}
 
+// Register mounts the health API operations on the given huma.API instance.
+func (a *API) Register(h huma.API) {
 	huma.Register(h, huma.Operation{
 		OperationID: "health-healthz",
 		Method:      http.MethodGet,
@@ -34,6 +50,8 @@ func Register(h huma.API, db Pinger) {
 		Tags:        []string{"Health"},
 	}, a.readyz)
 }
+
+var _ features.Module = (*API)(nil)
 
 func (a *API) healthz(context.Context, *struct{}) (*HealthOut, error) {
 	return &HealthOut{

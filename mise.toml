@@ -5,9 +5,27 @@ node = "24.15.0"
 "github:sqlc-dev/sqlc" = "1.31.1"
 "github:pressly/goose" = "3.27.1"
 "github:golangci/golangci-lint" = "2.12.2"
+"github:evilmartians/lefthook" = "2.1.9"
+"go:github.com/go-delve/delve/cmd/dlv" = "1.27.0"
+uv = "latest"
+"pipx:podman-compose" = "1.6.0"
+lefthook = "latest"
+
+# Local dev environment. Both files are gitignored (only .env.example is committed);
+# .env holds your working config, .env.local optional overrides that win over .env.
+# mise injects these into the process env for every task — so compose interpolates the
+# port keys, the app reads its DSN, and podman/netavark reads NETAVARK_FW from here.
+[env]
+_.file = [".env", ".env.local"]
 
 [tasks]
 dev = "go run ./cmd/dinchy"
+# podman-compose drives podman directly (no Docker daemon/socket). Host ports come
+# from compose.yaml, interpolated from DINCHY_*_PORT in .env. NETAVARK_FW (if set in
+# .env) is inherited from the mise env — see .env.example for the WSL2 note.
+"infra:up" = "podman-compose up -d"
+"infra:down" = "podman-compose down"
+"infra:logs" = "podman-compose logs -f"
 build = "go build -o dinchy ./cmd/dinchy"
 test = "go test ./..."
 # The race detector requires cgo; the app itself stays cgo-free, so race is an
@@ -15,14 +33,21 @@ test = "go test ./..."
 "test:race" = "CGO_ENABLED=1 go test -race ./..."
 "test:cover" = "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
 lint = "golangci-lint run"
+"lint:fix" = "golangci-lint run --fix"
 fmt = "golangci-lint fmt"
-generate = "go generate ./internal/errors ./internal/i18n ./internal/events && sqlc generate"
+generate = "go generate ./internal/foundation/errors ./internal/foundation/i18n ./internal/platform/events ./internal/foundation/permission && sqlc generate"
 "db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
 "db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }
 "web:dev" = { dir = "web", run = "bun run dev" }
-"web:install" = { dir = "web", run = "bun install" }
 
 [settings]
 experimental = true
 auto_install = true
+# Install pipx-backed tools (podman-compose) via uv/uvx instead of pipx, so no
+# separate pipx install is required — mise manages uv as a tool above.
+pipx.uvx = true
+
+# Install git hooks as part of `mise install` so a fresh checkout is ready to commit.
+[hooks]
+postinstall = "lefthook install"

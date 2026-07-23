@@ -1,142 +1,68 @@
 # Dinchy agent rules
 
-* Prioritize correctness and clarity.
-  * If a choice trades correctness for speed, choose correctness.
-  * If a change introduces ambiguity, prefer the option that is easier to reason about later.
-* Prefer working in existing files and packages unless you are introducing a new logical component.
-  * Keep related code close to the feature or concern it serves.
-  * Avoid adding new top-level structure unless the existing one cannot hold the change cleanly.
-* Avoid drive-by refactors and unrelated cleanup.
-  * Keep the change scoped to the requested work.
-  * If cleanup is necessary to complete the task, do it with a clear purpose, a coherent structure, and a clean end state.
-  * Do not bolt on shims, random fixes, or incidental patches just to make the change pass.
-* Keep comments rare.
-  * Add comments only when they explain non-obvious intent, a trap, or a constraint that is not already obvious from the code.
-  * Prefer making the code clearer instead of documenting something that should be encoded in names or structure.
-* Never silently discard errors.
-  * If an error is intentionally ignored, make that decision explicit in code.
-  * If an error is not actionable, preserve enough context for the caller or reader to understand why.
-* Never log and return the same error.
-  * Log it if the current layer is the end of the line for observability.
-  * Return it if the caller still needs to decide how to handle it.
+Always-on principles for working in this codebase. These are the rules; the full
+usage of a package lives in its godoc — run `go doc <pkg>` — and domain vocabulary
+lives in `CONTEXT.md`. Each area below carries a short example and points to the
+godoc that documents its mechanics in depth.
 
-## Error handling
+## Core principles
 
-* Always add context when returning an error.
-  * Context should include what the code was trying to do, plus any loop iteration, computed value, or other data the caller cannot infer.
-  * Context must uniquely identify the code path when multiple returns can fail in the same function.
-  * Include all context the caller does not already have. Omit context the caller clearly already knows.
-* If there is no new context to add, leave a comment explaining why the existing error already carries enough detail.
-  * This is a last resort for paths where the returned error already fully identifies the failure.
-  * Do not use this as a substitute for adding missing information when the caller would benefit from it.
-* Use `internal/errors.AppError` for user-visible failures and anything that crosses a layer boundary.
-  * Prefer the typed constructors such as `BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `UnprocessableEntity`, and `Internal`.
-  * Keep the stable error code and localized message at the source of the failure.
-  * Attach metadata through typed helpers, not ad hoc stringly-typed maps.
-  * Any new user-visible structured error must add or reuse the matching `i18n.Message` and `i18n.Code` in the same change.
-  * Do not leave a structured error without a localized message unless the failure is intentionally internal-only.
-  * Keep error codes stable and aligned with the translated message catalog.
-* Add context at the boundary where the code gains information.
-  * Use `Annotate` when a lower layer has failed and the caller needs feature, stage, operation, task, path, or field context.
-  * Preserve the original code and metadata when re-annotating structured errors.
-  * If an error is not already structured, convert it into a structured internal error before it leaves the layer.
-* Use raw `fmt.Errorf` only for internal diagnostic cause messages.
-  * Keep those messages inside `WithCause` or other internal error plumbing.
-  * Do not expose those raw strings as the primary user-facing error contract when a structured app error is available.
-* Use `errors.Join` only when two failures must be preserved together.
-  * Typical examples are a primary failure plus rollback/cleanup failure.
-  * Do not join errors just to avoid choosing one; choose a clear primary error unless preserving both is important.
-* Leaf helpers and parsers may return plain errors or sentinel-style booleans when they do not cross a layer boundary.
-  * Convert them to structured app errors at the first boundary that can add useful context.
-  * Keep this exception narrow; do not let raw errors leak through application layers.
-* Use `%T` when the type is unknown or may vary.
-  * Prefer it when the concrete type is part of the failure shape.
-* Use `%q` for strings unless you are certain they are already clean and non-empty.
-  * Prefer quoted strings for user input, IDs, paths, and any value that may contain spaces or empties.
-* Do not start error text with `failed to` or `error` unless you are logging.
-  * Write the action or condition instead of prefixing the sentence with a generic label.
-* Do not wrap with `%w` unless the wrapped error is part of the API contract you intend to keep stable.
-  * If the caller should inspect the underlying error, only wrap when that exposure is deliberate.
+* Prioritize correctness and clarity. If a choice trades correctness for speed, choose correctness; if a change introduces ambiguity, prefer the option easier to reason about later.
+* Prefer working in existing files and packages unless you are introducing a new logical component. Keep related code close to the feature it serves; avoid new top-level structure unless the existing one cannot hold the change cleanly.
+* Avoid drive-by refactors and unrelated cleanup. Keep the change scoped; if cleanup is necessary, do it with clear purpose and a clean end state, not shims or incidental patches.
+* Keep comments rare — only for non-obvious intent, a trap, or a constraint not already clear from the code. This governs inline comments, not Go doc comments: every exported symbol and package must still carry a terse, intent-focused Go doc comment (enforced by `revive`).
+* Never silently discard errors. If an error is intentionally ignored, make that explicit; if it is not actionable, preserve enough context to explain why.
+* Never log and return the same error. Log it if this layer is the end of the line for observability; return it if the caller still needs to decide how to handle it.
+
+## Errors
+
+* Always add context when returning an error, and make that context uniquely identify the code path when multiple returns can fail in the same function. Never return a bare `err` when a richer error is available; if there is genuinely no new context, leave a brief comment saying why the existing error suffices.
+* Use `internal/foundation/errors.AppError` for user-visible failures and anything crossing a layer boundary. Prefer the typed constructors (`BadRequest`, `Unauthorized`, `Forbidden`, `Conflict`, `UnprocessableEntity`, `TooManyRequests`, `Internal`) and keep the stable code and localized `i18n` message at the source:
+  * `return apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthInvitationExists))`
+* Annotate as the error travels up; do not replace it. Preserve the original code and metadata, and convert an unstructured error into a structured internal one at the first boundary that can add context:
+  * `return apperrors.Annotate(err, apperrors.WithTask("purge-sessions"))`
+* Attach metadata through the typed `With*` helpers, not ad hoc maps. Any new user-visible error must add or reuse the matching `i18n.Message` and `i18n.Code` in the same change.
+* Leaf helpers and parsers that do not cross a layer boundary may return plain errors or sentinel booleans; keep that exception narrow and do not let raw errors leak past a boundary.
+* Raw `fmt.Errorf` is only for internal diagnostic causes inside `WithCause`. Use `errors.Join` only to preserve two failures that must both survive (a primary plus a rollback failure); wrap with `%w` only when exposing the underlying error is deliberate. In cause strings use `%q` for user input, IDs, and paths, and `%T` when the concrete type is part of the failure.
+* Do not start error text with `failed to` or `error` (that prefix is for logs); write the action or condition instead.
 * Prefer returning errors all the way up. Only `main` should call `fatal`.
-  * Lower layers should return enough detail for `main` or the top-level handler to decide.
-* Never return `err` by itself when a richer error can be returned.
-  * Preserve the original error as context when it adds value, but add the missing details around it.
+* Usage — constructors, `Annotate`, metadata helpers, the log-once marker, the i18n workflow: `go doc ./internal/foundation/errors`.
 
 ## Logging
 
-* Log each application event once, at the boundary that owns it.
-  * Services and helpers return context-rich results.
-  * Callers log only when they are the first layer that can observe the full outcome.
-  * Do not log the same event in both a callee and its caller.
-* Use `Info` for completed milestones and state transitions.
-  * Examples: application started, worker registered, worker run completed, session cleanup finished.
-* Use `Warn` for recoverable anomalies and fallbacks that do not fail the operation.
-  * Examples: dev proxy URL is invalid, no workers are registered, a non-fatal subsystem is unavailable.
-* Keep application log messages consistent.
-  * Use sentence case.
-  * Use present tense for starting or stopping actions.
-  * Use past tense for completed outcomes.
-  * Capitalize acronyms such as `HTTP`, `URL`, and `ID`.
-  * Do not end log messages with a period.
-  * Keep messages short, factual, and stable.
-* Prefer structured fields over repeating free-form text.
-  * Use stable names such as `component`, `operation`, `task`, `status`, `duration`, `request_id`, `trace_id`, and `span_id`.
-  * Include only fields the caller cannot already infer.
-* Keep error logging boundary-only.
-  * Lower layers annotate and return structured `AppError` values.
-  * The owning boundary logs internal and fatal failures once.
-  * Expected client and validation failures are returned, not logged again.
-  * `main` logs startup and shutdown failures when they escape the application boundary.
-  * HTTP handlers log only the final 5xx failure at the transport boundary.
-* Treat warnings as recoverable signals, not soft errors.
-  * A warning should explain what was skipped, degraded, or fell back.
-  * If the condition should fail the request or process, use an error instead of `Warn`.
+* Log each application event once, at the boundary that owns it. Do not log the same event in a callee and its caller.
+* Use `Info` for completed milestones and state transitions; use `Warn` for recoverable anomalies and fallbacks that do not fail the operation. If the condition should fail the request or process, return an error instead of warning.
+* Message style: sentence case, present tense for starting or stopping actions and past tense for completed outcomes, capitalize acronyms (`HTTP`, `URL`, `ID`), no trailing period. Prefer stable structured fields (`component`, `operation`, `task`, `status`, `duration`, `request_id`, `trace_id`, `span_id`) over free-form text:
+  * `logging.Info(ctx, logger, "worker run completed", slog.String("task", task))`
+* Error logging is boundary-only and goes solely through `internal/platform/logging.Error` / `logging.HTTPError`; never call `slog` error methods with an error value outside that package. HTTP handlers log only the final 5xx failure at the transport boundary.
+* `AppError` carries a log-once marker, and `go run ./cmd/coderules logreturn ./...` enforces that no function both logs and returns an error (exempt a deliberate dual-failure path with `//dinchy:allow-logreturn <reason>`).
+* Usage — `Info`/`Warn` guidance, message style, boundary-only error logging: `go doc ./internal/platform/logging`.
 
-## Project conventions
+## Conventions
 
-* Feature packages under `internal/features/*` use the `*_*.go` naming pattern on purpose.
-  * The approved feature file classes are listed below and must be used consistently.
-    * `*_helpers.go` for shared feature-local helpers, small utilities, and private glue that supports the feature without being the main entrypoint.
-    * `*_middleware.go` for HTTP or request/response middleware that wraps or guards the feature surface.
-    * `*_service.go` for feature business logic, orchestration, and stateful operations that are not transport-specific.
-    * `*_type.go` for feature-local types, request/response shapes, enums, and data structures that define the feature contract.
-    * `handler.go` for the feature’s transport entrypoint when the feature has a single primary handler file and the name is clearer without a prefix.
-    * `*_background_job.go` for background workers, schedulers, queue consumers, and task execution logic owned by the feature.
-  * If a file does not fit one of these classes, treat that as a design decision, not a naming accident.
-  * Any additional filename class must be explicitly requested, approved, and added to this file before use.
 * Keep feature-local helpers, handlers, services, and types together under the same feature package when that reduces indirection.
-  * Prefer a single feature package over splitting a concern across multiple packages unless the split materially improves ownership or clarity.
-  * Keep package boundaries aligned with the feature surface, not with incidental implementation details.
-* All environment variables must come from `internal/config`.
-  * Do not define environment variable names ad hoc in feature code, helpers, or startup glue.
-  * Add new environment variables only through the config layer so defaults and validation stay centralized.
-  * If a new env var is needed, add it to config first and wire every use through that config value.
-* When adding error metadata, prefer the typed helpers already defined in `internal/errors` over ad hoc maps.
-  * Use the typed helpers so metadata stays consistent across handlers, services, and stores.
-  * Only use raw maps when the shape is genuinely dynamic and cannot be expressed with the existing helpers.
-* Preserve error codes and metadata through annotation and wrapping paths.
-  * Do not lose metadata unless there is a deliberate reason to sanitize it at a boundary.
-  * When a layer adds context, keep the original code visible to callers unless the boundary intentionally transforms it.
-* Tests should cover core behavior, not implementation trivia.
-  * Focus on caller-visible contracts, especially error codes, metadata, and visible responses.
-  * Prefer tests that prove the behavior a caller depends on.
-* Test files should be named after the parent feature or source file they validate.
-  * Keep each test file focused on one parent concern.
-  * Test functions inside that file should stay within that concern.
-* Mock data test files must use the `*_mockdata_test.go` suffix.
-  * Keep mock data local to the feature or test surface it supports.
-  * Any different mock-data naming pattern must be explicitly approved first.
+* Feature files use the approved `*_*.go` classes (`*_service.go`, `*_helpers.go`, `*_middleware.go`, `*_type.go`, `handler.go`, `*_background_job.go`, `events.json`, `events_generated.go`) plus `*_mockdata_test.go` for mock data. A file fitting none of these is a design decision, not a naming accident; a new class must be approved and recorded here first.
+* Define API input validation and normalization at the transport boundary; implement `Resolve` to canonicalize input via `internal/foundation/transform`, and keep handlers and services operating on validated, transformed values only.
+* All environment variables must come from `internal/config`; do not define env var names ad hoc.
+* Tests cover caller-visible behavior (error codes, metadata, responses), not implementation trivia. Name test files after the parent feature or source file they validate.
+* Usage — feature file classes, the `Resolve` pattern, config, test naming: `go doc ./internal/features`.
+
+### Godoc
+
+* Every package and exported symbol carries a terse, intent-focused doc comment beginning with its name (`// Package errors ...`, `// Annotate preserves ...`), enforced by `revive`. This is the doc-comment side of "keep comments rare": inline comments stay rare, doc comments are always required.
+* One package comment per package. Put it on the package's primary source file; use a dedicated `doc.go` (holding only the package comment and any `//go:generate` directive) when there is no natural home file, or when the package warrants a substantial multi-paragraph usage narrative — as in `internal/foundation/errors`, `internal/platform/logging`, and `internal/features`.
+* Document utility behavior with testable `Example` functions in `example_test.go` (black-box `package <name>_test`), named so godoc attaches them (`Example`, `ExampleApply`, `ExampleAppError_Status`). End a deterministic example with a trailing `// Output:` block; omit it for non-deterministic output. Reference implementations live in `internal/foundation/{transform,id,errors,security}/example_test.go`.
 
 ## Naming and scope
 
-* Use full words for identifiers.
-  * Avoid abbreviations that make the code harder to scan.
-  * Keep names predictable for future readers and tooling.
-* Use full words for variable names.
-  * Prefer descriptive variable names that read clearly without extra local context.
-  * Avoid shortened forms unless the abbreviation is universally understood and materially improves readability.
-* Name files after the feature or concern they implement.
-  * Prefer file names that describe the code’s responsibility rather than its internal mechanics.
-* Keep new rules high-signal.
-  * Add a rule only when it captures a repeated, non-obvious trap.
-  * If a naming pattern or workflow changes, get it approved and add it here before using it.
+* Use full words for identifiers and variables; avoid abbreviations unless universally understood and materially clearer.
+* Name files after the feature or concern they implement, not their internal mechanics.
+* Keep new rules high-signal: add one only when it captures a repeated, non-obvious trap. If a naming pattern or workflow changes, get it approved and record it here before using it.
+
+## Reference
+
+* Domain vocabulary and module ownership map — `CONTEXT.md`
+* Error handling usage — `go doc ./internal/foundation/errors`
+* Logging usage — `go doc ./internal/platform/logging`
+* Feature conventions — `go doc ./internal/features`
+* Godoc reference implementations — `internal/foundation/{transform,id,errors,security}/example_test.go`

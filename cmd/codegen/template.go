@@ -4,6 +4,8 @@ import (
 	"embed"
 	"fmt"
 	"go/format"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
@@ -36,4 +38,11 @@ func renderTemplate(templateName string, data any) ([]byte, error) {
 		return nil, fmt.Errorf("format generated source from template %q: %w", templateName, err)
 	}
 	return formatted, nil
+}
+
+func writeGeneratedFile(outputPath string, src []byte) error {
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(outputPath, src, 0o644)
 }

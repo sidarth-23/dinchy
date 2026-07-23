@@ -12,6 +12,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/sidarth-23/dinchy/internal/features"
+	"github.com/sidarth-23/dinchy/internal/foundation/clock"
 )
 
 type fakePinger struct {
@@ -26,15 +29,25 @@ func newTestHandler(t *testing.T, db Pinger) http.Handler {
 	t.Helper()
 	r := chi.NewRouter()
 	api := humachi.New(r, huma.DefaultConfig("Dinchy Internal API", "0.1.0"))
-	Register(api, db)
+	base := (&features.Service{Clock: clock.System{}}).Named("health")
+	healthAPI, err := NewAPI(base, db)
+	require.NoError(t, err)
+	healthAPI.Register(api)
 	return r
+}
+
+func TestAPIName(t *testing.T) {
+	base := (&features.Service{Clock: clock.System{}}).Named("health")
+	healthAPI, err := NewAPI(base, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "health", healthAPI.Name())
 }
 
 func TestHealthz(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{})
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -47,7 +60,7 @@ func TestReadyz_Healthy(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{})
 
-	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -63,7 +76,7 @@ func TestReadyz_Unhealthy(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{err: assert.AnError})
 
-	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 

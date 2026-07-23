@@ -1,22 +1,20 @@
 package config
 
+import "time"
+
+// CacheConfig holds settings for the optional read-through cache backed by Redis.
 type CacheConfig struct {
-	// Addr is the network address for the Redis cache backend.
-	Addr string `env:"DINCHY_CACHE_ADDR" mod:"trim" validate:"required,hostname_port"`
-	// Username is the optional cache username.
-	Username string `env:"DINCHY_CACHE_USERNAME"`
-	// Password is the optional cache password.
-	Password string `env:"DINCHY_CACHE_PASSWORD"`
-	// Database selects the backend database or namespace when supported.
-	Database int `env:"DINCHY_CACHE_DATABASE"`
-	// KeyPrefix scopes all cache keys for this Dinchy instance.
-	KeyPrefix string `env:"DINCHY_CACHE_KEY_PREFIX"`
+	// Enabled turns the read-through cache on. When false, every read goes to the database.
+	Enabled bool `env:"DINCHY_CACHE_ENABLED"`
+	// SessionTTLCap bounds how long a resolved session principal may be cached,
+	// regardless of the session's remaining idle window.
+	SessionTTLCap time.Duration `env:"DINCHY_CACHE_SESSION_TTL_CAP" validate:"gt=0"`
 }
 
+// DefaultCache returns the default cache configuration used when no environment overrides are provided.
 func DefaultCache() CacheConfig {
 	return CacheConfig{
-		Addr:      "127.0.0.1:6379",
-		Database:  0,
-		KeyPrefix: "dinchy",
+		Enabled:       true,
+		SessionTTLCap: 5 * time.Minute,
 	}
 }

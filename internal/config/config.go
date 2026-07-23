@@ -1,14 +1,15 @@
 // IMPORTANT: This file keeps a few startup-only diagnostic literals.
 // They are internal failure details only and are never returned to users.
+
 // Package config loads application startup configuration from environment variables.
 package config
 
 import (
+	"fmt"
 	"reflect"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
-	"github.com/sidarth-23/dinchy/internal/platform/validation"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
 // Config holds all startup configuration values for the Dinchy server.
@@ -26,19 +27,31 @@ type Config struct {
 	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,http_url"`
 	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
 	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
+	// ExposeInternalErrors adds a debug object to every error response carrying the
+	// internal code, cause chain (including SQL errors), and metadata. It leaks internal
+	// detail and must stay disabled outside local or trusted debugging environments.
+	ExposeInternalErrors bool `env:"DINCHY_EXPOSE_INTERNAL_ERRORS"`
 	// PublicBaseURL is the externally reachable base URL used to build links in
 	// outbound email (invitation and password reset). Required when SMTP is enabled.
 	PublicBaseURL string `env:"DINCHY_PUBLIC_BASE_URL" validate:"omitempty,http_url"`
+	// Session contains session cookie naming and lifetime settings.
+	Session SessionConfig
 	// Auth contains authentication behavior and lifetime settings.
 	Auth AuthConfig
 	// SSO contains startup SSO provider values loaded from environment.
 	SSO SSOEnvConfig
 	// SMTP contains outbound email settings for password reset and invitation flows.
 	SMTP SMTPConfig
-	// Cache contains optional cache store settings for ephemeral state.
+	// Redis contains the shared Redis backend settings for ephemeral state and durable event streams.
+	Redis RedisConfig
+	// Cache contains the optional read-through cache settings.
 	Cache CacheConfig
 	// EventBus contains the Redis stream settings for durable in-app events.
 	EventBus EventBusConfig
+	// Worker contains the background job scheduler settings.
+	Worker WorkerConfig
+	// Jobs contains the durable background job queue settings.
+	Jobs JobsConfig
 	// Logging controls application log formatting and level.
 	Logging LoggingConfig
 	// Telemetry controls OpenTelemetry logs and traces.
@@ -52,17 +65,22 @@ type Config struct {
 // or any required field fails validation.
 func Load() (Config, error) {
 	if err := loadEnvFile(); err != nil {
-		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodeConfigLoadFailed), apperrors.WithCause(err))
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigLoadFailed), apperrors.WithCause(err))
 	}
 
 	cfg := Config{
 		Addr:         ":8080",
 		InternalAddr: ":9090",
 		DevProxyURL:  "http://127.0.0.1:5173",
+		Database:     DefaultDatabase(),
+		Session:      DefaultSession(),
 		Auth:         DefaultAuth(),
 		SMTP:         DefaultSMTP(),
+		Redis:        DefaultRedis(),
 		Cache:        DefaultCache(),
 		EventBus:     DefaultEventBus(),
+		Worker:       DefaultWorker(),
+		Jobs:         DefaultJobs(),
 		Logging:      DefaultLogging(),
 		Telemetry:    DefaultTelemetry(),
 	}
@@ -74,9 +92,12 @@ func Load() (Config, error) {
 	}
 	cfg.SSOProviders = configuredSSOProviders(cfg)
 
-	v := validation.New()
-	if err := v.Struct(cfg); err != nil {
+	if err := validateStruct(cfg); err != nil {
 		return Config{}, err
+	}
+
+	if cfg.SMTP.Enabled() && cfg.PublicBaseURL == "" {
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigValidationFailed), apperrors.WithCause(fmt.Errorf("public base URL is required when SMTP is configured")))
 	}
 
 	return cfg, nil

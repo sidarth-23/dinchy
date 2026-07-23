@@ -27,10 +27,10 @@ type AppAuditLog struct {
 	Action              string             `db:"action" json:"action"`
 	Outcome             string             `db:"outcome" json:"outcome"`
 	ActorUserID         uuid.NullUUID      `db:"actor_user_id" json:"actor_user_id"`
-	ActorOrganisationID uuid.NullUUID      `db:"actor_organisation_id" json:"actor_organisation_id"`
-	TargetType          pgtype.Text        `db:"target_type" json:"target_type"`
-	TargetID            pgtype.Text        `db:"target_id" json:"target_id"`
-	TargetDisplay       pgtype.Text        `db:"target_display" json:"target_display"`
+	ActorOrganizationID uuid.NullUUID      `db:"actor_organization_id" json:"actor_organization_id"`
+	TargetType          string             `db:"target_type" json:"target_type"`
+	TargetID            string             `db:"target_id" json:"target_id"`
+	TargetDisplay       string             `db:"target_display" json:"target_display"`
 	RequestID           pgtype.Text        `db:"request_id" json:"request_id"`
 	TraceID             pgtype.Text        `db:"trace_id" json:"trace_id"`
 	SpanID              pgtype.Text        `db:"span_id" json:"span_id"`
@@ -52,7 +52,7 @@ type AppSetting struct {
 	UpdatedAt                     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type Organisation struct {
+type Organization struct {
 	ID        uuid.UUID          `db:"id" json:"id"`
 	Name      string             `db:"name" json:"name"`
 	Slug      string             `db:"slug" json:"slug"`
@@ -61,9 +61,9 @@ type Organisation struct {
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type OrganisationInvitation struct {
+type OrganizationInvitation struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Email           string             `db:"email" json:"email"`
 	Role            string             `db:"role" json:"role"`
 	Status          string             `db:"status" json:"status"`
@@ -75,35 +75,32 @@ type OrganisationInvitation struct {
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type OrganisationMember struct {
+type OrganizationMember struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganisationID uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID          `db:"user_id" json:"user_id"`
 	Role           string             `db:"role" json:"role"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type ScheduledTask struct {
-	ID                      uuid.UUID          `db:"id" json:"id"`
-	TaskName                string             `db:"task_name" json:"task_name"`
-	Enabled                 bool               `db:"enabled" json:"enabled"`
-	ScheduleIntervalSeconds int64              `db:"schedule_interval_seconds" json:"schedule_interval_seconds"`
-	LeaseOwner              pgtype.Text        `db:"lease_owner" json:"lease_owner"`
-	LeaseExpiresAt          pgtype.Timestamptz `db:"lease_expires_at" json:"lease_expires_at"`
-	LastRunAt               pgtype.Timestamptz `db:"last_run_at" json:"last_run_at"`
-	LastFinishedAt          pgtype.Timestamptz `db:"last_finished_at" json:"last_finished_at"`
-	NextRunAt               pgtype.Timestamptz `db:"next_run_at" json:"next_run_at"`
-	LastStatus              pgtype.Text        `db:"last_status" json:"last_status"`
-	LastErrorCode           pgtype.Text        `db:"last_error_code" json:"last_error_code"`
-	LastErrorMessage        pgtype.Text        `db:"last_error_message" json:"last_error_message"`
-	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+type OrganizationRole struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	RoleKey        string             `db:"role_key" json:"role_key"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type OrganizationRolePermission struct {
+	RoleID     uuid.UUID `db:"role_id" json:"role_id"`
+	Permission string    `db:"permission" json:"permission"`
 }
 
 type Session struct {
 	ID                   uuid.UUID          `db:"id" json:"id"`
 	UserID               uuid.UUID          `db:"user_id" json:"user_id"`
-	ActiveOrganisationID uuid.UUID          `db:"active_organisation_id" json:"active_organisation_id"`
+	ActiveOrganizationID uuid.UUID          `db:"active_organization_id" json:"active_organization_id"`
 	TokenHash            string             `db:"token_hash" json:"token_hash"`
 	IpAddress            string             `db:"ip_address" json:"ip_address"`
 	UserAgent            string             `db:"user_agent" json:"user_agent"`

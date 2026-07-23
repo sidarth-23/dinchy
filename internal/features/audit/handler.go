@@ -6,15 +6,19 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/features/auth"
-	"github.com/sidarth-23/dinchy/internal/i18n"
+	"github.com/sidarth-23/dinchy/internal/features/session"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
+	"github.com/sidarth-23/dinchy/internal/transport/middleware"
 )
 
+// API groups the audit handlers and their shared dependencies.
 type API struct {
 	service *Service
 }
 
+// Register mounts the audit operations on the given huma.API instance.
 func Register(h huma.API, service *Service) {
 	api := &API{service: service}
 	huma.Register(h, huma.Operation{
@@ -25,16 +29,17 @@ func Register(h huma.API, service *Service) {
 		Description: "Returns audit log entries filtered by the query parameters. Requires an owner or admin session.",
 		Tags:        []string{"Audit"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
+		Middlewares: huma.Middlewares{middleware.RequirePermissions(h, permission.AuditLogsRead)},
 	}, api.list)
 }
 
 func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
-	session := auth.SessionFrom(ctx)
-	if session == nil {
-		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthUnauthenticated))
+	principal := session.PrincipalFrom(ctx)
+	if principal == nil {
+		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
-	if session.Role != auth.RoleOwner && session.Role != auth.RoleAdmin {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAuthUnauthenticated))
+	if !principal.HasPermission(permission.AuditLogsRead) {
+		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
 	}
 	logs, err := a.service.List(ctx, ListInput{
 		Category: in.Category, Subcategory: in.Subcategory, EventType: in.EventType,
@@ -54,7 +59,7 @@ func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
 			Action:              log.Action,
 			Outcome:             log.Outcome,
 			ActorUserID:         log.ActorUserID,
-			ActorOrganisationID: log.ActorOrganisationID,
+			ActorOrganizationID: log.ActorOrganizationID,
 			TargetType:          log.TargetType,
 			TargetID:            log.TargetID,
 			TargetDisplay:       log.TargetDisplay,

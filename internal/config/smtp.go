@@ -1,5 +1,6 @@
 package config
 
+// SMTPConfig holds the outbound email settings for password reset and invite flows.
 type SMTPConfig struct {
 	// Host is the SMTP server hostname used for outbound application email.
 	Host string `env:"DINCHY_SMTP_HOST" mod:"trim"`
@@ -13,10 +14,13 @@ type SMTPConfig struct {
 	From string `env:"DINCHY_SMTP_FROM" mod:"trim"`
 }
 
+// DefaultSMTP returns the default SMTP configuration used when no
+// environment overrides are provided.
 func DefaultSMTP() SMTPConfig {
 	return SMTPConfig{Port: 587}
 }
 
+// Enabled reports whether outbound email is configured.
 func (c SMTPConfig) Enabled() bool {
 	return c.Host != "" || c.From != ""
 }

@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -8,21 +9,25 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/sidarth-23/dinchy/internal/features/health"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 	mw "github.com/sidarth-23/dinchy/internal/transport/middleware"
+	"github.com/sidarth-23/dinchy/internal/transport/render"
 )
 
 // NewInternal creates a minimal http.Server for liveness and readiness probes.
 // It serves a separate internal listener and mounts the probes as Huma routes.
-func NewInternal(addr string, db health.Pinger) *http.Server {
+func NewInternal(addr string, healthAPI *health.API) *http.Server {
 	r := chi.NewRouter()
 	r.Use(mw.RequestID())
-	r.Use(mw.Recover())
+	r.Use(mw.Recover(slog.Default(), render.NewRenderer(i18n.Default, false)))
 
 	apiRouter := chi.NewRouter()
 	cfg := huma.DefaultConfig("Dinchy Internal API", "0.1.0")
 	cfg.Servers = []*huma.Server{{URL: "/"}}
 	api := humachi.New(apiRouter, cfg)
-	health.Register(api, db)
+	if healthAPI != nil {
+		healthAPI.Register(api)
+	}
 	r.Mount("/", apiRouter)
 
 	return &http.Server{

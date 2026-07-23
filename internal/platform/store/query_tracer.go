@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/sidarth-23/dinchy/internal/platform/logging"
 )
 
 type queryTraceStartKey struct{}
@@ -20,14 +22,14 @@ type queryTracer struct {
 }
 
 func (t queryTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
-	if t.logger == nil || !t.logger.Enabled(ctx, slog.LevelDebug) {
+	if t.logger == nil || !t.logger.Enabled(ctx, logging.LevelTrace) {
 		return ctx
 	}
 	return context.WithValue(ctx, queryTraceStartKey{}, queryTraceStart{sql: data.SQL, startedAt: time.Now()})
 }
 
 func (t queryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
-	if t.logger == nil || !t.logger.Enabled(ctx, slog.LevelDebug) {
+	if t.logger == nil || !t.logger.Enabled(ctx, logging.LevelTrace) {
 		return
 	}
 	start, _ := ctx.Value(queryTraceStartKey{}).(queryTraceStart)
@@ -41,8 +43,8 @@ func (t queryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.Tr
 	}
 	if data.Err != nil {
 		attrs = append(attrs, slog.Any("error", data.Err))
-		t.logger.DebugContext(ctx, "Database query failed", attrs...)
+		logging.Trace(ctx, t.logger, "Database query failed", attrs...)
 		return
 	}
-	t.logger.DebugContext(ctx, "Database query completed", attrs...)
+	logging.Trace(ctx, t.logger, "Database query completed", attrs...)
 }

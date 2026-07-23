@@ -1,71 +1,72 @@
 version: "2"
 
 run:
-  timeout: 5m
-  modules-download-mode: readonly
+    timeout: 5m
+    modules-download-mode: readonly
 
 linters:
-  enable:
-    - errcheck
-    - exhaustruct
-    - gocritic
-    - govet
-    - ineffassign
-    - misspell
-    - nolintlint
-    - revive
-    - staticcheck
-    - unused
+    enable:
+        - errcheck
+        - exhaustruct
+        - gocritic
+        - govet
+        - ineffassign
+        - misspell
+        - nolintlint
+        - revive
+        - staticcheck
+        - unused
 
-  settings:
-    exhaustruct:
-      include:
-        - 'github\.com/sidarth-23/dinchy/internal/i18n\.Messages'
-    gocritic:
-      enabled-tags:
-        - diagnostic
-        - style
-        - performance
-      disabled-checks:
-        - hugeParam
-    revive:
-      rules:
-        - name: blank-imports
-        - name: context-as-argument
-        - name: dot-imports
-        - name: error-return
-        - name: error-strings
-        - name: exported
-        - name: increment-decrement
-        - name: indent-error-flow
-        - name: range
-        - name: receiver-naming
-        - name: time-naming
-        - name: unexported-return
-        - name: var-declaration
-        - name: var-naming
-    nolintlint:
-      require-explanation: true
-      require-specific: true
-    misspell:
-      locale: US
+    settings:
+        exhaustruct:
+            include:
+                - 'github\.com/sidarth-23/dinchy/internal/foundation/i18n\.Messages'
+        gocritic:
+            enabled-tags:
+                - diagnostic
+                - style
+                - performance
+            disabled-checks:
+                - hugeParam
+        revive:
+            rules:
+                - name: blank-imports
+                - name: context-as-argument
+                - name: dot-imports
+                - name: error-return
+                - name: error-strings
+                - name: exported
+                - name: increment-decrement
+                - name: indent-error-flow
+                - name: package-comments
+                - name: range
+                - name: receiver-naming
+                - name: time-naming
+                - name: unexported-return
+                - name: var-declaration
+                - name: var-naming
+        nolintlint:
+            require-explanation: true
+            require-specific: true
+        misspell:
+            locale: US
+    exclusions:
+        paths:
+            - internal/platform/store/sqlcgen
 
 formatters:
-  enable:
-    - gofumpt
-    - goimports
+    enable:
+        - gofumpt
+        - goimports
 
-  settings:
-    gofumpt:
-      extra-rules: true
-      module-path: github.com/sidarth-23/dinchy
-    goimports:
-      local-prefixes:
-        - github.com/sidarth-23/dinchy
+    settings:
+        gofumpt:
+            extra-rules: true
+            module-path: github.com/sidarth-23/dinchy
+        goimports:
+            local-prefixes:
+                - github.com/sidarth-23/dinchy
 
 issues:
-  max-issues-per-linter: 50
-  max-same-issues: 5
-  exclusions:
-    paths:
-      - internal/platform/store/sqlcgen
+    max-issues-per-linter: 50
+    max-same-issues: 5

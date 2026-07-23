@@ -25,13 +25,6 @@ func TestIsSecure_Default(t *testing.T) {
 	assert.False(t, support.IsSecure(context.Background()))
 }
 
-func TestRequestInfo_RoundTrip(t *testing.T) {
-	t.Parallel()
-	ctx := support.WithRequestInfo(context.Background(), "1.2.3.4", "Mozilla/5.0")
-	assert.Equal(t, "1.2.3.4", support.RemoteIPFrom(ctx))
-	assert.Equal(t, "Mozilla/5.0", support.UserAgentFrom(ctx))
-}
-
 func TestRequestCookies_RoundTrip(t *testing.T) {
 	t.Parallel()
 	ctx := support.WithRequestCookies(context.Background(), []*http.Cookie{

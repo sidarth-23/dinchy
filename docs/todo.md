@@ -1,12 +1,3 @@
-- setup input validation properly with huma, also the handler and service communication
-- setup proper observability support with basic support in application
 - potentially adding todo md in the root with checkboxes for features
-- cleanup mise toml
-- setup dev setup with debugger setup
 
-- setup workers properly with packages for each worker with store functions in it instead of the current way
-- organise and name code generator and validator properly and add it to pre commit hooks
-- let's create the class for features properly so that most of the features extend from a base feature class
-- worth of panic in backend and recovery mechanism
-- never log and return errors at the same time. See the core of the idea and create a proper base framework
-- there are a lot of micro utility function which makes no sense. Update that to be in main function and update the agent rule
+- make sure organisation and other things works properly with totp and sso also. Check the password based flow also for auth

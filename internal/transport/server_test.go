@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/sidarth-23/dinchy/internal/config"
+	"github.com/sidarth-23/dinchy/internal/features"
 	"github.com/sidarth-23/dinchy/internal/features/auth"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/clock"
-	"github.com/sidarth-23/dinchy/internal/platform/id"
-	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
-	"github.com/sidarth-23/dinchy/internal/platform/store/testsupport"
+	"github.com/sidarth-23/dinchy/internal/features/session"
+	"github.com/sidarth-23/dinchy/internal/foundation/clock"
+	"github.com/sidarth-23/dinchy/internal/foundation/id"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	transport "github.com/sidarth-23/dinchy/internal/transport"
 )
 
@@ -26,12 +26,13 @@ var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
 func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler {
 	t.Helper()
-	db := testsupport.OpenPostgresStore(t)
-	queries := sqlcgen.New(db.Pool())
-	svc, err := auth.NewService(db.Pool(), queries, id.NewGenerator(), clock.Fixed(fixedTime), config.DefaultAuth(), nil, nil, cachecore.NewKeyer("test"), nil, nil)
+	sharedService := features.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), CacheKeyer: cache.NewKeyer("test")}
+	sessionSvc, err := session.NewService(sharedService.Named("session"), nil, config.DefaultSession(), config.DefaultCache())
+	require.NoError(t, err)
+	svc, err := auth.NewService(sharedService.Named("auth"), nil, sessionSvc, config.DefaultAuth(), config.NewLinks(""), nil)
 	require.NoError(t, err)
 	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
-	srv := transport.New(":0", dist, svc, nil, db, false, devMode, devProxyURL, nil)
+	srv := transport.New(":0", dist, svc, sessionSvc, nil, false, devMode, false, devProxyURL, nil)
 	return srv.Handler
 }
 

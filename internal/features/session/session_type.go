@@ -1,0 +1,151 @@
+// Package session owns authenticated request principals and session lifecycle contracts.
+package session
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	"github.com/sidarth-23/dinchy/internal/platform/store/sqltype"
+	"github.com/sidarth-23/dinchy/internal/transport/support"
+)
+
+type contextKey int
+
+const (
+	principalContextKey contextKey = iota
+	resolutionErrorContextKey
+)
+
+// Principal is the authenticated user and active organization for a request.
+type Principal struct {
+	SessionID        string
+	UserID           string
+	Email            string
+	DisplayName      string
+	OrganizationID   string
+	OrganizationName string
+	OrganizationSlug string
+	Role             permission.Role
+	Permissions      []permission.Permission
+	IdleExpiresAt    time.Time
+	ExpiresAt        time.Time
+	RevokedAt        pgtype.Timestamptz
+}
+
+// FromGetSessionRow builds a principal from a session query row.
+func FromGetSessionRow(row sqlcgen.GetSessionByTokenHashRow) *Principal {
+	permissions := make([]permission.Permission, 0, len(row.Permissions))
+	for _, granted := range row.Permissions {
+		permissions = append(permissions, permission.Permission(granted))
+	}
+	principal := Principal{
+		SessionID:        row.ID.String(),
+		UserID:           row.UserID.String(),
+		Email:            row.Email,
+		DisplayName:      row.DisplayName,
+		OrganizationID:   row.ActiveOrganizationID.String(),
+		OrganizationName: row.OrganizationName,
+		OrganizationSlug: row.OrganizationSlug,
+		Role:             permission.Role(row.Role),
+		Permissions:      permissions,
+		IdleExpiresAt:    sqltype.TimeValue(row.IdleExpiresAt),
+		ExpiresAt:        sqltype.TimeValue(row.ExpiresAt),
+		RevokedAt:        row.RevokedAt,
+	}
+	return &principal
+}
+
+// cachedPrincipal is the JSON-serializable projection of a Principal stored in
+// the cache. It omits RevokedAt because only non-revoked principals are cached.
+type cachedPrincipal struct {
+	SessionID        string
+	UserID           string
+	Email            string
+	DisplayName      string
+	OrganizationID   string
+	OrganizationName string
+	OrganizationSlug string
+	Role             permission.Role
+	Permissions      []permission.Permission
+	IdleExpiresAt    time.Time
+	ExpiresAt        time.Time
+}
+
+func (p *Principal) toCache() cachedPrincipal {
+	return cachedPrincipal{
+		SessionID:        p.SessionID,
+		UserID:           p.UserID,
+		Email:            p.Email,
+		DisplayName:      p.DisplayName,
+		OrganizationID:   p.OrganizationID,
+		OrganizationName: p.OrganizationName,
+		OrganizationSlug: p.OrganizationSlug,
+		Role:             p.Role,
+		Permissions:      p.Permissions,
+		IdleExpiresAt:    p.IdleExpiresAt,
+		ExpiresAt:        p.ExpiresAt,
+	}
+}
+
+func (c cachedPrincipal) toPrincipal() *Principal {
+	return &Principal{
+		SessionID:        c.SessionID,
+		UserID:           c.UserID,
+		Email:            c.Email,
+		DisplayName:      c.DisplayName,
+		OrganizationID:   c.OrganizationID,
+		OrganizationName: c.OrganizationName,
+		OrganizationSlug: c.OrganizationSlug,
+		Role:             c.Role,
+		Permissions:      c.Permissions,
+		IdleExpiresAt:    c.IdleExpiresAt,
+		ExpiresAt:        c.ExpiresAt,
+	}
+}
+
+// HasPermission reports whether the principal has a granted permission.
+func (p *Principal) HasPermission(value permission.Permission) bool {
+	for _, granted := range p.Permissions {
+		if granted == value {
+			return true
+		}
+	}
+	return false
+}
+
+// WithPrincipal adds a principal to a request context.
+func WithPrincipal(ctx context.Context, principal *Principal) context.Context {
+	return context.WithValue(ctx, principalContextKey, principal)
+}
+
+// PrincipalFrom returns the principal stored in a request context.
+func PrincipalFrom(ctx context.Context) *Principal {
+	principal, _ := ctx.Value(principalContextKey).(*Principal)
+	return principal
+}
+
+// WithResolutionError adds a session-resolution failure to a request context.
+func WithResolutionError(ctx context.Context, err error) context.Context {
+	return context.WithValue(ctx, resolutionErrorContextKey, err)
+}
+
+// ResolutionErrorFrom returns a session-resolution failure stored in a request context.
+func ResolutionErrorFrom(ctx context.Context) error {
+	err, _ := ctx.Value(resolutionErrorContextKey).(error)
+	return err
+}
+
+// Cookie builds a session cookie carrying the given token, marking it secure when requested.
+func Cookie(name, token string, secure bool) *http.Cookie {
+	return support.ValueCookie(name, token, secure)
+}
+
+// ClearCookie builds a cookie that clears the session cookie on the client.
+func ClearCookie(name string, secure bool) *http.Cookie {
+	return support.ClearCookie(name, secure)
+}

@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/sidarth-23/dinchy/internal/foundation/requestmeta"
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
@@ -16,7 +17,7 @@ func RequestInfo() func(http.Handler) http.Handler {
 			if host, _, err := net.SplitHostPort(ip); err == nil {
 				ip = host
 			}
-			ctx := support.WithRequestInfo(r.Context(), ip, r.UserAgent())
+			ctx := requestmeta.WithRequestInfo(r.Context(), ip, r.UserAgent())
 			ctx = support.WithRequestCookies(ctx, r.Cookies())
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

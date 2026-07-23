@@ -19,10 +19,11 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	apperrors "github.com/sidarth-23/dinchy/internal/errors"
-	"github.com/sidarth-23/dinchy/internal/i18n"
-	cachecore "github.com/sidarth-23/dinchy/internal/platform/cache/core"
-	"github.com/sidarth-23/dinchy/internal/platform/id"
+	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
+	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+	"github.com/sidarth-23/dinchy/internal/foundation/id"
+	"github.com/sidarth-23/dinchy/internal/foundation/permission"
+	"github.com/sidarth-23/dinchy/internal/platform/cache"
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
@@ -129,7 +130,7 @@ func newSSOTestService(t *testing.T) (*Service, *MockStore) {
 				Enabled:     true,
 			},
 		},
-		cacheKeyer: cachecore.NewKeyer("test"),
+		cacheKeyer: cache.NewKeyer("test"),
 	}
 	originalProviderFactory := newGothProviderForSSO
 	newGothProviderForSSO = func(cfg config.SSOProviderConfig) (goth.Provider, error) {
@@ -160,12 +161,12 @@ func TestStartSSO_ReturnsMetadataAndTransactionCookie(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	require.NoError(t, svc.RedisClient.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	assert.Equal(t, "github", cached.ProviderID)
 	assert.Equal(t, "/projects/123?tab=activity", cached.ReturnTo)
-	assert.Equal(t, "default", cached.OrganisationSlug)
+	assert.Equal(t, "default", cached.OrganizationSlug)
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 	assert.Contains(t, session.AuthURL, "state=")
 }
 
@@ -177,9 +178,9 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	require.NoError(t, svc.RedisClient.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 
 	parsedAuthURL, err := url.Parse(session.AuthURL)
 	require.NoError(t, err)
@@ -200,8 +201,8 @@ func TestCompleteSSO_FallsBackToEmailAndClearsCookies(t *testing.T) {
 			return nil
 		})
 	store.EXPECT().
-		ListOrganisationsForUser(gomock.Any(), id.MustParse(testUserID)).
-		Return([]sqlcgen.ListOrganisationsForUserRow{organisationRow(testOrganisationID, "Default", "default", string(RoleAdmin))}, nil).
+		ListOrganizationsForUser(gomock.Any(), id.MustParse(testUserID)).
+		Return([]sqlcgen.ListOrganizationsForUserRow{organizationRow(testOrganizationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 	store.EXPECT().InsertSession(gomock.Any(), gomock.Any()).Return(nil)
 
@@ -229,9 +230,9 @@ func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
 
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
-	require.NoError(t, cachecore.GetJSON(testCtx, svc.cache, svc.sso.cacheKey(transactionID), &cached))
+	require.NoError(t, svc.RedisClient.Get(testCtx, svc.sso.cacheKey(transactionID)).Scan(&cached))
 	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.Session), &session))
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
 
 	parsedAuthURL, err := url.Parse(session.AuthURL)
 	require.NoError(t, err)
@@ -255,7 +256,7 @@ func TestCompleteSSO_RejectsUnverifiedFallbackEmail(t *testing.T) {
 		"127.0.0.1",
 		"ua",
 	)
-	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAuthSSOLoginFailed)))
+	require.ErrorIs(t, err, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthSSOLoginFailed)))
 }
 
 func TestCompleteSSO_RejectsInvalidState(t *testing.T) {
@@ -273,5 +274,5 @@ func TestCompleteSSO_RejectsInvalidState(t *testing.T) {
 		"",
 		"",
 	)
-	require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAuthSSOInvalidState)))
+	require.ErrorIs(t, err, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthSSOInvalidState)))
 }

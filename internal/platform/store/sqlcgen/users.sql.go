@@ -29,20 +29,20 @@ func (q *Queries) ConfirmTwoFactor(ctx context.Context, arg ConfirmTwoFactorPara
 	return err
 }
 
-const consumeOrganisationInvitation = `-- name: ConsumeOrganisationInvitation :exec
-UPDATE organisation_invitations
+const consumeOrganizationInvitation = `-- name: ConsumeOrganizationInvitation :exec
+UPDATE organization_invitations
 SET status = 'accepted', accepted_at = $1, updated_at = $2
 WHERE id = $3 AND status = 'pending' AND accepted_at IS NULL
 `
 
-type ConsumeOrganisationInvitationParams struct {
+type ConsumeOrganizationInvitationParams struct {
 	AcceptedAt pgtype.Timestamptz `db:"accepted_at" json:"accepted_at"`
 	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	ID         uuid.UUID          `db:"id" json:"id"`
 }
 
-func (q *Queries) ConsumeOrganisationInvitation(ctx context.Context, arg ConsumeOrganisationInvitationParams) error {
-	_, err := q.db.Exec(ctx, consumeOrganisationInvitation, arg.AcceptedAt, arg.UpdatedAt, arg.ID)
+func (q *Queries) ConsumeOrganizationInvitation(ctx context.Context, arg ConsumeOrganizationInvitationParams) error {
+	_, err := q.db.Exec(ctx, consumeOrganizationInvitation, arg.AcceptedAt, arg.UpdatedAt, arg.ID)
 	return err
 }
 
@@ -84,28 +84,28 @@ func (q *Queries) DisableTwoFactor(ctx context.Context, userID uuid.UUID) error 
 	return err
 }
 
-const findOrganisationByIDForUser = `-- name: FindOrganisationByIDForUser :one
+const findOrganizationByIDForUser = `-- name: FindOrganizationByIDForUser :one
 SELECT o.id, o.name, o.slug, m.role
-FROM organisation_members m
-JOIN organisations o ON o.id = m.organisation_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
 WHERE m.user_id = $1 AND o.id = $2
 `
 
-type FindOrganisationByIDForUserParams struct {
+type FindOrganizationByIDForUserParams struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	ID     uuid.UUID `db:"id" json:"id"`
 }
 
-type FindOrganisationByIDForUserRow struct {
+type FindOrganizationByIDForUserRow struct {
 	ID   uuid.UUID `db:"id" json:"id"`
 	Name string    `db:"name" json:"name"`
 	Slug string    `db:"slug" json:"slug"`
 	Role string    `db:"role" json:"role"`
 }
 
-func (q *Queries) FindOrganisationByIDForUser(ctx context.Context, arg FindOrganisationByIDForUserParams) (FindOrganisationByIDForUserRow, error) {
-	row := q.db.QueryRow(ctx, findOrganisationByIDForUser, arg.UserID, arg.ID)
-	var i FindOrganisationByIDForUserRow
+func (q *Queries) FindOrganizationByIDForUser(ctx context.Context, arg FindOrganizationByIDForUserParams) (FindOrganizationByIDForUserRow, error) {
+	row := q.db.QueryRow(ctx, findOrganizationByIDForUser, arg.UserID, arg.ID)
+	var i FindOrganizationByIDForUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -115,28 +115,28 @@ func (q *Queries) FindOrganisationByIDForUser(ctx context.Context, arg FindOrgan
 	return i, err
 }
 
-const findOrganisationBySlugForUser = `-- name: FindOrganisationBySlugForUser :one
+const findOrganizationBySlugForUser = `-- name: FindOrganizationBySlugForUser :one
 SELECT o.id, o.name, o.slug, m.role
-FROM organisation_members m
-JOIN organisations o ON o.id = m.organisation_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
 WHERE m.user_id = $1 AND o.slug = $2
 `
 
-type FindOrganisationBySlugForUserParams struct {
+type FindOrganizationBySlugForUserParams struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	Slug   string    `db:"slug" json:"slug"`
 }
 
-type FindOrganisationBySlugForUserRow struct {
+type FindOrganizationBySlugForUserRow struct {
 	ID   uuid.UUID `db:"id" json:"id"`
 	Name string    `db:"name" json:"name"`
 	Slug string    `db:"slug" json:"slug"`
 	Role string    `db:"role" json:"role"`
 }
 
-func (q *Queries) FindOrganisationBySlugForUser(ctx context.Context, arg FindOrganisationBySlugForUserParams) (FindOrganisationBySlugForUserRow, error) {
-	row := q.db.QueryRow(ctx, findOrganisationBySlugForUser, arg.UserID, arg.Slug)
-	var i FindOrganisationBySlugForUserRow
+func (q *Queries) FindOrganizationBySlugForUser(ctx context.Context, arg FindOrganizationBySlugForUserParams) (FindOrganizationBySlugForUserRow, error) {
+	row := q.db.QueryRow(ctx, findOrganizationBySlugForUser, arg.UserID, arg.Slug)
+	var i FindOrganizationBySlugForUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -146,15 +146,15 @@ func (q *Queries) FindOrganisationBySlugForUser(ctx context.Context, arg FindOrg
 	return i, err
 }
 
-const findOrganisationInvitationByToken = `-- name: FindOrganisationInvitationByToken :one
-SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
-FROM organisation_invitations
+const findOrganizationInvitationByToken = `-- name: FindOrganizationInvitationByToken :one
+SELECT id, organization_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organization_invitations
 WHERE token_hash = $1
 `
 
-type FindOrganisationInvitationByTokenRow struct {
+type FindOrganizationInvitationByTokenRow struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Email           string             `db:"email" json:"email"`
 	Role            string             `db:"role" json:"role"`
 	Status          string             `db:"status" json:"status"`
@@ -164,12 +164,12 @@ type FindOrganisationInvitationByTokenRow struct {
 	AcceptedAt      pgtype.Timestamptz `db:"accepted_at" json:"accepted_at"`
 }
 
-func (q *Queries) FindOrganisationInvitationByToken(ctx context.Context, tokenHash string) (FindOrganisationInvitationByTokenRow, error) {
-	row := q.db.QueryRow(ctx, findOrganisationInvitationByToken, tokenHash)
-	var i FindOrganisationInvitationByTokenRow
+func (q *Queries) FindOrganizationInvitationByToken(ctx context.Context, tokenHash string) (FindOrganizationInvitationByTokenRow, error) {
+	row := q.db.QueryRow(ctx, findOrganizationInvitationByToken, tokenHash)
+	var i FindOrganizationInvitationByTokenRow
 	err := row.Scan(
 		&i.ID,
-		&i.OrganisationID,
+		&i.OrganizationID,
 		&i.Email,
 		&i.Role,
 		&i.Status,
@@ -208,22 +208,22 @@ func (q *Queries) FindPasswordAccountByUserID(ctx context.Context, userID uuid.U
 	return i, err
 }
 
-const findPendingOrganisationInvitationByEmail = `-- name: FindPendingOrganisationInvitationByEmail :one
-SELECT id, organisation_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
-FROM organisation_invitations
-WHERE organisation_id = $1 AND email = $2 AND status = 'pending' AND accepted_at IS NULL
+const findPendingOrganizationInvitationByEmail = `-- name: FindPendingOrganizationInvitationByEmail :one
+SELECT id, organization_id, email, role, status, token_hash, expires_at, invited_by_user_id, accepted_at
+FROM organization_invitations
+WHERE organization_id = $1 AND email = $2 AND status = 'pending' AND accepted_at IS NULL
 ORDER BY created_at DESC
 LIMIT 1
 `
 
-type FindPendingOrganisationInvitationByEmailParams struct {
-	OrganisationID uuid.UUID `db:"organisation_id" json:"organisation_id"`
+type FindPendingOrganizationInvitationByEmailParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Email          string    `db:"email" json:"email"`
 }
 
-type FindPendingOrganisationInvitationByEmailRow struct {
+type FindPendingOrganizationInvitationByEmailRow struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Email           string             `db:"email" json:"email"`
 	Role            string             `db:"role" json:"role"`
 	Status          string             `db:"status" json:"status"`
@@ -233,12 +233,12 @@ type FindPendingOrganisationInvitationByEmailRow struct {
 	AcceptedAt      pgtype.Timestamptz `db:"accepted_at" json:"accepted_at"`
 }
 
-func (q *Queries) FindPendingOrganisationInvitationByEmail(ctx context.Context, arg FindPendingOrganisationInvitationByEmailParams) (FindPendingOrganisationInvitationByEmailRow, error) {
-	row := q.db.QueryRow(ctx, findPendingOrganisationInvitationByEmail, arg.OrganisationID, arg.Email)
-	var i FindPendingOrganisationInvitationByEmailRow
+func (q *Queries) FindPendingOrganizationInvitationByEmail(ctx context.Context, arg FindPendingOrganizationInvitationByEmailParams) (FindPendingOrganizationInvitationByEmailRow, error) {
+	row := q.db.QueryRow(ctx, findPendingOrganizationInvitationByEmail, arg.OrganizationID, arg.Email)
+	var i FindPendingOrganizationInvitationByEmailRow
 	err := row.Scan(
 		&i.ID,
-		&i.OrganisationID,
+		&i.OrganizationID,
 		&i.Email,
 		&i.Role,
 		&i.Status,
@@ -437,12 +437,12 @@ func (q *Queries) InsertOrReplaceTwoFactor(ctx context.Context, arg InsertOrRepl
 	return err
 }
 
-const insertOrganisation = `-- name: InsertOrganisation :exec
-INSERT INTO organisations (id, name, slug, logo, created_at, updated_at)
+const insertOrganization = `-- name: InsertOrganization :exec
+INSERT INTO organizations (id, name, slug, logo, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)
 `
 
-type InsertOrganisationParams struct {
+type InsertOrganizationParams struct {
 	ID        uuid.UUID          `db:"id" json:"id"`
 	Name      string             `db:"name" json:"name"`
 	Slug      string             `db:"slug" json:"slug"`
@@ -451,8 +451,8 @@ type InsertOrganisationParams struct {
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-func (q *Queries) InsertOrganisation(ctx context.Context, arg InsertOrganisationParams) error {
-	_, err := q.db.Exec(ctx, insertOrganisation,
+func (q *Queries) InsertOrganization(ctx context.Context, arg InsertOrganizationParams) error {
+	_, err := q.db.Exec(ctx, insertOrganization,
 		arg.ID,
 		arg.Name,
 		arg.Slug,
@@ -463,10 +463,10 @@ func (q *Queries) InsertOrganisation(ctx context.Context, arg InsertOrganisation
 	return err
 }
 
-const insertOrganisationInvitation = `-- name: InsertOrganisationInvitation :exec
-INSERT INTO organisation_invitations (
+const insertOrganizationInvitation = `-- name: InsertOrganizationInvitation :exec
+INSERT INTO organization_invitations (
   id,
-  organisation_id,
+  organization_id,
   email,
   role,
   status,
@@ -479,9 +479,9 @@ INSERT INTO organisation_invitations (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 `
 
-type InsertOrganisationInvitationParams struct {
+type InsertOrganizationInvitationParams struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganisationID  uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Email           string             `db:"email" json:"email"`
 	Role            string             `db:"role" json:"role"`
 	Status          string             `db:"status" json:"status"`
@@ -492,10 +492,10 @@ type InsertOrganisationInvitationParams struct {
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-func (q *Queries) InsertOrganisationInvitation(ctx context.Context, arg InsertOrganisationInvitationParams) error {
-	_, err := q.db.Exec(ctx, insertOrganisationInvitation,
+func (q *Queries) InsertOrganizationInvitation(ctx context.Context, arg InsertOrganizationInvitationParams) error {
+	_, err := q.db.Exec(ctx, insertOrganizationInvitation,
 		arg.ID,
-		arg.OrganisationID,
+		arg.OrganizationID,
 		arg.Email,
 		arg.Role,
 		arg.Status,
@@ -508,29 +508,68 @@ func (q *Queries) InsertOrganisationInvitation(ctx context.Context, arg InsertOr
 	return err
 }
 
-const insertOrganisationMember = `-- name: InsertOrganisationMember :exec
-INSERT INTO organisation_members (id, organisation_id, user_id, role, created_at, updated_at)
+const insertOrganizationMember = `-- name: InsertOrganizationMember :exec
+INSERT INTO organization_members (id, organization_id, user_id, role, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)
 `
 
-type InsertOrganisationMemberParams struct {
+type InsertOrganizationMemberParams struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganisationID uuid.UUID          `db:"organisation_id" json:"organisation_id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID          `db:"user_id" json:"user_id"`
 	Role           string             `db:"role" json:"role"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-func (q *Queries) InsertOrganisationMember(ctx context.Context, arg InsertOrganisationMemberParams) error {
-	_, err := q.db.Exec(ctx, insertOrganisationMember,
+func (q *Queries) InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) error {
+	_, err := q.db.Exec(ctx, insertOrganizationMember,
 		arg.ID,
-		arg.OrganisationID,
+		arg.OrganizationID,
 		arg.UserID,
 		arg.Role,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+	return err
+}
+
+const insertOrganizationRole = `-- name: InsertOrganizationRole :exec
+INSERT INTO organization_roles (id, organization_id, role_key, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type InsertOrganizationRoleParams struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	RoleKey        string             `db:"role_key" json:"role_key"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+func (q *Queries) InsertOrganizationRole(ctx context.Context, arg InsertOrganizationRoleParams) error {
+	_, err := q.db.Exec(ctx, insertOrganizationRole,
+		arg.ID,
+		arg.OrganizationID,
+		arg.RoleKey,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const insertOrganizationRolePermission = `-- name: InsertOrganizationRolePermission :exec
+INSERT INTO organization_role_permissions (role_id, permission)
+VALUES ($1, $2)
+`
+
+type InsertOrganizationRolePermissionParams struct {
+	RoleID     uuid.UUID `db:"role_id" json:"role_id"`
+	Permission string    `db:"permission" json:"permission"`
+}
+
+func (q *Queries) InsertOrganizationRolePermission(ctx context.Context, arg InsertOrganizationRolePermissionParams) error {
+	_, err := q.db.Exec(ctx, insertOrganizationRolePermission, arg.RoleID, arg.Permission)
 	return err
 }
 
@@ -590,30 +629,30 @@ func (q *Queries) InsertVerificationToken(ctx context.Context, arg InsertVerific
 	return err
 }
 
-const listOrganisationsForUser = `-- name: ListOrganisationsForUser :many
+const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
 SELECT o.id, o.name, o.slug, m.role
-FROM organisation_members m
-JOIN organisations o ON o.id = m.organisation_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
 WHERE m.user_id = $1
 ORDER BY o.name
 `
 
-type ListOrganisationsForUserRow struct {
+type ListOrganizationsForUserRow struct {
 	ID   uuid.UUID `db:"id" json:"id"`
 	Name string    `db:"name" json:"name"`
 	Slug string    `db:"slug" json:"slug"`
 	Role string    `db:"role" json:"role"`
 }
 
-func (q *Queries) ListOrganisationsForUser(ctx context.Context, userID uuid.UUID) ([]ListOrganisationsForUserRow, error) {
-	rows, err := q.db.Query(ctx, listOrganisationsForUser, userID)
+func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID uuid.UUID) ([]ListOrganizationsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listOrganizationsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListOrganisationsForUserRow{}
+	items := []ListOrganizationsForUserRow{}
 	for rows.Next() {
-		var i ListOrganisationsForUserRow
+		var i ListOrganizationsForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,

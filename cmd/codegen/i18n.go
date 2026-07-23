@@ -3,21 +3,21 @@ package main
 import (
 	"flag"
 	"io"
-	"os"
+	"maps"
 	"sort"
 
 	manifest "github.com/sidarth-23/dinchy/internal/manifest"
 )
 
-type i18nCatalog = manifest.I18nCatalog
-type i18nModule = manifest.I18nModule
-type i18nMessage = manifest.I18nMessage
-type i18nParam = manifest.I18nParam
+type (
+	i18nCatalog = manifest.I18nCatalog
+	i18nModule  = manifest.I18nModule
+)
 
 func runI18n(args []string) error {
 	fs := flag.NewFlagSet("i18n", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	input := fs.String("input", "catalog.json", "manifest input path")
+	input := fs.String("input", "catalog", "manifest input path (directory of fragments or single file)")
 	output := fs.String("output", "generated.go", "generated Go output path")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -26,12 +26,7 @@ func runI18n(args []string) error {
 }
 
 func generateI18n(inputPath, outputPath string) error {
-	raw, err := os.ReadFile(inputPath)
-	if err != nil {
-		return err
-	}
-
-	mf, err := manifest.DecodeI18nCatalog(raw)
+	mf, err := manifest.LoadI18nCatalog(inputPath)
 	if err != nil {
 		return err
 	}
@@ -85,23 +80,12 @@ func flattenI18nMessages(modules []i18nModule, modulePath []string) []flattenedI
 			out = append(out, flattenedI18nMessage{
 				Code:         manifest.I18nCodeFor(currentPath, message.Name),
 				ConstantName: manifest.I18nConstantName(currentPath, message.Name),
-				Translations: cloneStringMap(message.Translations),
+				Translations: maps.Clone(message.Translations),
 			})
 		}
 		if len(module.Modules) > 0 {
 			out = append(out, flattenI18nMessages(module.Modules, currentPath)...)
 		}
-	}
-	return out
-}
-
-func cloneStringMap(values map[string]string) map[string]string {
-	if len(values) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(values))
-	for key, value := range values {
-		out[key] = value
 	}
 	return out
 }
