@@ -12,6 +12,10 @@
 /dist/
 tmp
 
+# Local dev secrets (repo-root .env stays committed; .env.local is per-developer)
+/.env.local
+/.env.*.local
+
 # Frontend
 web/node_modules/
 web/dist/

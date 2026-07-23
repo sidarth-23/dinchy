@@ -1,0 +1,21 @@
+[
+  {
+    "label": "dinchy (dev)",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "debug",
+    "program": "cmd/dinchy",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "args": [],
+    "env": {
+      "DINCHY_DEV": "true",
+      "DINCHY_LOG_FORMAT": "text",
+      "DINCHY_LOG_LEVEL": "debug",
+      "DINCHY_LOG_ADD_SOURCE": "true",
+      "DINCHY_ADDR": ":8080",
+      "DINCHY_INTERNAL_ADDR": ":9090",
+      "DINCHY_REDIS_ADDR": "127.0.0.1:6379"
+    },
+    "envFile": "$ZED_WORKTREE_ROOT/.env.local"
+  }
+]

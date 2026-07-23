@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync/atomic"
 
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/sidarth-23/dinchy/internal/config"
@@ -29,11 +31,11 @@ func New(cfg config.LoggingConfig, revealSensitive bool, otel slog.Handler) *slo
 		level = slog.LevelError
 	}
 
-	opts := &slog.HandlerOptions{Level: level, AddSource: cfg.AddSource}
 	var base slog.Handler
 	if cfg.Format == config.LogFormatText {
-		base = slog.NewTextHandler(os.Stdout, opts)
+		base = tint.NewTextHandler(os.Stdout, &tint.Options{Level: level, AddSource: cfg.AddSource, TimeFormat: "15:04:05.000", NoColor: !isatty.IsTerminal(os.Stdout.Fd())})
 	} else {
+		opts := &slog.HandlerOptions{Level: level, AddSource: cfg.AddSource}
 		base = slog.NewJSONHandler(os.Stdout, opts)
 	}
 	base = traceHandler{next: base}

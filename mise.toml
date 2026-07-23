@@ -6,10 +6,20 @@ node = "24.15.0"
 "github:pressly/goose" = "3.27.1"
 "github:golangci/golangci-lint" = "2.12.2"
 "github:evilmartians/lefthook" = "2.1.9"
+"go:github.com/go-delve/delve/cmd/dlv" = "1.27.0"
 lefthook = "latest"
+
+# Local dev environment. .env holds non-secret defaults (committed); .env.local
+# holds secrets/overrides (gitignored) and wins over .env. Applies to mise tasks
+# that read these, notably `dev`, `db:migrate`, and `db:status`.
+[env]
+_.file = [".env", ".env.local"]
 
 [tasks]
 dev = "go run ./cmd/dinchy"
+"infra:up" = "podman compose up -d"
+"infra:down" = "podman compose down"
+"infra:logs" = "podman compose logs -f"
 build = "go build -o dinchy ./cmd/dinchy"
 test = "go test ./..."
 # The race detector requires cgo; the app itself stays cgo-free, so race is an

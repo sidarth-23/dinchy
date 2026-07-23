@@ -84,17 +84,40 @@ curl -fsSL https://dinchy.com/install.sh | bash
 
 ## Development
 
-This project uses [mise](https://mise.jdx.dev/) to manage all tooling. Install it, then run:
+This project uses [mise](https://mise.jdx.dev/) to manage all tooling. First-time setup:
 
 ```bash
-mise install          # install pinned Go, Bun, Node, and dev tools
+mise install                    # install pinned Go, Bun, Node, dlv, and dev tools
+cp .env.local.example .env.local  # local secrets (gitignored); edit if needed
+mise run infra:up               # start Postgres + Redis (podman compose)
+mise run db:migrate             # apply database migrations
+mise run dev                    # run the backend — colored, human-readable logs
+```
+
+`.env` (committed) holds non-secret dev defaults — including `DINCHY_LOG_FORMAT=text`,
+which produces colored, human-readable logs in a terminal. `.env.local` (gitignored) holds
+the Postgres DSN and any secrets, and overrides `.env`. Both are loaded automatically by
+mise for dev tasks.
+
+Everyday tasks:
+
+```bash
 mise run dev          # run the Go backend in development mode
 mise run test         # run the test suite
 mise run lint         # run the linter
 mise run build        # build the production binary
 mise run generate     # regenerate generated Go code and sqlc queries
 mise run db:migrate   # run database migrations against DINCHY_POSTGRES_DSN
+mise run infra:up     # start local Postgres + Redis (podman compose)
+mise run infra:down   # stop local Postgres + Redis
 ```
+
+### Debugging in Zed
+
+`.zed/debug.json` defines a **dinchy (dev)** configuration that launches `cmd/dinchy` under
+Delve (`dlv`, installed by `mise install`). Open the project in Zed, set a breakpoint, and
+start that configuration. Non-secret dev env is inline in the config; secrets are read from
+`.env.local` via `envFile`, so nothing sensitive is committed.
 
 When the frontend exists:
 
@@ -106,7 +129,7 @@ mise run web:build    # build production frontend assets
 
 Bun is the primary JS runtime for this project. Node is available via mise for compatibility, but all frontend tasks run through Bun.
 
-The database is PostgreSQL only. Set `DINCHY_POSTGRES_DSN` before running the app, tests, or migration tasks.
+The database is PostgreSQL only. `DINCHY_POSTGRES_DSN` is supplied by `.env.local` for local dev; set it explicitly in other environments.
 
 ## License
 

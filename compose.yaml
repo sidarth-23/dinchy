@@ -1,0 +1,25 @@
+# Local development infrastructure for Dinchy: Postgres + Redis.
+# Run via `mise run infra:up` (podman compose up -d). Production uses the
+# systemd/quadlet units in deploy/ instead — this file is dev-only.
+services:
+  postgres:
+    image: postgres:16
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: dinchy
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: dinchy
+    volumes: ["dinchy-pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dinchy"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    # 8.4+ required: the event bus uses XREADGROUP ... CLAIM (matches deploy quadlet).
+    image: redis:8.4
+    ports: ["6379:6379"]
+    volumes: ["dinchy-redis:/data"]
+volumes:
+  dinchy-pg:
+  dinchy-redis:
