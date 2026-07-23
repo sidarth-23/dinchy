@@ -1,3 +1,5 @@
+// Command codegen generates i18n, event, and permission source from their
+// hand-written catalogs.
 package main
 
 import (

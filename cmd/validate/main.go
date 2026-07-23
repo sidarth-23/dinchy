@@ -1,3 +1,5 @@
+// Command validate checks the i18n, event, and permission catalogs against their
+// schemas without regenerating code.
 package main
 
 import (

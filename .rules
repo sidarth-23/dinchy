@@ -33,6 +33,7 @@ calls for it. Domain vocabulary lives in `CONTEXT.md`.
 * All environment variables must come from `internal/config`; do not define env var names ad hoc.
 * Tests cover caller-visible behavior (error codes, metadata, responses), not implementation trivia.
 * Detail — feature file classes (`*_service.go`, `events.json`, …), the `Resolve` pattern, test and `*_mockdata_test.go` naming: skill `feature-conventions`.
+* Detail — godoc package comments, when a `doc.go` is warranted, and testable `Example` functions: skill `godoc`.
 
 ## Naming and scope
 
@@ -48,3 +49,4 @@ Task-specific detail is kept out of this always-loaded file. Open by path when r
 * Error construction, annotation, formatting, i18n — `.agents/skills/error-handling/SKILL.md`
 * Logging levels, message style, structured fields — `.agents/skills/logging/SKILL.md`
 * Feature file classes, validation, config, test naming — `.agents/skills/feature-conventions/SKILL.md`
+* Godoc package comments, `doc.go` vs regular file, testable Examples — `.agents/skills/godoc/SKILL.md`
