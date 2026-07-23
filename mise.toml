@@ -7,19 +7,24 @@ node = "24.15.0"
 "github:golangci/golangci-lint" = "2.12.2"
 "github:evilmartians/lefthook" = "2.1.9"
 "go:github.com/go-delve/delve/cmd/dlv" = "1.27.0"
+"pipx:podman-compose" = "1.6.0"
 lefthook = "latest"
 
-# Local dev environment. .env holds non-secret defaults (committed); .env.local
-# holds secrets/overrides (gitignored) and wins over .env. Applies to mise tasks
-# that read these, notably `dev`, `db:migrate`, and `db:status`.
+# Local dev environment. Both files are gitignored (only .env.example is committed);
+# .env holds your working config, .env.local optional overrides that win over .env.
+# mise injects these into the process env for every task — so compose interpolates the
+# port keys, the app reads its DSN, and podman/netavark reads NETAVARK_FW from here.
 [env]
 _.file = [".env", ".env.local"]
 
 [tasks]
 dev = "go run ./cmd/dinchy"
-"infra:up" = "podman compose up -d"
-"infra:down" = "podman compose down"
-"infra:logs" = "podman compose logs -f"
+# podman-compose drives podman directly (no Docker daemon/socket). Host ports come
+# from compose.yaml, interpolated from DINCHY_*_PORT in .env. NETAVARK_FW (if set in
+# .env) is inherited from the mise env — see .env.example for the WSL2 note.
+"infra:up" = "podman-compose up -d"
+"infra:down" = "podman-compose down"
+"infra:logs" = "podman-compose logs -f"
 build = "go build -o dinchy ./cmd/dinchy"
 test = "go test ./..."
 # The race detector requires cgo; the app itself stays cgo-free, so race is an

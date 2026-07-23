@@ -1,0 +1,75 @@
+[
+  {
+    "label": "dinchy: dev",
+    "command": "mise",
+    "args": ["run", "dev"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "use_new_terminal": true
+  },
+  {
+    "label": "dinchy: infra up",
+    "command": "mise",
+    "args": ["run", "infra:up"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "dinchy: infra down",
+    "command": "mise",
+    "args": ["run", "infra:down"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "dinchy: infra logs",
+    "command": "mise",
+    "args": ["run", "infra:logs"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "use_new_terminal": true
+  },
+  {
+    "label": "dinchy: db migrate",
+    "command": "mise",
+    "args": ["run", "db:migrate"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "dinchy: db status",
+    "command": "mise",
+    "args": ["run", "db:status"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "dinchy: test",
+    "command": "mise",
+    "args": ["run", "test"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "dinchy: lint",
+    "command": "mise",
+    "args": ["run", "lint"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "dinchy: build",
+    "command": "mise",
+    "args": ["run", "build"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "dinchy: generate",
+    "command": "mise",
+    "args": ["run", "generate"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  }
+]

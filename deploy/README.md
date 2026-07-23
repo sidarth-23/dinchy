@@ -10,6 +10,10 @@ containers are declared as `.container` files; podman + systemd generate their
 `postgres.service` / `redis.service` units automatically. They are
 podman-managed services, not units you maintain.
 
+> **Local development** uses a different, lighter path: `compose.yaml` at the repo root,
+> run with `mise run infra:up` (podman-compose, driving podman directly — no Docker). The
+> quadlet units here are the production model; the dev compose file is not used in production.
+
 ```
                  systemd (dinchy user session)
         ┌───────────────────────────────────────────┐
