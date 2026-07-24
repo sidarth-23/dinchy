@@ -17,8 +17,8 @@ tmp
 /.env.*
 !/.env*.example
 
-# Local dev TLS material minted from Caddy's internal CA (never committed)
-/deploy/caddy/dev-certs/
+# Local dev TLS material from mkcert (never committed; the generator script is tracked)
+/deploy/certs/*.pem
 
 # Frontend
 web/node_modules/

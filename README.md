@@ -87,22 +87,21 @@ curl -fsSL https://dinchy.com/install.sh | bash
 This project uses [mise](https://mise.jdx.dev/) to manage all tooling. First-time setup:
 
 ```bash
-mise install               # install pinned Go, Bun, Node, dlv, Caddy, step, and dev tools
+mise install               # install pinned Go, Bun, Node, dlv, mkcert, and dev tools
 cp .env.example .env       # your local config (gitignored) — edit as needed
-mise run caddy &           # start the TLS proxy once so it generates its internal CA
-caddy trust                # trust Caddy's internal CA (one-time; needs sudo)
-mise run dev:certs         # mint TLS certs for Postgres/Redis/Mailpit from that CA
+mise run dev:certs         # mkcert: install a trusted local CA + issue app/infra certs (one-time; needs sudo)
 mise run infra:up          # start Postgres + Redis + Mailpit (all over TLS)
 mise run db:migrate        # apply database migrations
 mise run dev               # run the backend — colored, human-readable logs
 ```
 
-Dinchy runs over HTTPS locally, exactly like production: the `caddy` task terminates
-TLS at **https://localhost:8443** (Caddy's internal CA) and reverse-proxies to the Go
-server on `127.0.0.1:8080`. Auth endpoints reject plaintext, so always reach the app
-through Caddy — open **https://localhost:8443**, not `http://localhost:8080`. Postgres,
-Redis, and Mailpit all run over TLS too (certs minted from the same CA), so there are
-no dev-only security relaxations to diverge from production.
+Dinchy serves HTTPS directly, exactly like production: the Go server terminates TLS on
+**https://localhost:8443** using a locally-trusted mkcert certificate (no reverse proxy).
+Auth endpoints reject plaintext, so open **https://localhost:8443**. Postgres, Redis, and
+Mailpit all run over TLS too (certs from the same mkcert CA), so there are no dev-only
+security relaxations to diverge from production. `mise run dev:certs` runs `mkcert -install`
+once, which adds the local CA to your system and browser trust stores — so there is no
+certificate warning.
 
 `.env.example` is the only committed template. Copy it to `.env` (gitignored) for your
 working config — including `DINCHY_LOG_FORMAT=text`, which produces colored, human-readable
@@ -123,9 +122,8 @@ Keep the DSN / `DINCHY_REDIS_ADDR` ports in sync with those keys.
 Everyday tasks:
 
 ```bash
-mise run dev          # run the Go backend in development mode
-mise run caddy        # run the local TLS proxy (https://localhost:8443 -> 127.0.0.1:8080)
-mise run dev:certs    # mint TLS certs for the infra containers from Caddy's internal CA
+mise run dev          # run the Go backend in development mode (HTTPS on :8443)
+mise run dev:certs    # (re)issue local TLS certs for the app + infra via mkcert
 mise run test         # run the test suite
 mise run lint         # run the linter
 mise run build        # build the production binary
@@ -139,7 +137,7 @@ mise run infra:logs   # follow infra logs
 `mise run infra:up` also starts **Mailpit**, a local mail catcher, so the email flows
 (invitations, password reset) work without a real mail server. Mailpit is configured like a
 production relay — **STARTTLS is mandatory and SMTP auth is required** — so the app connects
-over TLS (verifying Mailpit's internal-CA cert) with the `DINCHY_SMTP_USERNAME` /
+over TLS (verifying Mailpit's mkcert cert) with the `DINCHY_SMTP_USERNAME` /
 `DINCHY_SMTP_PASSWORD` from `.env.example`, which must match `MP_SMTP_AUTH` in `compose.yaml`.
 Keep the `DINCHY_SMTP_*` / `DINCHY_PUBLIC_BASE_URL` block from `.env.example` in your `.env`;
 outbound mail is caught by Mailpit rather than sent for real, and you can read it in the web

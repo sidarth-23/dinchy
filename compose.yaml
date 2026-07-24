@@ -3,10 +3,10 @@
 # Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT / DINCHY_MAILPIT_*_PORT.
 #
 # TLS is ON for all three services, matching production (no dev-only plaintext bypass).
-# Certs are minted from Caddy's internal CA by `mise run dev:certs` into deploy/caddy/dev-certs/
-# and bind-mounted read-only with the podman `:U` flag, which chowns them to each container's
-# user so rootless podman can read the private keys. Run `mise run dev:certs` before `infra:up`.
-# Dev-only; production uses the systemd/quadlet units in deploy/quadlet/ and the Caddy sidecar.
+# Certs come from `mise run dev:certs` (mkcert) into deploy/certs/ and are bind-mounted
+# read-only with the podman `:U` flag, which chowns them to each container's user so
+# rootless podman can read the private keys. Run `mise run dev:certs` before `infra:up`.
+# Dev-only; production uses the systemd/quadlet units in deploy/quadlet/.
 services:
   postgres:
     image: docker.io/library/postgres:16
@@ -18,16 +18,16 @@ services:
       POSTGRES_DB: dinchy
     volumes:
       - dinchy-pg:/var/lib/postgresql/data
-      - ./deploy/caddy/dev-certs:/certs:ro,U
+      - ./deploy/certs:/certs:ro,U
     command:
       - "-c"
       - "ssl=on"
       - "-c"
-      - "ssl_cert_file=/certs/postgres.crt"
+      - "ssl_cert_file=/certs/postgres.pem"
       - "-c"
-      - "ssl_key_file=/certs/postgres.key"
+      - "ssl_key_file=/certs/postgres-key.pem"
       - "-c"
-      - "ssl_ca_file=/certs/ca.crt"
+      - "ssl_ca_file=/certs/ca.pem"
   redis:
     # 8.4+ required: the event bus uses XREADGROUP ... CLAIM (matches deploy quadlet).
     image: docker.io/library/redis:8.4
@@ -35,18 +35,18 @@ services:
       - "${DINCHY_REDIS_PORT:-6380}:6379"
     volumes:
       - dinchy-redis:/data
-      - ./deploy/caddy/dev-certs:/certs:ro,U
+      - ./deploy/certs:/certs:ro,U
     command:
       - "--port"
       - "0"
       - "--tls-port"
       - "6379"
       - "--tls-cert-file"
-      - "/certs/redis.crt"
+      - "/certs/redis.pem"
       - "--tls-key-file"
-      - "/certs/redis.key"
+      - "/certs/redis-key.pem"
       - "--tls-ca-cert-file"
-      - "/certs/ca.crt"
+      - "/certs/ca.pem"
       - "--tls-auth-clients"
       - "no"
   mailpit:
@@ -58,13 +58,13 @@ services:
       - "${DINCHY_MAILPIT_SMTP_PORT:-1025}:1025"  # SMTP intake (DINCHY_SMTP_PORT points here)
       - "${DINCHY_MAILPIT_UI_PORT:-8025}:8025"    # web UI + REST API
     volumes:
-      - ./deploy/caddy/dev-certs:/certs:ro,U
+      - ./deploy/certs:/certs:ro,U
     environment:
       # Require SMTP auth; credentials must match DINCHY_SMTP_USERNAME/PASSWORD in .env.
       MP_SMTP_AUTH: "dinchy:localpass"
-      # Enable STARTTLS with the internal-CA cert so the app's mandatory-TLS client connects.
-      MP_SMTP_TLS_CERT: /certs/mailpit.crt
-      MP_SMTP_TLS_KEY: /certs/mailpit.key
+      # Enable STARTTLS with the mkcert cert so the app's mandatory-TLS client connects.
+      MP_SMTP_TLS_CERT: /certs/mailpit.pem
+      MP_SMTP_TLS_KEY: /certs/mailpit-key.pem
 volumes:
   dinchy-pg:
   dinchy-redis:

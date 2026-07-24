@@ -32,6 +32,8 @@ type Config struct {
 	// PublicBaseURL is the externally reachable base URL used to build links in
 	// outbound email (invitation and password reset). Required when SMTP is enabled.
 	PublicBaseURL string `env:"DINCHY_PUBLIC_BASE_URL" validate:"omitempty,http_url"`
+	// TLS contains the certificate and key for the public HTTPS listener.
+	TLS TLSConfig
 	// Session contains session cookie naming and lifetime settings.
 	Session SessionConfig
 	// Auth contains authentication behavior and lifetime settings.
@@ -96,6 +98,10 @@ func Load() (Config, error) {
 
 	if cfg.SMTP.Enabled() && cfg.PublicBaseURL == "" {
 		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigValidationFailed), apperrors.WithCause(fmt.Errorf("public base URL is required when SMTP is configured")))
+	}
+
+	if (cfg.TLS.CertFile == "") != (cfg.TLS.KeyFile == "") {
+		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigValidationFailed), apperrors.WithCause(fmt.Errorf("DINCHY_TLS_CERT_FILE and DINCHY_TLS_KEY_FILE must be set together")))
 	}
 
 	return cfg, nil

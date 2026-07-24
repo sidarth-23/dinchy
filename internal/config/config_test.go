@@ -20,6 +20,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "postgres://postgres:postgres@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 	assert.False(t, cfg.DevMode)
+	assert.False(t, cfg.TLS.Enabled())
 	assert.Equal(t, "dinchy_session", cfg.Session.SessionCookieName)
 	assert.Equal(t, "dinchy_sso_state", cfg.Auth.SSOStateCookieName)
 	assert.Equal(t, 30*time.Minute, cfg.Session.SessionIdleTimeout)
@@ -202,6 +203,29 @@ func TestLoad_MissingExplicitEnvFile_Fails(t *testing.T) {
 	require.Error(t, err, "explicit env file that doesn't exist should fail")
 }
 
+func TestLoad_TLS_BothOrNeither(t *testing.T) {
+	t.Run("both set enables TLS", func(t *testing.T) {
+		clearDinchyEnv(t)
+		t.Setenv("DINCHY_TLS_CERT_FILE", "/etc/dinchy/certs/app.crt")
+		t.Setenv("DINCHY_TLS_KEY_FILE", "/etc/dinchy/certs/app.key")
+		cfg, err := config.Load()
+		require.NoError(t, err)
+		assert.True(t, cfg.TLS.Enabled())
+	})
+	t.Run("only cert set fails", func(t *testing.T) {
+		clearDinchyEnv(t)
+		t.Setenv("DINCHY_TLS_CERT_FILE", "/etc/dinchy/certs/app.crt")
+		_, err := config.Load()
+		require.Error(t, err)
+	})
+	t.Run("only key set fails", func(t *testing.T) {
+		clearDinchyEnv(t)
+		t.Setenv("DINCHY_TLS_KEY_FILE", "/etc/dinchy/certs/app.key")
+		_, err := config.Load()
+		require.Error(t, err)
+	})
+}
+
 // clearDinchyEnv clears all DINCHY_ env vars so tests start from a clean baseline.
 func clearDinchyEnv(t *testing.T) {
 	t.Helper()
@@ -223,6 +247,7 @@ func clearDinchyEnv(t *testing.T) {
 		"DINCHY_REDIS_ADDR", "DINCHY_REDIS_USERNAME",
 		"DINCHY_REDIS_PASSWORD", "DINCHY_REDIS_DATABASE", "DINCHY_REDIS_KEY_PREFIX",
 		"DINCHY_SMTP_HOST", "DINCHY_SMTP_PORT", "DINCHY_SMTP_USERNAME", "DINCHY_SMTP_PASSWORD", "DINCHY_SMTP_FROM",
+		"DINCHY_TLS_CERT_FILE", "DINCHY_TLS_KEY_FILE",
 		"DINCHY_ENV_FILE",
 	} {
 		t.Setenv(key, "")

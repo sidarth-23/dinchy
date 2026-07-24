@@ -147,9 +147,15 @@ func (a *App) Start() error {
 	if err := riverClient.Start(ctx); err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
 	}
-	go func() { a.errCh <- a.public.ListenAndServe() }()
+	go func() {
+		if a.cfg.TLS.Enabled() {
+			a.errCh <- a.public.ListenAndServeTLS(a.cfg.TLS.CertFile, a.cfg.TLS.KeyFile)
+			return
+		}
+		a.errCh <- a.public.ListenAndServe()
+	}()
 	go func() { a.errCh <- a.internal.ListenAndServe() }()
-	logging.Info(ctx, a.logger, "Application started", slog.String("public_addr", a.cfg.Addr), slog.String("internal_addr", a.cfg.InternalAddr), slog.Bool("dev_mode", a.cfg.DevMode))
+	logging.Info(ctx, a.logger, "Application started", slog.String("public_addr", a.cfg.Addr), slog.String("internal_addr", a.cfg.InternalAddr), slog.Bool("dev_mode", a.cfg.DevMode), slog.Bool("tls", a.cfg.TLS.Enabled()))
 	return nil
 }
 

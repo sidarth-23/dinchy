@@ -91,9 +91,9 @@ sudo -u dinchy XDG_RUNTIME_DIR=/run/user/$(id -u dinchy) systemctl --user enable
 
 ```sh
 systemctl --user status postgres redis dinchy
-ss -ltn | grep -E '127.0.0.1:(5432|6379|8080)'   # infra + app listening
-curl -fsS http://127.0.0.1:9090/                 # internal health endpoint
-curl -fsS http://127.0.0.1:8080/auth/sso/providers  # enabled SSO providers (env-configured)
+ss -ltn | grep -E '127.0.0.1:(5432|6379)'        # infra on loopback
+curl -fsS http://127.0.0.1:9090/                 # internal health endpoint (loopback, plaintext)
+curl -fsSk https://127.0.0.1/auth/sso/providers  # enabled SSO providers, over the app's HTTPS listener
 ```
 
 ## Notes
@@ -109,5 +109,19 @@ curl -fsS http://127.0.0.1:8080/auth/sso/providers  # enabled SSO providers (env
   `systemctl --user` for `systemctl`, and set `WantedBy=multi-user.target`.
 - **Redis** runs unauthenticated on loopback. If you expose it or want auth, add a
   password via the container command and set `DINCHY_REDIS_PASSWORD`.
+- **TLS.** The Go server terminates HTTPS itself from `DINCHY_TLS_CERT_FILE` /
+  `DINCHY_TLS_KEY_FILE` (operator-provided — e.g. certbot or your load balancer's cert).
+  Binding `DINCHY_ADDR=:443` from the rootless `--user` unit needs the capability —
+  add `AmbientCapabilities=CAP_NET_BIND_SERVICE` (running the unit system-level),
+  `sudo setcap cap_net_bind_service=+ep /usr/local/bin/dinchy`, or lower
+  `net.ipv4.ip_unprivileged_port_start`; otherwise use a high port such as `:8443`
+  behind your firewall/port-forward. Leaving both cert vars empty serves plain HTTP on
+  loopback for an external TLS-terminating proxy that sets `X-Forwarded-Proto`.
+  Automatic Let's Encrypt is intentionally deferred to a future Caddy integration.
+- **Datastore TLS.** `dinchy.env.example` connects to Postgres with `sslmode=verify-full`
+  and Redis with `DINCHY_REDIS_TLS=true`. Provision loopback server certificates for the
+  Postgres/Redis containers, mount them into the quadlets, enable TLS in each container,
+  and point `sslrootcert` at the signing CA. To run the datastores without TLS, drop
+  `?sslmode=verify-full&sslrootcert=...` from the DSN and unset `DINCHY_REDIS_TLS`.
 
 [Quadlet]: https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
