@@ -58,6 +58,7 @@ const (
 	CodeDiagnosticsAuthLoginListOrganizations                Code = "diagnostics.auth.login.list_organizations"
 	CodeDiagnosticsAuthLoginSSOCallback                      Code = "diagnostics.auth.login.sso_callback"
 	CodeDiagnosticsAuthLoginSSOStart                         Code = "diagnostics.auth.login.sso_start"
+	CodeDiagnosticsAuthLoginVerifyTOTP                       Code = "diagnostics.auth.login.verify_totp"
 	CodeDiagnosticsAuthLogoutPublishEvent                    Code = "diagnostics.auth.logout.publish_event"
 	CodeDiagnosticsAuthPasswordResetConsumeVerificationToken Code = "diagnostics.auth.password_reset.consume_verification_token"
 	CodeDiagnosticsAuthPasswordResetCreateVerificationToken  Code = "diagnostics.auth.password_reset.create_verification_token"
@@ -157,6 +158,7 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsAuthLoginListOrganizations:                "List organizations during login failed",
 		CodeDiagnosticsAuthLoginSSOCallback:                      "Complete SSO login failed",
 		CodeDiagnosticsAuthLoginSSOStart:                         "Start SSO login failed",
+		CodeDiagnosticsAuthLoginVerifyTOTP:                       "Verify two-factor authentication during login failed",
 		CodeDiagnosticsAuthLogoutPublishEvent:                    "Publish logout event failed",
 		CodeDiagnosticsAuthPasswordResetConsumeVerificationToken: "Consume password reset verification token failed",
 		CodeDiagnosticsAuthPasswordResetCreateVerificationToken:  "Create password reset verification token failed",

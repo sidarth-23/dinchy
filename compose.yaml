@@ -1,7 +1,7 @@
-# Local development infrastructure for Dinchy: Postgres + Redis.
+# Local development infrastructure for Dinchy: Postgres + Redis + Mailpit.
 # Run via `mise run infra:up` (podman-compose — drives podman directly, no Docker daemon).
-# Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT.
-# Dev-only; production uses the systemd/quadlet units in deploy/quadlet/.
+# Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT / DINCHY_MAILPIT_*_PORT.
+# Dev-only; production uses the systemd/quadlet units in deploy/quadlet/ and sends real mail.
 services:
   postgres:
     image: docker.io/library/postgres:16
@@ -20,6 +20,16 @@ services:
       - "${DINCHY_REDIS_PORT:-6380}:6379"
     volumes:
       - dinchy-redis:/data
+  mailpit:
+    # Local SMTP sink with a web mailbox UI + REST API; catches the invite/reset
+    # emails so the flows can be exercised without a real mail server.
+    image: docker.io/axllent/mailpit:latest
+    ports:
+      - "${DINCHY_MAILPIT_SMTP_PORT:-1025}:1025"  # SMTP intake (DINCHY_SMTP_PORT points here)
+      - "${DINCHY_MAILPIT_UI_PORT:-8025}:8025"    # web UI + REST API
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
 volumes:
   dinchy-pg:
   dinchy-redis:

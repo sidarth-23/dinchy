@@ -132,6 +132,7 @@ func (s *Service) Create(ctx context.Context, userID, organizationID, ip, userAg
 		TokenHash:            security.HashToken(token),
 		IpAddress:            ip,
 		UserAgent:            userAgent,
+		LastSeenAt:           sqltype.Timestamptz(now),
 		IdleExpiresAt:        sqltype.Timestamptz(now.Add(s.config.SessionIdleTimeout)),
 		ExpiresAt:            sqltype.Timestamptz(now.Add(s.config.SessionMaxLifetime)),
 		CreatedAt:            sqltype.Timestamptz(now),

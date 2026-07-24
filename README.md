@@ -119,10 +119,17 @@ mise run lint         # run the linter
 mise run build        # build the production binary
 mise run generate     # regenerate generated Go code and sqlc queries
 mise run db:migrate   # run database migrations against DINCHY_POSTGRES_DSN
-mise run infra:up     # start local Postgres + Redis (podman-compose)
-mise run infra:down   # stop local Postgres + Redis
-mise run infra:logs   # follow pg/redis logs
+mise run infra:up     # start local Postgres + Redis + Mailpit (podman-compose)
+mise run infra:down   # stop local infra
+mise run infra:logs   # follow infra logs
 ```
+
+`mise run infra:up` also starts **Mailpit**, a local mail catcher, so the email flows
+(invitations, password reset) work without a real mail server. Keep the `DINCHY_SMTP_*` /
+`DINCHY_PUBLIC_BASE_URL` block from `.env.example` in your `.env`; outbound mail is caught by
+Mailpit rather than sent for real, and you can read it in the web mailbox at
+**http://localhost:8025**. Without those vars SMTP stays disabled and the invite/reset
+endpoints report email as not configured.
 
 > Optional one-time podman hardening: `sudo loginctl enable-linger $USER` gives your user a
 > persistent systemd session so podman uses the systemd cgroup manager and the rootless

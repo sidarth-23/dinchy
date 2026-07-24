@@ -107,7 +107,11 @@ func (s *Service) DisableTOTP(ctx context.Context, userID, displayName string) e
 func (s *Service) verifyTOTPForLogin(ctx context.Context, userID, code string) error {
 	twoFactorRow, err := s.store.FindTwoFactorByUserID(ctx, id.MustParse(userID))
 	if err != nil {
-		return err
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No two-factor record means TOTP is not enrolled; nothing to verify.
+			return nil
+		}
+		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAuthLoginVerifyTOTP), apperrors.WithCause(err))
 	}
 	twoFactor := twoFactorFromFindTwoFactorRow(twoFactorRow)
 	if !twoFactor.Verified {

@@ -43,6 +43,12 @@
                   }
                 },
                 {
+                  "name": "verify_totp",
+                  "translations": {
+                    "en": "Verify two-factor authentication during login failed"
+                  }
+                },
+                {
                   "name": "sso_start",
                   "translations": {
                     "en": "Start SSO login failed"

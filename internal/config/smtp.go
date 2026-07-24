@@ -12,6 +12,10 @@ type SMTPConfig struct {
 	Password string `env:"DINCHY_SMTP_PASSWORD"`
 	// From is the sender address used for password reset and invite emails.
 	From string `env:"DINCHY_SMTP_FROM" mod:"trim"`
+	// TLS selects the STARTTLS policy for outbound mail: "mandatory" (default,
+	// require STARTTLS), "opportunistic" (use STARTTLS when the server offers it),
+	// or "off" (plain connection, for local catchers such as Mailpit).
+	TLS string `env:"DINCHY_SMTP_TLS" mod:"trim,lower" validate:"omitempty,oneof=mandatory opportunistic off"`
 }
 
 // DefaultSMTP returns the default SMTP configuration used when no
