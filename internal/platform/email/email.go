@@ -80,7 +80,7 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 		m.AddAlternativeString(mail.TypeTextHTML, msg.HTML)
 	}
 
-	options := []mail.Option{mail.WithPort(int(s.cfg.Port)), mail.WithTLSPolicy(tlsPolicy(s.cfg.TLS))}
+	options := []mail.Option{mail.WithPort(int(s.cfg.Port)), mail.WithTLSPolicy(mail.TLSMandatory)}
 	if s.cfg.Username != "" {
 		options = append(options, mail.WithSMTPAuth(mail.SMTPAuthPlain), mail.WithUsername(s.cfg.Username), mail.WithPassword(s.cfg.Password))
 	}
@@ -92,17 +92,4 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 		return fmt.Errorf("send email to %q: %w", msg.To, err)
 	}
 	return nil
-}
-
-// tlsPolicy maps the configured SMTP TLS setting to a go-mail policy, defaulting
-// to mandatory STARTTLS so production stays encrypted unless explicitly relaxed.
-func tlsPolicy(setting string) mail.TLSPolicy {
-	switch setting {
-	case "opportunistic":
-		return mail.TLSOpportunistic
-	case "off":
-		return mail.NoTLS
-	default:
-		return mail.TLSMandatory
-	}
 }

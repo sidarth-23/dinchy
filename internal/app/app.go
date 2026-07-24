@@ -126,7 +126,7 @@ func (a *App) Start() error {
 		}
 		dist = distFS
 	}
-	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, a.cfg.RequireHTTPSForAuth, a.cfg.DevMode, a.cfg.ExposeInternalErrors, a.cfg.DevProxyURL, a.logger)
+	a.public = transport.New(a.cfg.Addr, dist, authSvc, sessionSvc, auditSvc, a.cfg.DevMode, a.cfg.ExposeInternalErrors, a.cfg.DevProxyURL, a.logger)
 	healthAPI, err := health.NewAPI(sharedService.Named("health"), s)
 	if err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))

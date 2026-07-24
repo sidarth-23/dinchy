@@ -17,6 +17,9 @@ tmp
 /.env.*
 !/.env*.example
 
+# Local dev TLS material minted from Caddy's internal CA (never committed)
+/deploy/caddy/dev-certs/
+
 # Frontend
 web/node_modules/
 web/dist/

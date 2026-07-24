@@ -29,7 +29,7 @@ import (
 // New creates a fully configured http.Server with middleware, the Huma API,
 // and frontend asset serving. Health and readiness endpoints live on the
 // internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, requireHTTPS, devMode, exposeInternalErrors bool, devProxyURL string, logger *slog.Logger) *http.Server {
+func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, devMode, exposeInternalErrors bool, devProxyURL string, logger *slog.Logger) *http.Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -70,7 +70,7 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 	cfg.Servers = []*huma.Server{{URL: "/api"}}
 	api := humachi.New(apiRouter, cfg)
 	api.UseMiddleware(mw.SessionResolutionGuard(api))
-	auth.Register(api, authSvc, sessionSvc, authSvc, requireHTTPS)
+	auth.Register(api, authSvc, sessionSvc, authSvc)
 	if auditSvc != nil {
 		audit.Register(api, auditSvc)
 	}

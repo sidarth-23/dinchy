@@ -20,7 +20,6 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "postgres://postgres:postgres@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 	assert.False(t, cfg.DevMode)
-	assert.False(t, cfg.RequireHTTPSForAuth)
 	assert.Equal(t, "dinchy_session", cfg.Session.SessionCookieName)
 	assert.Equal(t, "dinchy_sso_state", cfg.Auth.SSOStateCookieName)
 	assert.Equal(t, 30*time.Minute, cfg.Session.SessionIdleTimeout)
@@ -50,7 +49,6 @@ func TestLoad_AllOverrides(t *testing.T) {
 	t.Setenv("DINCHY_POSTGRES_DSN", "postgres://test:test@localhost:5432/dinchy?sslmode=disable")
 	t.Setenv("DINCHY_DEV", "true")
 	t.Setenv("DINCHY_DEV_PROXY_URL", "http://localhost:3000")
-	t.Setenv("DINCHY_REQUIRE_HTTPS_FOR_AUTH", "1")
 	t.Setenv("DINCHY_GITHUB_CLIENT_ID", "client")
 	t.Setenv("DINCHY_GITHUB_CLIENT_SECRET", "secret")
 	t.Setenv("DINCHY_GITHUB_CALLBACK_URL", "https://app.example.com/api/auth/sso/github/callback")
@@ -79,7 +77,6 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, "postgres://test:test@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
 	assert.True(t, cfg.DevMode)
 	assert.Equal(t, "http://localhost:3000", cfg.DevProxyURL)
-	assert.True(t, cfg.RequireHTTPSForAuth)
 	require.Len(t, cfg.SSOProviders, 1)
 	assert.Equal(t, config.SSOProviderGitHub, cfg.SSOProviders[0].ID)
 	assert.Equal(t, "custom_session", cfg.Session.SessionCookieName)
@@ -210,7 +207,7 @@ func clearDinchyEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"DINCHY_ADDR", "DINCHY_INTERNAL_ADDR", "DINCHY_POSTGRES_DSN",
-		"DINCHY_DEV", "DINCHY_DEV_PROXY_URL", "DINCHY_REQUIRE_HTTPS_FOR_AUTH",
+		"DINCHY_DEV", "DINCHY_DEV_PROXY_URL",
 		"DINCHY_GOOGLE_CLIENT_ID", "DINCHY_GOOGLE_CLIENT_SECRET", "DINCHY_GOOGLE_CALLBACK_URL",
 		"DINCHY_GITHUB_CLIENT_ID", "DINCHY_GITHUB_CLIENT_SECRET", "DINCHY_GITHUB_CALLBACK_URL",
 		"DINCHY_GITLAB_CLIENT_ID", "DINCHY_GITLAB_CLIENT_SECRET", "DINCHY_GITLAB_CALLBACK_URL",

@@ -7,6 +7,10 @@ node = "24.15.0"
 "github:golangci/golangci-lint" = "2.12.2"
 "github:evilmartians/lefthook" = "2.1.9"
 "go:github.com/go-delve/delve/cmd/dlv" = "1.27.0"
+# Caddy terminates TLS locally (https://localhost:8443); step-cli mints the dev
+# service certs. Both mirror the production Caddy sidecar / internal-CA model.
+"aqua:caddyserver/caddy" = "2"
+"aqua:smallstep/cli" = "latest"
 uv = "latest"
 "pipx:podman-compose" = "1.6.0"
 lefthook = "latest"
@@ -20,6 +24,13 @@ _.file = [".env", ".env.local"]
 
 [tasks]
 dev = "go run ./cmd/dinchy"
+# Local HTTPS: Caddy terminates TLS on https://localhost:8443 with its internal CA
+# and reverse-proxies to the Go server on 127.0.0.1:8080. Run alongside `dev` (and
+# `web:dev` for the frontend). Run `caddy trust` once so the browser trusts the CA.
+caddy = "caddy run --config deploy/caddy/Caddyfile.dev"
+# Mint TLS certs for the local Postgres/Redis/Mailpit containers, signed by Caddy's
+# internal CA, so the app connects to all infra over verified TLS like production.
+"dev:certs" = "bash deploy/caddy/mint-dev-certs.sh"
 # podman-compose drives podman directly (no Docker daemon/socket). Host ports come
 # from compose.yaml, interpolated from DINCHY_*_PORT in .env. NETAVARK_FW (if set in
 # .env) is inherited from the mise env — see .env.example for the WSL2 note.

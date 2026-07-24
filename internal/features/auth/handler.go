@@ -20,15 +20,14 @@ import (
 
 // API groups the auth handlers and their shared dependencies.
 type API struct {
-	auth         *Service
-	sessions     *session.Service
-	settings     SettingsReader
-	requireHTTPS bool
+	auth     *Service
+	sessions *session.Service
+	settings SettingsReader
 }
 
 // Register mounts the auth operations on the given huma.API instance.
-func Register(h huma.API, svc *Service, sessions *session.Service, sr SettingsReader, requireHTTPS bool) {
-	a := &API{auth: svc, sessions: sessions, settings: sr, requireHTTPS: requireHTTPS}
+func Register(h huma.API, svc *Service, sessions *session.Service, sr SettingsReader) {
+	a := &API{auth: svc, sessions: sessions, settings: sr}
 
 	huma.Register(h, huma.Operation{
 		OperationID: "get-bootstrap",
@@ -195,7 +194,7 @@ func Register(h huma.API, svc *Service, sessions *session.Service, sr SettingsRe
 }
 
 func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	bs, err := a.settings.Bootstrap(ctx)
@@ -212,7 +211,7 @@ func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error)
 }
 
 func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	token, err := a.auth.Login(
@@ -248,7 +247,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 }
 
 func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	sessionToken := support.CookieValueFrom(ctx, a.sessions.SessionCookieName())
@@ -272,7 +271,7 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 }
 
 func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	bs, err := a.settings.Bootstrap(ctx)
@@ -298,7 +297,7 @@ func (a *API) ssoProviders(ctx context.Context, _ *struct{}) (*SSOProvidersOut, 
 }
 
 func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganizationSlug)
@@ -313,7 +312,7 @@ func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error
 }
 
 func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	if in.Error != "" {
@@ -364,7 +363,7 @@ func (a *API) selectOrganization(ctx context.Context, in *SelectOrganizationIn) 
 }
 
 func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*CreateInvitationOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	sess := session.PrincipalFrom(ctx)
@@ -384,7 +383,7 @@ func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*Cr
 }
 
 func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*AcceptInvitationOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	token, err := a.auth.AcceptInvitation(
@@ -478,7 +477,7 @@ func (a *API) totpDisable(ctx context.Context, _ *struct{}) (*TOTPConfirmOut, er
 }
 
 func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
-	if a.requireHTTPS && !support.IsSecure(ctx) {
+	if !support.IsSecure(ctx) {
 		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
 	}
 	token, err := a.auth.SetupFirstUser(

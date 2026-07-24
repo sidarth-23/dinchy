@@ -25,8 +25,6 @@ type Config struct {
 	// DevProxyURL is the Vite dev server URL to proxy frontend requests to in dev mode.
 	// Required when DevMode is true.
 	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,http_url"`
-	// RequireHTTPSForAuth enforces HTTPS on all auth endpoints when true.
-	RequireHTTPSForAuth bool `env:"DINCHY_REQUIRE_HTTPS_FOR_AUTH"`
 	// ExposeInternalErrors adds a debug object to every error response carrying the
 	// internal code, cause chain (including SQL errors), and metadata. It leaks internal
 	// detail and must stay disabled outside local or trusted debugging environments.

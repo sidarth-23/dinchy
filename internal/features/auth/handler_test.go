@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -38,16 +39,29 @@ func newHTTPTestAPI(t *testing.T) (*API, *MockStore) {
 	t.Helper()
 	svc, store := newTestService(t)
 	api := &API{
-		auth:         svc,
-		sessions:     svc.sessions,
-		settings:     testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}},
-		requireHTTPS: false,
+		auth:     svc,
+		sessions: svc.sessions,
+		settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}},
 	}
 	return api, store
 }
 
+// testHTTPContext mirrors a request arriving through the TLS-terminating proxy:
+// requests are always secure, since auth endpoints now reject plaintext.
 func testHTTPContext() context.Context {
-	return requestmeta.WithRequestInfo(testCtx, "127.0.0.1", "ua")
+	return support.WithSecure(requestmeta.WithRequestInfo(testCtx, "127.0.0.1", "ua"), true)
+}
+
+// registerSecure builds a humatest API whose requests are marked secure, standing
+// in for the transport SecureDetect middleware that is absent from the huma-only pipeline.
+func registerSecure(t *testing.T, svc *Service) humatest.TestAPI {
+	t.Helper()
+	_, api := humatest.New(t)
+	api.UseMiddleware(func(ctx huma.Context, next func(huma.Context)) {
+		next(huma.WithContext(ctx, support.WithSecure(ctx.Context(), true)))
+	})
+	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}})
+	return api
 }
 
 func TestAPILogin_Success(t *testing.T) {
@@ -75,7 +89,7 @@ func TestAPILogin_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
 	assert.Equal(t, api.sessions.SessionCookieName(), out.SetCookie[0].Name)
-	assert.False(t, out.SetCookie[0].Secure)
+	assert.True(t, out.SetCookie[0].Secure)
 	assert.True(t, out.Body.Authenticated)
 	assert.Equal(t, "dinchy", out.Body.App.InstanceName)
 	require.NotNil(t, out.Body.Viewer)
@@ -140,7 +154,7 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 func TestAPISession_ReturnsCurrentViewer(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := session.WithPrincipal(testCtx, &session.Principal{
+	ctx := session.WithPrincipal(support.WithSecure(testCtx, true), &session.Principal{
 		SessionID:        testSessionID,
 		UserID:           testUserID,
 		Email:            "viewer@example.com",
@@ -169,7 +183,7 @@ func TestAPIBootstrap_Anonymous(t *testing.T) {
 	api, _ := newHTTPTestAPI(t)
 	api.settings = testSettingsReader{state: BootstrapState{SetupRequired: true, InstanceName: "dinchy"}}
 
-	out, err := api.bootstrap(context.Background(), &struct{}{})
+	out, err := api.bootstrap(support.WithSecure(context.Background(), true), &struct{}{})
 	require.NoError(t, err)
 	assert.True(t, out.Body.SetupRequired)
 	assert.False(t, out.Body.Authenticated)
@@ -179,7 +193,7 @@ func TestAPIBootstrap_Anonymous(t *testing.T) {
 func TestAPIBootstrap_WithSession(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := session.WithPrincipal(context.Background(), &session.Principal{
+	ctx := session.WithPrincipal(support.WithSecure(context.Background(), true), &session.Principal{
 		SessionID:        testSessionID,
 		UserID:           testUserID,
 		Email:            "viewer@example.com",
@@ -206,7 +220,7 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
 	publisher := api.auth.EventPublisher.(*recordingPublisher)
-	ctx := support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.sessions.SessionCookieName(), Value: "rawtoken"}})
+	ctx := support.WithSecure(support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.sessions.SessionCookieName(), Value: "rawtoken"}}), true)
 
 	gomock.InOrder(
 		store.EXPECT().
@@ -230,7 +244,7 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 
 func TestAPISSOStart_SetsSecureOnAllCookies(t *testing.T) {
 	svc, _ := newSSOTestService(t)
-	api := &API{auth: svc, sessions: svc.sessions, settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, requireHTTPS: false}
+	api := &API{auth: svc, sessions: svc.sessions, settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}}
 
 	out, err := api.ssoStart(support.WithSecure(context.Background(), true), &SSOStartIn{ProviderID: "github", ReturnTo: "/dashboard"})
 	require.NoError(t, err)
@@ -293,8 +307,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 func TestHumaValidation_RejectsInvalidInvitationRole(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
-	_, api := humatest.New(t)
-	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+	api := registerSecure(t, svc)
 
 	// "owner" is not in the role enum; validation rejects it before the handler runs.
 	resp := api.Post("/auth/invitations", map[string]any{"email": "invitee@example.com", "role": "owner"})
@@ -304,8 +317,7 @@ func TestHumaValidation_RejectsInvalidInvitationRole(t *testing.T) {
 func TestHumaValidation_RejectsMalformedEmail(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
-	_, api := humatest.New(t)
-	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+	api := registerSecure(t, svc)
 
 	// A malformed address fails format:email validation before the handler runs.
 	resp := api.Post("/auth/forgot-password", map[string]any{"email": "not-an-email"})
@@ -336,8 +348,7 @@ func TestHumaResolver_LowercasesSetupEmailEndToEnd(t *testing.T) {
 		Return([]sqlcgen.ListOrganizationsForUserRow{organizationRow(testOrganizationID, "Default", "default", string(permission.RoleAdmin))}, nil).
 		AnyTimes()
 
-	_, api := humatest.New(t)
-	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}, false)
+	api := registerSecure(t, svc)
 
 	resp := api.Post("/setup/first-user", map[string]any{
 		"email":        "ADMIN@EXAMPLE.COM",
