@@ -2,11 +2,11 @@
 # Run via `mise run infra:up` (podman-compose — drives podman directly, no Docker daemon).
 # Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT / DINCHY_MAILPIT_*_PORT.
 #
-# TLS is ON for all three services, matching production (no dev-only plaintext bypass).
-# Certs come from `mise run dev:certs` (mkcert) into deploy/certs/ and are bind-mounted
-# read-only with the podman `:U` flag, which chowns them to each container's user so
-# rootless podman can read the private keys. Run `mise run dev:certs` before `infra:up`.
-# Dev-only; production uses the systemd/quadlet units in deploy/quadlet/.
+# Postgres and Redis run plaintext on loopback (dev only) — mounting TLS keys into
+# rootless-podman containers is not worth the friction locally. The app still serves
+# HTTPS itself, and Mailpit still enforces STARTTLS + auth (its cert comes from
+# `mise run dev:certs`, mkcert). Production infra TLS is configured separately in
+# deploy/. Dev-only; production uses the systemd/quadlet units in deploy/quadlet/.
 services:
   postgres:
     image: docker.io/library/postgres:16
@@ -18,16 +18,6 @@ services:
       POSTGRES_DB: dinchy
     volumes:
       - dinchy-pg:/var/lib/postgresql/data
-      - ./deploy/certs:/certs:ro,U
-    command:
-      - "-c"
-      - "ssl=on"
-      - "-c"
-      - "ssl_cert_file=/certs/postgres.pem"
-      - "-c"
-      - "ssl_key_file=/certs/postgres-key.pem"
-      - "-c"
-      - "ssl_ca_file=/certs/ca.pem"
   redis:
     # 8.4+ required: the event bus uses XREADGROUP ... CLAIM (matches deploy quadlet).
     image: docker.io/library/redis:8.4
@@ -35,20 +25,6 @@ services:
       - "${DINCHY_REDIS_PORT:-6380}:6379"
     volumes:
       - dinchy-redis:/data
-      - ./deploy/certs:/certs:ro,U
-    command:
-      - "--port"
-      - "0"
-      - "--tls-port"
-      - "6379"
-      - "--tls-cert-file"
-      - "/certs/redis.pem"
-      - "--tls-key-file"
-      - "/certs/redis-key.pem"
-      - "--tls-ca-cert-file"
-      - "/certs/ca.pem"
-      - "--tls-auth-clients"
-      - "no"
   mailpit:
     # Local SMTP sink with a web mailbox UI + REST API; catches the invite/reset
     # emails so the flows can be exercised without a real mail server. Enforces
@@ -58,7 +34,7 @@ services:
       - "${DINCHY_MAILPIT_SMTP_PORT:-1025}:1025"  # SMTP intake (DINCHY_SMTP_PORT points here)
       - "${DINCHY_MAILPIT_UI_PORT:-8025}:8025"    # web UI + REST API
     volumes:
-      - ./deploy/certs:/certs:ro,U
+      - ./deploy/certs:/certs:ro
     environment:
       # Require SMTP auth; credentials must match DINCHY_SMTP_USERNAME/PASSWORD in .env.
       MP_SMTP_AUTH: "dinchy:localpass"

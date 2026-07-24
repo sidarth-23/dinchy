@@ -97,11 +97,12 @@ mise run dev               # run the backend — colored, human-readable logs
 
 Dinchy serves HTTPS directly, exactly like production: the Go server terminates TLS on
 **https://localhost:8443** using a locally-trusted mkcert certificate (no reverse proxy).
-Auth endpoints reject plaintext, so open **https://localhost:8443**. Postgres, Redis, and
-Mailpit all run over TLS too (certs from the same mkcert CA), so there are no dev-only
-security relaxations to diverge from production. `mise run dev:certs` runs `mkcert -install`
-once, which adds the local CA to your system and browser trust stores — so there is no
-certificate warning.
+Auth endpoints reject plaintext, so open **https://localhost:8443**. Mailpit enforces
+STARTTLS + auth like production (the app connects with mandatory STARTTLS), while Postgres
+and Redis run plaintext on loopback in dev — TLS on loopback datastores isn't worth the
+rootless-container friction locally, and production configures it separately.
+`mise run dev:certs` runs `mkcert -install` once, adding the local CA to your system and
+browser trust stores, so the app's HTTPS and Mailpit's cert are trusted with no warning.
 
 `.env.example` is the only committed template. Copy it to `.env` (gitignored) for your
 working config — including `DINCHY_LOG_FORMAT=text`, which produces colored, human-readable
