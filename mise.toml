@@ -5,31 +5,23 @@ node = "24.15.0"
 "github:sqlc-dev/sqlc" = "1.31.1"
 "github:pressly/goose" = "3.27.1"
 "github:golangci/golangci-lint" = "2.12.2"
-"github:evilmartians/lefthook" = "2.1.9"
+lefthook = "2.1.9"
 "go:github.com/go-delve/delve/cmd/dlv" = "1.27.0"
 # mkcert issues locally-trusted certs for dev HTTPS (the Go server serves TLS
 # directly) and for the Postgres/Redis/Mailpit containers.
 "aqua:FiloSottile/mkcert" = "latest"
 uv = "latest"
 "pipx:podman-compose" = "1.6.0"
-lefthook = "latest"
 
-# Local dev environment. Both files are gitignored (only .env.example is committed);
 # .env holds your working config, .env.local optional overrides that win over .env.
-# mise injects these into the process env for every task — so compose interpolates the
-# port keys, the app reads its DSN, and podman/netavark reads NETAVARK_FW from here.
 [env]
 _.file = [".env", ".env.local"]
 
 [tasks]
 dev = "go run ./cmd/dinchy"
-# Generate locally-trusted TLS certs (mkcert) for the Go server and the
-# Postgres/Redis/Mailpit containers, so dev runs over verified TLS like production.
-# Run once before `mise run dev` / `infra:up`; re-run only to regenerate.
+# Generate locally-trusted TLS certs (mkcert) for the Go server so dev runs over verified TLS like production.
 "dev:certs" = "bash deploy/certs/gen-dev-certs.sh"
-# podman-compose drives podman directly (no Docker daemon/socket). Host ports come
-# from compose.yaml, interpolated from DINCHY_*_PORT in .env. NETAVARK_FW (if set in
-# .env) is inherited from the mise env — see .env.example for the WSL2 note.
+# NETAVARK_FW (if set in .env) is inherited from the mise env — see .env.example for the WSL2 note.
 "infra:up" = "podman-compose up -d"
 "infra:down" = "podman-compose down"
 "infra:logs" = "podman-compose logs -f"

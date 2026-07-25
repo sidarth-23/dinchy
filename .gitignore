@@ -37,3 +37,6 @@ dinchy.old
 .idea/
 *.swp
 *.swo
+
+# Delve debug binaries (Zed/dlv `mode: debug` drops these in the repo root)
+/__debug_bin*
