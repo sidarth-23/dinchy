@@ -75,7 +75,7 @@ func newServiceWithSender(t *testing.T, sender email.Sender) (*Service, *MockSto
 	return svc, store
 }
 
-func verificationTokenRow(rowID, userID, email, purpose, tokenHash string, expiresAt, consumedAt time.Time, consumedAtValid bool) sqlcgen.FindVerificationTokenRow {
+func verificationTokenRow(rowID, userID, emailAddress, purpose, tokenHash string, expiresAt, consumedAt time.Time, consumedAtValid bool) sqlcgen.FindVerificationTokenRow {
 	nullUserID := uuid.NullUUID{}
 	if userID != "" {
 		nullUserID = uuid.NullUUID{UUID: id.MustParse(userID), Valid: true}
@@ -83,7 +83,7 @@ func verificationTokenRow(rowID, userID, email, purpose, tokenHash string, expir
 	return sqlcgen.FindVerificationTokenRow{
 		ID:         id.MustParse(rowID),
 		UserID:     nullUserID,
-		Email:      email,
+		Email:      emailAddress,
 		Purpose:    purpose,
 		TokenHash:  tokenHash,
 		ExpiresAt:  sqltype.Timestamptz(expiresAt),

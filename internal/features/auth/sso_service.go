@@ -72,7 +72,7 @@ func (s *Service) startSSO(ctx context.Context, providerID, returnTo, organizati
 	return authURL, []http.Cookie{{Name: s.sso.stateCookieName, Value: transactionID, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(s.sso.stateLifetime.Seconds()), Expires: s.Clock.Now().Add(s.sso.stateLifetime)}}, nil
 }
 
-func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, transactionID, ip, userAgent string) (string, string, []http.Cookie, error) {
+func (s *Service) completeSSO(ctx context.Context, providerID, queryState, code, transactionID, ip, userAgent string) (returnTo, sessionToken string, clearCookies []http.Cookie, err error) {
 	providerConfig, ok := s.effectiveSSOProviderConfig(providerID)
 	if !ok || !providerConfig.Enabled {
 		return "", "", nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthSSOProviderNotFound, i18n.P("provider", providerID)))

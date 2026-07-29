@@ -92,7 +92,7 @@ func runLogReturn(args []string) error {
 	return errors.New(strings.Join(violations, "\n"))
 }
 
-func loadDirAndPatterns(patterns []string) (string, []string) {
+func loadDirAndPatterns(patterns []string) (dir string, resolved []string) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = ""

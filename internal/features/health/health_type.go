@@ -20,8 +20,8 @@ type Check struct {
 	Degraded func() string
 }
 
-// HealthOut is the plain-text response body for the liveness endpoint.
-type HealthOut struct {
+// LivenessOut is the plain-text response body for the liveness endpoint.
+type LivenessOut struct {
 	ContentType string `header:"Content-Type"`
 	Body        []byte
 }

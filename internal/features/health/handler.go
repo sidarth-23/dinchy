@@ -55,8 +55,8 @@ func (a *API) Register(h huma.API) {
 
 var _ features.Module = (*API)(nil)
 
-func (a *API) healthz(context.Context, *struct{}) (*HealthOut, error) {
-	return &HealthOut{
+func (a *API) healthz(context.Context, *struct{}) (*LivenessOut, error) {
+	return &LivenessOut{
 		ContentType: "text/plain",
 		Body:        []byte("ok"),
 	}, nil

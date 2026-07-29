@@ -86,8 +86,8 @@ func HashPasswordForTest(t *testing.T, password string) string {
 	return hash
 }
 
-func findUserRow(rowID, email, displayName string) sqlcgen.FindUserByEmailRow {
-	return sqlcgen.FindUserByEmailRow{ID: id.MustParse(rowID), Email: email, DisplayName: displayName, EmailVerifiedAt: sqltype.Timestamptz(fixedTime)}
+func findUserRow(rowID, emailAddress, displayName string) sqlcgen.FindUserByEmailRow {
+	return sqlcgen.FindUserByEmailRow{ID: id.MustParse(rowID), Email: emailAddress, DisplayName: displayName, EmailVerifiedAt: sqltype.Timestamptz(fixedTime)}
 }
 
 func passwordAccountRow(rowID, userID, provider, providerAccountID, passwordHash string) sqlcgen.FindPasswordAccountByUserIDRow {

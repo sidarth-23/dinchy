@@ -86,8 +86,8 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]events.Record, erro
 		return nil, err
 	}
 	out := make([]events.Record, 0, len(rows))
-	for _, row := range rows {
-		log, err := logFromRow(row)
+	for i := range rows {
+		log, err := logFromRow(&rows[i])
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +140,7 @@ func insertParams(event events.Record) (sqlcgen.InsertAuditLogParams, error) {
 	}, nil
 }
 
-func logFromRow(row sqlcgen.AppAuditLog) (events.Record, error) {
+func logFromRow(row *sqlcgen.AppAuditLog) (events.Record, error) {
 	metadata, err := unmarshalMap("audit metadata", row.EventType, row.MetadataJson)
 	if err != nil {
 		return events.Record{}, err

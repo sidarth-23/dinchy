@@ -18,14 +18,14 @@ import (
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
-func csrfHandler(t *testing.T) (http.Handler, *bool) {
+func csrfHandler(t *testing.T) (handler http.Handler, called *bool) {
 	t.Helper()
-	called := new(bool)
-	h := middleware.CSRF(render.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	called = new(bool)
+	handler = middleware.CSRF(render.NewRenderer(i18n.Default, false))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		*called = true
 		w.WriteHeader(http.StatusOK)
 	}))
-	return h, called
+	return handler, called
 }
 
 func decodeErrorCode(t *testing.T, body []byte) string {

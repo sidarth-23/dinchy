@@ -142,9 +142,9 @@ func newSSOTestService(t *testing.T) (*Service, *MockStore) {
 
 func cookieValue(t *testing.T, cookies []http.Cookie, name string) string {
 	t.Helper()
-	for _, cookie := range cookies {
-		if cookie.Name == name {
-			return cookie.Value
+	for i := range cookies {
+		if cookies[i].Name == name {
+			return cookies[i].Value
 		}
 	}
 	t.Fatalf("cookie %q not found", name)

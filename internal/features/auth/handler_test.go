@@ -264,9 +264,9 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	transactionID := cookieValue(t, cookies, "dinchy_sso_state")
 	var cached ssoCacheState
 	require.NoError(t, api.auth.RedisClient.Get(testCtx, api.auth.sso.cacheKey(transactionID)).Scan(&cached))
-	var session fakeSSOSession
-	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &session))
-	parsedAuthURL, err := url.Parse(session.AuthURL)
+	var providerSession fakeSSOSession
+	require.NoError(t, json.Unmarshal([]byte(cached.ProviderSession), &providerSession))
+	parsedAuthURL, err := url.Parse(providerSession.AuthURL)
 	require.NoError(t, err)
 
 	store.EXPECT().

@@ -50,7 +50,8 @@ func (a *API) list(ctx context.Context, in *ListIn) (*ListOut, error) {
 		return nil, err
 	}
 	out := &ListOut{}
-	for _, log := range logs {
+	for i := range logs {
+		log := &logs[i]
 		out.Body.Logs = append(out.Body.Logs, LogOut{
 			ID:                  log.ID,
 			Category:            log.Category,
