@@ -1,6 +1,6 @@
 [
   {
-    "label": "dinchy (dev)",
+    "label": "Backend: API (Delve)",
     "adapter": "Delve",
     "request": "launch",
     "mode": "debug",
@@ -8,5 +8,22 @@
     "cwd": "$ZED_WORKTREE_ROOT",
     "args": [],
     "envFile": "$ZED_WORKTREE_ROOT/.env"
+  },
+  {
+    "label": "Backend: tests in current package (Delve)",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "test",
+    "program": "$ZED_DIRNAME",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Frontend: web UI (Chrome)",
+    "adapter": "JavaScript",
+    "type": "chrome",
+    "request": "launch",
+    "url": "https://localhost:8443",
+    "webRoot": "$ZED_WORKTREE_ROOT/web",
+    "sourceMaps": true
   }
 ]

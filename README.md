@@ -102,26 +102,34 @@ curl -fsSL https://dinchy.com/install.sh | bash
 
 ## Development
 
-This project uses [mise](https://mise.jdx.dev/) to manage all tooling. Run the one-time
-setup once per machine:
+This project uses [mise](https://mise.jdx.dev/) to manage all tooling. One command sets up a
+machine:
 
 ```bash
-mise install               # install pinned Go, Bun, Node, dlv, mkcert, xcaddy
-cp .env.example .env       # your local config (gitignored) — edit as needed
-mise run caddy:trust       # trust Caddy's local CA, so dev HTTPS has no warning (sudo)
-mise run dev:certs         # mkcert: Mailpit's STARTTLS cert (sudo)
+mise install    # tools, git hooks, .env, and local TLS trust — prompts for sudo once
 ```
+
+Beyond installing the pinned toolchain, its postinstall hook runs `mise run dev:setup`, which
+seeds `.env` from `.env.example` if you have none and puts both development CA roots into
+every trust store on the machine — including the NSS database Chrome and Firefox read, which
+is a separate store the system one does not cover (see
+[`deploy/certs/setup-dev-tls.sh`](deploy/certs/setup-dev-tls.sh)). Every step tests for its own
+result first, so later `mise install` runs are silent and ask for nothing. It declines to
+prompt at all when it cannot — in CI, or a non-interactive shell — and tells you to re-run
+`mise run dev:setup` from a terminal instead of failing the install.
+
+Then edit `.env` if you want anything other than the defaults.
 
 Then, every session, four independent processes. They are separate on purpose: only the
 backend restarts in a normal edit-debug cycle, so the edge, the datastores and the frontend
 keep their state.
 
-| # | Process | Start it with | Listens on |
-|---|---------|---------------|------------|
-| 1 | Postgres + Redis + Mailpit | `mise run dev:up` | 5432 / 6380 / 1025 + 8025 |
-| 2 | Caddy — terminates TLS | `mise run caddy:dev` | `:8443` HTTPS, `127.0.0.1:2019` admin |
-| 3 | Vite dev server | `mise run web:dev` | `127.0.0.1:3000` |
-| 4 | Go backend | `mise run dev`, or the Zed debugger | `127.0.0.1:8080` plaintext |
+| # | Process | Start it with | Zed task | Listens on |
+|---|---------|---------------|----------|------------|
+| 1 | Postgres + Redis + Mailpit | `mise run dev:up` | **Dev: start infra** | 5432 / 6380 / 1025 + 8025 |
+| 2 | Caddy — terminates TLS | `mise run caddy:dev` | **Dev: run Caddy edge** | `:8443` HTTPS, `127.0.0.1:2019` admin |
+| 3 | Vite dev server | `mise run web:dev` | **Dev: run web UI** | `127.0.0.1:3000` |
+| 4 | Go backend | `mise run dev` | **Backend: API (Delve)** — debugger | `127.0.0.1:8080` plaintext |
 
 `mise run dev:up` brings the containers up, waits until Postgres actually accepts
 connections, and applies migrations — so nothing downstream races a cold container. Steps 2,
@@ -133,14 +141,14 @@ below). Then open **https://localhost:8443**.
 > gone, `DINCHY_CADDY_AUTOMATIC_HTTPS` / `_CERT_FILE` / `_KEY_FILE` / `_RECONCILE_INTERVAL`
 > were replaced by `DINCHY_CADDY_TLS_ISSUER=internal`, and the whole `--- Caddy ---` block is
 > new. A variable the app no longer reads is ignored in silence, so a partially-merged `.env`
-> fails as a production-shaped default (ACME on `:443`) rather than as an error. Run
-> `mise run caddy:trust` once; Caddy now issues its own dev certificates. Local Postgres also
+> fails as a production-shaped default (ACME on `:443`) rather than as an error. Then run
+> `mise run dev:setup` once; Caddy now issues its own dev certificates. Local Postgres also
 > moved to 18, which cannot start a data directory written by an older major version — run
 > `podman volume rm dinchy_dinchy-pg` before `mise run dev:up` to reinitialize it.
 
 **Caddy terminates all TLS, exactly like production.** Open **https://localhost:8443** —
 Caddy serves it with a certificate it signed itself, per host, using its built-in local CA
-(`mise run caddy:trust` puts that CA's root in your trust store, so there is no warning). One hostname, split by path:
+(`mise install` puts that CA's root in your trust stores, so there is no warning). One hostname, split by path:
 `/api/*` goes to the Go process on `127.0.0.1:8080`, and everything else goes to the
 frontend — the Vite dev server in development, `web/dist` read straight off disk in
 production. The Go process never serves the UI, so requesting `/` from it returns 404 by
@@ -169,11 +177,11 @@ though curl and browsers do not.
 Mailpit enforces STARTTLS + auth like production (the app connects with mandatory
 STARTTLS), while Postgres and Redis run plaintext on loopback in dev — TLS on loopback
 datastores isn't worth the rootless-container friction locally, and production configures
-it separately. `mise run dev:certs` exists for Mailpit alone: it serves STARTTLS from a
-cert file or not at all, and cannot generate one, so `mkcert -install` puts a root in your
-system store that the Go SMTP client can verify against. Caddy needs nothing from it —
-`mise run caddy:trust` installs its own CA root instead. Development therefore has two
-local authorities; production has neither, because it uses ACME with a real domain.
+it separately. mkcert exists for Mailpit alone: it serves STARTTLS from a cert file or not at
+all, and cannot generate one, so `mkcert -install` puts a root in your system store that the Go
+SMTP client can verify against. Caddy needs nothing from it — it signs with its own internal CA
+instead. Development therefore has two local authorities, both installed by `mise install`;
+production has neither, because it uses ACME with a real domain.
 
 **`.env` is the single source of truth for local configuration**, and `.env.example` is the
 only committed template. Copy it to `.env` (gitignored) for your working config — including
@@ -206,11 +214,14 @@ mise run dev:up       # infra up, wait for Postgres, migrate — run this first
 mise run caddy:dev    # then Caddy: terminates TLS on :8443 and routes to the backend
 mise run web:dev      # then Vite on 127.0.0.1:3000, reached through Caddy
 mise run dev          # then the Go backend (plaintext on 127.0.0.1:8080, fronted by Caddy)
+mise run dev:setup    # one-time machine setup: .env + both CA roots (idempotent)
+mise run dev:tls      # just the TLS half of dev:setup
+mise run dev:env      # just the .env half of dev:setup
 mise run caddy:build  # build Caddy from cmd/caddy into tmp/caddy
 mise run caddy:version # the pinned Caddy version, for building a plugin with xcaddy
-mise run caddy:trust  # install Caddy's local CA root into the system trust store
+mise run caddy:trust  # raw `caddy trust`; needs Caddy already running — prefer dev:tls
 mise run caddy:modules # list the Caddy modules compiled into the binary
-mise run dev:certs    # (re)issue Mailpit's STARTTLS cert via mkcert
+mise run dev:certs    # reissue Mailpit's STARTTLS cert via mkcert (delete the pair first)
 mise run test         # run the test suite
 mise run lint         # run the linter
 mise run build        # build the production binary
@@ -276,24 +287,46 @@ configuration is lost and Dinchy does not need to be running.
 
 ### Debugging in Zed
 
-`.zed/debug.json` defines a **dinchy (dev)** configuration that launches `cmd/dinchy` under
-Delve (`dlv`, installed by `mise install`). Its environment comes entirely from `.env` via
-`envFile`, so nothing sensitive is committed and edits take effect on the next launch.
+[`.zed/debug.json`](.zed/debug.json) defines three configurations, named after what they
+debug:
 
-Only the backend runs under the debugger — the other three processes are ordinary tasks, and
-`.zed/tasks.json` exposes them in Zed's task runner (`task: spawn`) in startup order:
+| Configuration | Debugs | Needs running first |
+|---------------|--------|---------------------|
+| **Backend: API (Delve)** | `cmd/dinchy` under `dlv` | infra (1), Caddy (2) |
+| **Backend: tests in current package (Delve)** | the tests beside the file you have open | nothing |
+| **Frontend: web UI (Chrome)** | `.tsx` sources in a real browser | infra (1), Caddy (2), Vite (3) |
 
-1. **dinchy: dev up** — once per session
-2. **dinchy: caddy** — leave it running
-3. **web: dev** — leave it running
-4. **dinchy (dev)** in the debugger — the only thing you restart while working
+The session loop, using the task runner (`task: spawn`) for the long-lived processes and the
+debugger only for what you actually step through:
 
-Caddy tolerates the backend coming and going: each launch re-pushes the routes, and Caddy
-keeps serving between launches. The reverse is not true, which is why it starts first.
+1. **Dev: start infra** — once per session
+2. **Dev: run Caddy edge** — leave it running
+3. **Dev: run web UI** — leave it running
+4. **Backend: API (Delve)** — the only thing you restart while working
 
-Debugging the API directly is also fine — `curl 127.0.0.1:8080/api/...` skips Caddy
-entirely. What you lose is the browser's same-origin view of the app, so anything
-cookie-dependent should go through `https://localhost:8443`.
+Caddy tolerates the backend coming and going: each launch re-pushes the routes, and Caddy keeps
+serving between launches. The reverse is not true, which is why it starts first.
+
+**Backend.** Its environment comes entirely from `.env` via `envFile`, so nothing sensitive is
+committed and edits take effect on the next launch. The test configuration deliberately does
+*not* load `.env` — the tests build their own environment with `t.Setenv`, and a stray
+`DINCHY_*` value would mask a bug rather than reveal one. `program` is `$ZED_DIRNAME`, so it
+debugs whichever package the open file belongs to.
+
+**Frontend.** The Chrome configuration opens `https://localhost:8443` — the edge, not Vite
+directly, because only through Caddy is the UI same-origin with `/api`. `webRoot` points at
+`web/`, which is how the `/src/...` paths in Vite's source maps resolve back to files on disk;
+breakpoints set in a `.tsx` file in Zed bind to the running app. Chrome launches with a
+throwaway profile, so there is no cached state between sessions.
+
+> Browser trust is its own store: Chrome and Firefox read certificates from an NSS database
+> rather than the system one. `mise install` (or `mise run dev:setup`) installs `certutil` and
+> puts both development roots there, which is what keeps this from opening on a certificate
+> interstitial. If you skipped that step, the page will not load under the debugger.
+
+Debugging the API directly is also fine — `curl 127.0.0.1:8080/api/...` skips Caddy entirely.
+What you lose is the browser's same-origin view of the app, so anything cookie-dependent should
+go through `https://localhost:8443`.
 
 > `DINCHY_EXPOSE_INTERNAL_ERRORS=true` in `.env` adds the internal code, the cause chain
 > (including SQL errors) and the error metadata to every API response — the fastest way to

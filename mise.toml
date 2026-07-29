@@ -23,12 +23,28 @@ _.file = ".env"
 
 [tasks]
 dev = "go run ./cmd/dinchy"
+# One-time machine setup, run for you by the postinstall hook below. Both steps are idempotent,
+# so running it again costs nothing and is the way to repair a half-finished setup.
+"dev:setup" = { depends = ["dev:env", "dev:tls"] }
+# Seed .env from the committed template on a fresh checkout. Without it the app starts on
+# production-shaped defaults (ACME certificates on :443) instead of failing outright.
+"dev:env" = '''
+if [ -f .env ]; then
+	echo ".env already exists; left untouched."
+else
+	cp .env.example .env
+	echo "Created .env from .env.example."
+fi
+'''
+# Trust both development CA roots and issue Mailpit's certificate. Needs sudo; skips itself
+# with instructions when it cannot prompt. See the script for why there are two authorities.
+"dev:tls" = { depends = ["caddy:build"], run = "bash deploy/certs/setup-dev-tls.sh" }
 # Bring the datastores up, wait for Postgres, and migrate — everything the backend needs
 # before `mise run dev` or the Zed debugger. Caddy and Vite stay separate processes.
 # The steps run in order; `depends` alone would let them run concurrently.
 "dev:up" = { depends = ["infra:up"], run = ["mise run infra:wait", "mise run db:migrate"] }
-# Issue Mailpit's STARTTLS cert with mkcert. Caddy needs nothing from this: it signs its
-# own dev certificates with its internal CA (see caddy:trust).
+# Issue Mailpit's STARTTLS cert with mkcert, on its own. `dev:tls` already covers this as part
+# of setup; reach for this only to reissue after deleting the pair.
 "dev:certs" = "bash deploy/certs/gen-dev-certs.sh"
 # Build the pinned, vanilla Caddy. go.mod locks the version, so this is reproducible.
 "caddy:build" = "go build -o tmp/caddy ./cmd/caddy"
@@ -94,6 +110,8 @@ auto_install = true
 # separate pipx install is required — mise manages uv as a tool above.
 pipx.uvx = true
 
-# Install git hooks as part of `mise install` so a fresh checkout is ready to commit.
+# Finish the machine setup as part of `mise install`, so a fresh checkout is ready to commit and
+# ready to serve trusted HTTPS without a checklist. dev:setup is idempotent and declines to
+# prompt when it cannot, which is what keeps this safe on every later `mise install`.
 [hooks]
-postinstall = "lefthook install"
+postinstall = "lefthook install && mise run dev:setup"
