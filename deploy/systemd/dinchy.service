@@ -1,14 +1,13 @@
 [Unit]
 Description=Dinchy management plane
 Documentation=https://github.com/sidarth-23/dinchy
-After=network-online.target postgres.service redis.service
+After=network-online.target postgres.service redis.service caddy.service
 Wants=network-online.target
 Requires=postgres.service redis.service
-# Caddy is pulled in but never required: if routing breaks, Dinchy is the only thing
-# that can repair it, so its failure must not stop the management plane. Dinchy starts
-# first and pushes the configuration to Caddy over the admin API.
+# Caddy is pulled in and started first, because Dinchy pushes its configuration once at
+# startup and does not retry indefinitely. Never Requires=: if routing breaks, Dinchy is
+# the only thing that can repair it, so Caddy's failure must not stop the management plane.
 Wants=caddy.service
-Before=caddy.service
 
 [Service]
 Type=simple

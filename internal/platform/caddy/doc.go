@@ -2,9 +2,10 @@
 // deployment it serves.
 //
 // Caddy is the only TLS terminator. Dinchy always listens plaintext on loopback; Caddy
-// owns certificates, automatic HTTPS, and HSTS. Caddy is driven entirely through its
-// JSON admin API, so the running configuration is the projection of Dinchy's own state
-// and there is no configuration file to keep in step.
+// owns certificates, automatic HTTPS, and HSTS, and no certificate is ever loaded from
+// disk — production obtains them over ACME, development signs them with Caddy's own local
+// CA. Caddy is driven entirely through its JSON admin API, so there is no configuration
+// file to keep in step.
 //
 // # Ownership
 //
@@ -15,37 +16,45 @@
 // registers an event subscriber. Compare internal/platform/email, where the Mailer owns
 // delivery and the feature composes the message.
 //
-// Sources are pulled on every reconcile rather than pushing changes inward. Pulling is
-// what makes the desired configuration recomputable from stored state at any moment,
-// which is the prerequisite for converging at startup and for repairing drift.
+// Sources are pulled on reconcile rather than pushing changes inward. Pulling is what
+// makes the desired configuration recomputable from stored state at any moment, which is
+// the prerequisite for converging at startup and for repairing drift on request later.
 //
-// # Full load versus targeted updates
+// # One write, at startup
 //
-// [Reconciler.ReconcileAll] replaces the entire configuration and runs once at startup.
-// [Reconciler.ApplyRoute] and [Reconciler.RemoveRoute] address a single route
-// afterwards. The split is deliberate: replacing the whole configuration makes Caddy
-// close active streaming connections, so a full reload on every routing change would
-// drop one operator's web terminal or log stream because another added a domain. At
-// startup there are no such connections, so converging in one call is free.
+// [Reconciler.ReconcileAll] replaces the entire configuration, and it is the only write
+// this package performs. It runs once, when the application starts. Nothing re-asserts it
+// afterwards: on a self-hosted host the operator owns the running proxy, and a management
+// plane that overwrites their changes on a timer is one they cannot work with.
 //
-// Each route carries a stable "@id" derived from its owner, host and path (see
-// [RouteID]), which is what makes a single route addressable at /id/<id> without
-// knowing its position in the route array.
+// Replacing everything costs nothing while the only routes are the panel's and they never
+// change at runtime. Once routes come and go, changing one must address that one —
+// otherwise adding a domain drops an unrelated operator's web terminal — and that is when
+// Caddy's per-object "@id" addressing earns its place here.
 //
-// Two invariants make the targeted path safe. The configuration Dinchy loads always
-// contains an admin block, because a document omitting it would tear down the very
-// endpoint used to push and leave no way to recover without hand-editing files. And
-// every route's match set is kept disjoint, so appending a route can never change which
-// route wins a request — an exact host that an existing wildcard would also match is
-// rejected as a conflict rather than silently ordered.
+// The configuration Dinchy loads always contains an admin block, because a document
+// omitting it would tear down the very endpoint used to push and leave no way to recover
+// without hand-editing files.
+//
+// # Validation
+//
+// Almost none happens here. Caddy provisions the whole document on load and rolls back to
+// the previous one if anything fails, so its rejection is the check — and a better error
+// than one written twice. The exception is two routes claiming the same host and path,
+// which Caddy accepts while leaving the loser unreachable behind the first terminal match.
+//
+// Caddy does not parse reverse-proxy dial addresses at load time either, so a malformed
+// upstream loads cleanly and 502s per request. Anything composing a [Route] from user
+// input has to screen that itself.
 //
 // # Staying reachable
 //
 // A failed reconcile must never take the management plane down with it. The proxy being
-// broken is exactly when an operator needs the interface that can fix it, so callers
-// log a startup failure and continue serving; the recurring reconcile job retries until
-// Caddy comes back. For the same reason no route may claim the panel's hostname, and no
-// route may proxy back to the panel's own listener.
+// broken is exactly when an operator needs the interface that can fix it, so callers log
+// the failure and continue serving. [Reconciler.Ping] is what readiness reports, so a
+// proxy that recovers is seen without another push. Reserving the panel's hostname against
+// other sources, and refusing a route that proxies back at the panel's own listener,
+// belong to the same concern and come back with the first source that could violate either.
 //
 // # Forwarded headers
 //
@@ -57,7 +66,6 @@
 //
 // # Errors and logging
 //
-// Every function here returns its errors and logs none of them. The two boundaries that
-// log are application startup, for the boot reconcile, and the scheduler's error
-// listener, for the recurring job.
+// Every function here returns its errors and logs none of them. Application startup is the
+// one boundary that logs, for the boot reconcile.
 package caddy

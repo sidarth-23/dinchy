@@ -4,9 +4,10 @@
 #
 # Postgres and Redis run plaintext on loopback (dev only) — mounting TLS keys into
 # rootless-podman containers is not worth the friction locally. Caddy still terminates
-# HTTPS for the app, and Mailpit still enforces STARTTLS + auth (both certs come from
-# `mise run dev:certs`, mkcert). Production infra TLS is configured separately in
-# deploy/. Dev-only; production uses the systemd/quadlet units in deploy/quadlet/.
+# HTTPS for the app, signing its own certificates, and Mailpit still enforces STARTTLS +
+# auth from the mkcert pair `mise run dev:certs` writes — Mailpit cannot generate one
+# itself, which is the only reason mkcert is still here. Production infra TLS is configured
+# separately in deploy/. Dev-only; production uses the units in deploy/quadlet/.
 #
 # Caddy is deliberately not a service here: it runs as a host process via
 # `mise run caddy:dev`, matching the host-native systemd unit used in production.
@@ -41,7 +42,8 @@ services:
     environment:
       # Require SMTP auth; credentials must match DINCHY_SMTP_USERNAME/PASSWORD in .env.
       MP_SMTP_AUTH: "dinchy:localpass"
-      # Enable STARTTLS with the mkcert cert so the app's mandatory-TLS client connects.
+      # STARTTLS from the mkcert pair, so the app's mandatory-TLS client connects and
+    # verifies it through the system trust store.
       MP_SMTP_TLS_CERT: /certs/mailpit.pem
       MP_SMTP_TLS_KEY: /certs/mailpit-key.pem
 volumes:

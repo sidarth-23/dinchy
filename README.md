@@ -45,10 +45,11 @@ everything else is the compiled UI, which Caddy reads straight from disk. That k
 browser same-origin, so session and CSRF cookies stay `SameSite=Lax` and CORS never comes
 into it, while asset requests never occupy a Go goroutine.
 
-Routes live in PostgreSQL and are pushed to Caddy's JSON admin API — the whole
-configuration once at startup, then one route at a time, so adding a domain does not
-disturb connections other routes are serving (a full reload would close every WebSocket,
-including other users' terminals).
+Routes live in PostgreSQL and are pushed to Caddy's JSON admin API once, at startup. Dinchy
+does not re-assert afterwards: an operator who adjusts the running proxy keeps that change.
+Addressing one route at a time — so adding a domain does not close every WebSocket,
+including other users' terminals — is what the admin API is for, and lands with the
+deployment routing that needs it.
 
 ## Tech Stack
 
@@ -104,23 +105,26 @@ curl -fsSL https://dinchy.com/install.sh | bash
 This project uses [mise](https://mise.jdx.dev/) to manage all tooling. First-time setup:
 
 ```bash
-mise install               # install pinned Go, Bun, Node, dlv, mkcert, Caddy, xcaddy
+mise install               # install pinned Go, Bun, Node, dlv, mkcert, xcaddy
 cp .env.example .env       # your local config (gitignored) — edit as needed
-mise run dev:certs         # mkcert: install a trusted local CA + issue certs (one-time; needs sudo)
+mise run caddy:trust       # trust Caddy's local CA, so dev HTTPS has no warning (one-time; sudo)
+mise run dev:certs         # mkcert: Mailpit's STARTTLS cert (one-time; needs sudo)
 mise run infra:up          # start Postgres + Redis + Mailpit
 mise run db:migrate        # apply database migrations
-mise run dev               # terminal 1: the API — colored, human-readable logs
-mise run caddy:dev         # terminal 2: Caddy, which terminates TLS and routes
+mise run caddy:dev         # terminal 1: Caddy, which terminates TLS and routes
+mise run dev               # terminal 2: the API — colored, human-readable logs
 mise run web:dev           # terminal 3: Vite, once web/ exists
 ```
 
-> **Upgrading an existing checkout?** `DINCHY_ADDR` moved from `:8443` to `:8080` and the
-> `DINCHY_TLS_*` variables are gone. Merge the new `--- Server ---` and `--- Caddy ---`
-> blocks from `.env.example` into your `.env`, or Caddy and Dinchy will both try to bind
-> `:8443`. Re-run `mise run dev:certs` too: the certificate now covers `*.dinchy.localhost`.
+> **Upgrading an existing checkout?** Merge the `--- Server ---` and `--- Caddy ---` blocks
+> from `.env.example` into your `.env`. `DINCHY_ADDR` moved from `:8443` to `:8080`, the
+> `DINCHY_TLS_*` variables are gone, and `DINCHY_CADDY_AUTOMATIC_HTTPS` / `_CERT_FILE` /
+> `_KEY_FILE` / `_RECONCILE_INTERVAL` were replaced by `DINCHY_CADDY_TLS_ISSUER=internal`.
+> Run `mise run caddy:trust` once; Caddy now issues its own dev certificates.
 
 **Caddy terminates all TLS, exactly like production.** Open **https://localhost:8443** —
-Caddy serves it with a locally-trusted mkcert certificate. One hostname, split by path:
+Caddy serves it with a certificate it signed itself, per host, using its built-in local CA
+(`mise run caddy:trust` puts that CA's root in your trust store, so there is no warning). One hostname, split by path:
 `/api/*` goes to the Go process on `127.0.0.1:8080`, and everything else goes to the
 frontend — the Vite dev server in development, `web/dist` read straight off disk in
 production. The Go process never serves the UI, so requesting `/` from it returns 404 by
@@ -133,25 +137,27 @@ Hitting `:8080/api/...` directly works and is useful for debugging; the app has 
 transport check of its own, and `DINCHY_ADDR` is required to be a loopback address so the
 network cannot reach it. Dinchy refuses to start if it isn't.
 
-Start Dinchy before Caddy: Caddy comes up with only its admin endpoint and Dinchy pushes
-the routes to it. Starting them the other way round is harmless — Dinchy logs one warning
-that the proxy is unreachable and a background job converges as soon as Caddy answers.
+**Start Caddy before Dinchy.** Caddy comes up with only its admin endpoint, and Dinchy
+pushes the routes to it once, at startup. It waits a few seconds for Caddy if it has to,
+then gives up and logs the failure — there is no background job that converges later, on
+purpose: once the proxy is configured, changes you make to it are yours to keep. If you do
+start them the wrong way round, restart Dinchy.
 
-Deployments will be reachable at **`https://<slug>.dinchy.localhost:8443`**. The extra
-label is not cosmetic: TLS clients reject a wildcard certificate whose parent is a single
-label, so `*.localhost` is refused the same way `*.com` would be, while
-`*.dinchy.localhost` is accepted. Both names resolve to loopback with no `/etc/hosts`
-entry through `nss-myhostname` and the browsers' built-in `.localhost` handling. Two
-caveats: Safari does not implement it, and Go's own resolver bypasses NSS entirely — a Go
-client needs an explicit `/etc/hosts` entry even though curl and browsers do not.
+Deployments will be reachable at **`https://<slug>.dinchy.localhost:8443`**, each with its
+own certificate issued on demand — nothing to regenerate when a name is added. Those names
+resolve to loopback with no `/etc/hosts` entry through `nss-myhostname` and the browsers'
+built-in `.localhost` handling. Two caveats: Safari does not implement it, and Go's own
+resolver bypasses NSS entirely — a Go client needs an explicit `/etc/hosts` entry even
+though curl and browsers do not.
 
 Mailpit enforces STARTTLS + auth like production (the app connects with mandatory
 STARTTLS), while Postgres and Redis run plaintext on loopback in dev — TLS on loopback
 datastores isn't worth the rootless-container friction locally, and production configures
-it separately. `mise run dev:certs` runs `mkcert -install` once, adding the local CA to
-your system and browser trust stores, so Caddy's HTTPS and Mailpit's cert are trusted with
-no warning. mkcert is the only local certificate authority; production uses Caddy's ACME
-automation instead, because Let's Encrypt can never validate `localhost`.
+it separately. `mise run dev:certs` exists for Mailpit alone: it serves STARTTLS from a
+cert file or not at all, and cannot generate one, so `mkcert -install` puts a root in your
+system store that the Go SMTP client can verify against. Caddy needs nothing from it —
+`mise run caddy:trust` installs its own CA root instead. Development therefore has two
+local authorities; production has neither, because it uses ACME with a real domain.
 
 `.env.example` is the only committed template. Copy it to `.env` (gitignored) for your
 working config — including `DINCHY_LOG_FORMAT=text`, which produces colored, human-readable
@@ -172,11 +178,13 @@ Keep the DSN / `DINCHY_REDIS_ADDR` ports in sync with those keys.
 Everyday tasks:
 
 ```bash
+mise run caddy:dev    # run Caddy FIRST: terminates TLS on :8443 and routes to the backend
 mise run dev          # run the Go backend (plaintext on 127.0.0.1:8080, fronted by Caddy)
-mise run caddy:dev    # run Caddy: terminates TLS on :8443 and routes to the backend
-mise run caddy:build  # rebuild Caddy with the plugins in deploy/caddy/plugins.txt
+mise run caddy:build  # build Caddy from cmd/caddy into tmp/caddy
+mise run caddy:version # the pinned Caddy version, for building a plugin with xcaddy
+mise run caddy:trust  # install Caddy's local CA root into the system trust store
 mise run caddy:modules # list the Caddy modules compiled into the binary
-mise run dev:certs    # (re)issue local TLS certs for Caddy + Mailpit via mkcert
+mise run dev:certs    # (re)issue Mailpit's STARTTLS cert via mkcert
 mise run test         # run the test suite
 mise run lint         # run the linter
 mise run build        # build the production binary
@@ -204,32 +212,40 @@ invite/reset endpoints report email as not configured.
 ### Extending Caddy with plugins
 
 Caddy is a sidecar rather than a library precisely so you can swap in your own build.
-Declare the plugins you want in `deploy/caddy/plugins.txt` — one `module@version` per line
-— and rebuild:
+
+The baseline build is [`cmd/caddy/main.go`](cmd/caddy/main.go): upstream Caddy, no plugins.
+It exists to **pin the version** — `go.mod` and `go.sum` lock it, so `mise run caddy:build`
+produces the same binary on every machine with no manifest of our own to maintain.
+
+Plugins are yours, and `xcaddy` compiles them. Point it at the same pinned version so your
+build and the baseline are the same Caddy:
 
 ```bash
-echo 'github.com/caddy-dns/cloudflare@v0.2.1' >> deploy/caddy/plugins.txt
-mise run caddy:build      # xcaddy → tmp/caddy, then verify and install
+xcaddy build "$(mise run caddy:version)" \
+  --with github.com/caddy-dns/cloudflare \
+  --output tmp/caddy
 mise run caddy:modules    # confirm what actually got compiled in
 ```
 
-The version is required. xcaddy has no lockfile, so an unpinned entry would silently
-produce a different binary on every build; the build refuses and names the offending line.
-After building, it runs `caddy list-modules` and fails if a requested plugin registered no
-Caddy module — xcaddy will happily produce a binary from a module path that resolves but
-registers nothing, so "the build succeeded" is not the same as "the plugin is loaded".
+That last step is not optional bookkeeping: `caddy list-modules` is the only reliable
+answer to "is the plugin loaded", because a Go module can resolve and build while
+registering no Caddy module at all.
 
-Dinchy reads the module list from the binary at startup, so a route asking for a provider
-you have not installed is rejected with a message naming the plugin instead of failing
-later as an unexplained certificate error. If the binary cannot be run, the check is
-skipped rather than blocking startup.
+The most common addition is a DNS provider. It lets Caddy answer ACME DNS-01 challenges and
+so issue certificates for a homelab behind NAT, with no inbound port 80.
 
-The most common addition is a DNS provider: it lets Caddy answer ACME DNS-01 challenges
-and so issue certificates for a homelab behind NAT, with no inbound port 80.
+Note that an xcaddy build is pinned only by the version you pass it — the plugin's own
+version is resolved at build time and recorded nowhere in this repo. If you want a plugin
+pinned and reviewable, add a blank import to `cmd/caddy/main.go` and `go get` it instead;
+`go.mod` then covers it too.
 
-This is the one place Dinchy trades away a single-artifact install — building plugins needs
-a Go toolchain, `git`, and network access. The default build is vanilla, so you only pay
-that cost if you actually want a plugin.
+This is the one place Dinchy trades away a single-artifact install — building Caddy needs a
+Go toolchain and network access.
+
+In production, install the built binary at the path
+[`deploy/systemd/caddy.service`](deploy/systemd/caddy.service) runs, and restart Caddy. The
+restart is safe: it runs with `--resume` and restores the routes Dinchy pushed, so no
+configuration is lost and Dinchy does not need to be running.
 
 ### Debugging in Zed
 

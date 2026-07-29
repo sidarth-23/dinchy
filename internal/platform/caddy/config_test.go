@@ -23,14 +23,12 @@ func productionConfig() config.CaddyConfig {
 	return cfg
 }
 
-// developmentConfig is the mkcert shape used locally.
+// developmentConfig is the local-CA shape used locally.
 func developmentConfig() config.CaddyConfig {
 	cfg := config.DefaultCaddy()
 	cfg.PanelHost = "localhost"
 	cfg.HTTPSPort = 8443
-	cfg.AutomaticHTTPS = false
-	cfg.CertFile = "deploy/certs/app.pem"
-	cfg.KeyFile = "deploy/certs/app-key.pem"
+	cfg.TLSIssuer = config.TLSIssuerInternal
 	cfg.HSTSMaxAge = 0
 	cfg.StoragePath = ""
 	return cfg
@@ -70,99 +68,55 @@ func TestBuildConfig_ProductionUsesAutomaticHTTPSAndHSTS(t *testing.T) {
 
 	server := built.Apps.HTTP.Servers[caddy.ServerName]
 	require.NotNil(t, server)
-	assert.Nil(t, server.AutomaticHTTPS, "automatic HTTPS stays on in production")
+	assert.Nil(t, server.AutomaticHTTPS, "the HTTP-to-HTTPS redirect stays on in production")
 	require.NotNil(t, built.Apps.TLS)
-	assert.Nil(t, built.Apps.TLS.Certificates, "ACME provides the certificate")
 	require.NotNil(t, built.Apps.TLS.Automation)
 	require.Len(t, built.Apps.TLS.Automation.Policies, 1)
-	assert.Equal(t, "ops@example.com", built.Apps.TLS.Automation.Policies[0].Issuers[0].Email)
+	issuer := built.Apps.TLS.Automation.Policies[0].Issuers[0]
+	assert.Equal(t, config.TLSIssuerACME, issuer.Module)
+	assert.Equal(t, "ops@example.com", issuer.Email)
 
 	assert.Equal(t, []string{"max-age=31536000; includeSubDomains"}, headerSet(t, server)["Strict-Transport-Security"])
 }
 
-func TestBuildConfig_DevelopmentServesMkcertCertificateAndDisablesRedirects(t *testing.T) {
+func TestBuildConfig_DevelopmentUsesTheLocalCAAndDisablesRedirects(t *testing.T) {
 	cfg := developmentConfig()
 
 	built, err := caddy.BuildConfig(cfg, []caddy.Route{panelRoute("localhost", "127.0.0.1:8080")})
 	require.NoError(t, err)
 
 	server := built.Apps.HTTP.Servers[caddy.ServerName]
-	require.NotNil(t, server.AutomaticHTTPS)
-	assert.True(t, server.AutomaticHTTPS.DisableCerts)
 	// Caddy builds the HTTP-to-HTTPS redirect vhost on port 80 for every HTTPS site
-	// regardless of its port, and an unprivileged dev process cannot bind 80.
+	// regardless of its port, and an unprivileged dev process cannot bind 80. Leaving this
+	// on makes Caddy reject the whole document with a 400.
+	require.NotNil(t, server.AutomaticHTTPS)
 	assert.True(t, server.AutomaticHTTPS.DisableRedirects)
 
-	require.NotNil(t, built.Apps.TLS.Certificates)
-	require.Len(t, built.Apps.TLS.Certificates.LoadFiles, 1)
-	assert.Equal(t, "deploy/certs/app.pem", built.Apps.TLS.Certificates.LoadFiles[0].Certificate)
-	assert.Nil(t, built.Apps.TLS.Automation, "no ACME automation when serving our own certificate")
+	require.NotNil(t, built.Apps.TLS.Automation)
+	require.Len(t, built.Apps.TLS.Automation.Policies, 1)
+	issuer := built.Apps.TLS.Automation.Policies[0].Issuers[0]
+	assert.Equal(t, config.TLSIssuerInternal, issuer.Module)
+	// Both are ACME notions; Issuer.CA means an authority identifier to the local module.
+	assert.Empty(t, issuer.Email)
+	assert.Empty(t, issuer.CA)
 	assert.Nil(t, built.Storage, "no storage override, so Caddy uses the path its unit pins")
 }
 
-// TestBuildConfig_LoadedCertificateGetsAConnectionPolicy pins a contract found by
-// driving a real Caddy: loading a certificate is not enough. Without a connection
-// policy selecting it, Caddy has nothing to offer for an SNI it is not managing
-// automatically and aborts the handshake with a TLS internal error.
-func TestBuildConfig_LoadedCertificateGetsAConnectionPolicy(t *testing.T) {
-	cfg := developmentConfig()
-
-	built, err := caddy.BuildConfig(cfg, []caddy.Route{panelRoute("localhost", "127.0.0.1:8080")})
-	require.NoError(t, err)
-
-	certs := built.Apps.TLS.Certificates.LoadFiles
-	require.Len(t, certs, 1)
-	require.Len(t, certs[0].Tags, 1)
-
-	policies := built.Apps.HTTP.Servers[caddy.ServerName].TLSConnectionPolicies
-	require.Len(t, policies, 1)
-	// One certificate carries no SNI match, so a route added later — a new deployment
-	// under the wildcard — is served without rewriting the policies as well.
-	assert.Nil(t, policies[0].Match)
-	assert.Equal(t, certs[0].Tags, policies[0].CertificateSelection.AnyTag)
-}
-
-func TestBuildConfig_SeveralCertificatesGetSNIMatchedPolicies(t *testing.T) {
-	cfg := developmentConfig()
+// TestBuildConfig_EveryHostIsCoveredByOnePolicy pins that a route added later is served
+// without rewriting anything: one automation policy names every host Dinchy serves, and no
+// connection policy is emitted at all — Caddy adds its own for an HTTPS-only server.
+func TestBuildConfig_EveryHostIsCoveredByOnePolicy(t *testing.T) {
+	cfg := productionConfig()
 
 	built, err := caddy.BuildConfig(cfg, []caddy.Route{
-		panelRoute("localhost", "127.0.0.1:8080"),
-		{
-			Owner: "deployments", Host: "other.example.com", Upstream: "127.0.0.1:32769",
-			TLS: caddy.TLSModeFile, CertFile: "/certs/other.pem", KeyFile: "/certs/other-key.pem",
-		},
+		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
+		{Owner: "deployments", Host: "other.example.com", Upstream: "127.0.0.1:32769"},
 	})
 	require.NoError(t, err)
 
-	policies := built.Apps.HTTP.Servers[caddy.ServerName].TLSConnectionPolicies
-	// One policy per certificate so they can be told apart, plus a trailing catch-all so
-	// a name none of them claims still completes a handshake.
-	require.Len(t, policies, 3)
-	assert.NotNil(t, policies[0].Match)
-	assert.NotNil(t, policies[1].Match)
-	assert.Nil(t, policies[2].Match)
-	assert.Nil(t, policies[2].CertificateSelection)
-}
-
-func TestBuildConfig_AutomaticHTTPSEmitsNoConnectionPolicies(t *testing.T) {
-	cfg := productionConfig()
-
-	built, err := caddy.BuildConfig(cfg, []caddy.Route{panelRoute(cfg.PanelHost, "127.0.0.1:8080")})
-	require.NoError(t, err)
-
-	// Caddy manages these names itself, so it already has a certificate to offer.
-	assert.Empty(t, built.Apps.HTTP.Servers[caddy.ServerName].TLSConnectionPolicies)
-}
-
-func TestRouteID_ContainsNoSlash(t *testing.T) {
-	// The admin API addresses an object at /id/<id> and treats anything further as a
-	// path into it, so a slash in the identifier would make the request ambiguous.
-	route := caddy.Route{Owner: "deployments", Host: "app.example.com", PathPrefix: "/api/v1", Upstream: "127.0.0.1:8081"}
-
-	id := caddy.RouteID(route.Resolve())
-
-	assert.NotContains(t, id, "/")
-	assert.Equal(t, "dinchy-deployments-app.example.com-api_v1", id)
+	policies := built.Apps.TLS.Automation.Policies
+	require.Len(t, policies, 1)
+	assert.Equal(t, []string{"other.example.com", cfg.PanelHost}, policies[0].Subjects)
 }
 
 // TestBuildConfig_PathPrefixedRouteSortsBeforeTheCatchAll is correctness, not tidiness:
@@ -243,58 +197,6 @@ func TestBuildConfig_StaticFileRouteWithoutFallbackOmitsTheRewrite(t *testing.T)
 	assert.Equal(t, "file_server", subroute.Routes[1].Handle[0].Handler)
 }
 
-func TestRoute_ValidateServeModes(t *testing.T) {
-	tests := []struct {
-		name     string
-		route    caddy.Route
-		wantCode i18n.Code
-	}{
-		{
-			name:     "files without a root",
-			route:    caddy.Route{Owner: "panel", Host: "panel.example.com", Serve: caddy.ServeModeFiles},
-			wantCode: i18n.CodePlatformRoutingInvalidPath,
-		},
-		{
-			name: "files with an upstream as well",
-			route: caddy.Route{
-				Owner: "panel", Host: "panel.example.com", Serve: caddy.ServeModeFiles,
-				Root: "/srv/web", Upstream: "127.0.0.1:8080",
-			},
-			wantCode: i18n.CodePlatformRoutingInvalidPath,
-		},
-		{
-			name: "files with a relative fallback",
-			route: caddy.Route{
-				Owner: "panel", Host: "panel.example.com", Serve: caddy.ServeModeFiles,
-				Root: "/srv/web", FallbackPath: "index.html",
-			},
-			wantCode: i18n.CodePlatformRoutingInvalidPath,
-		},
-		{
-			name: "proxy that also names a root",
-			route: caddy.Route{
-				Owner: "panel", Host: "panel.example.com", Upstream: "127.0.0.1:8080", Root: "/srv/web",
-			},
-			wantCode: i18n.CodePlatformRoutingInvalidUpstream,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assertCode(t, tt.route.Resolve().Validate(), tt.wantCode, http.StatusBadRequest)
-		})
-	}
-}
-
-func TestRoute_ValidateAcceptsAFileRoute(t *testing.T) {
-	route := caddy.Route{
-		Owner: caddy.PanelOwner, Host: "panel.example.com",
-		Serve: caddy.ServeModeFiles, Root: "/srv/web/dist", FallbackPath: caddy.SPAFallbackPath,
-	}
-
-	require.NoError(t, route.Resolve().Validate())
-	assert.True(t, route.ServesFiles())
-}
-
 func TestBuildConfig_StoragePathOverrideIsEmitted(t *testing.T) {
 	cfg := productionConfig()
 	cfg.StoragePath = "/srv/caddy-data"
@@ -350,25 +252,15 @@ func TestBuildConfig_IsDeterministicRegardlessOfInputOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second, "the same route set must always produce the same configuration")
-	ids := routeIDs(first.Apps.HTTP.Servers[caddy.ServerName])
-	assert.Equal(t, "dinchy-panel-panel.example.com-root", ids[0], "the panel is always first")
+	hosts := routeHosts(first.Apps.HTTP.Servers[caddy.ServerName])
+	assert.Equal(t, cfg.PanelHost, hosts[0], "the panel is always first")
 }
 
-func TestBuildConfig_RejectsRouteClaimingThePanelHost(t *testing.T) {
+func TestBuildConfig_RejectsDuplicateHostAndNamesTheOwner(t *testing.T) {
 	cfg := productionConfig()
 
-	_, err := caddy.BuildConfig(cfg, []caddy.Route{
-		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
-		// Shadowing the panel would remove the only interface able to undo it.
-		{Owner: "deployments", Host: "PANEL.example.com", Upstream: "127.0.0.1:32769"},
-	})
-
-	assertCode(t, err, i18n.CodePlatformRoutingPanelHostReserved, http.StatusConflict)
-}
-
-func TestBuildConfig_RejectsDuplicateHostAndNamesBothOwners(t *testing.T) {
-	cfg := productionConfig()
-
+	// Caddy stops at the first terminal match, so the loser would be silently
+	// unreachable rather than reported.
 	_, err := caddy.BuildConfig(cfg, []caddy.Route{
 		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
 		{Owner: "deployments", Host: "app.example.com", Upstream: "127.0.0.1:32769"},
@@ -381,57 +273,6 @@ func TestBuildConfig_RejectsDuplicateHostAndNamesBothOwners(t *testing.T) {
 	meta := appErr.Meta()
 	assert.Equal(t, "app.example.com", meta[string(apperrors.MetaKeyHostname)])
 	assert.NotEmpty(t, meta[string(apperrors.MetaKeyOwner)])
-	assert.NotEmpty(t, meta[string(apperrors.MetaKeyConflictingOwner)])
-}
-
-func TestBuildConfig_RejectsExactHostShadowedByWildcard(t *testing.T) {
-	cfg := productionConfig()
-
-	// Overlapping match sets would make Caddy's route ordering decide the winner,
-	// which an incremental append could then silently change.
-	_, err := caddy.BuildConfig(cfg, []caddy.Route{
-		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
-		{Owner: "deployments", Host: "*.apps.example.com", Upstream: "127.0.0.1:32769"},
-		{Owner: "imports", Host: "one.apps.example.com", Upstream: "127.0.0.1:32770"},
-	})
-
-	assertCode(t, err, i18n.CodePlatformRoutingHostConflict, http.StatusConflict)
-}
-
-func TestBuildConfig_AllowsWildcardBesideUnrelatedHosts(t *testing.T) {
-	cfg := productionConfig()
-
-	built, err := caddy.BuildConfig(cfg, []caddy.Route{
-		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
-		{Owner: "deployments", Host: "*.apps.example.com", Upstream: "127.0.0.1:32769"},
-		{Owner: "deployments", Host: "other.example.com", Upstream: "127.0.0.1:32770"},
-	})
-	require.NoError(t, err)
-
-	ids := routeIDs(built.Apps.HTTP.Servers[caddy.ServerName])
-	assert.Equal(t, "dinchy-deployments-*.apps.example.com-root", ids[len(ids)-1], "wildcards sort last")
-}
-
-func TestBuildConfig_RejectsUpstreamPointingAtThePanel(t *testing.T) {
-	cfg := productionConfig()
-
-	_, err := caddy.BuildConfig(cfg, []caddy.Route{
-		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
-		{Owner: "deployments", Host: "app.example.com", Upstream: "127.0.0.1:8080"},
-	})
-
-	assertCode(t, err, i18n.CodePlatformRoutingUpstreamLoop, http.StatusConflict)
-}
-
-func TestBuildConfig_RejectsCatchAllHost(t *testing.T) {
-	cfg := productionConfig()
-
-	_, err := caddy.BuildConfig(cfg, []caddy.Route{
-		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
-		{Owner: "deployments", Host: "*", Upstream: "127.0.0.1:32769"},
-	})
-
-	assertCode(t, err, i18n.CodePlatformRoutingInvalidHost, http.StatusBadRequest)
 }
 
 func TestBuildConfig_PathPrefixRoutesShareAHost(t *testing.T) {
@@ -450,108 +291,11 @@ func TestBuildConfig_PathPrefixRoutesShareAHost(t *testing.T) {
 	assert.Equal(t, []string{"/web/*"}, server.Routes[2].Match[0].Path)
 }
 
-func TestBuildConfig_GroupsACMEPoliciesByDNSProvider(t *testing.T) {
-	cfg := productionConfig()
-
-	built, err := caddy.BuildConfig(cfg, []caddy.Route{
-		panelRoute(cfg.PanelHost, "127.0.0.1:8080"),
-		{Owner: "deployments", Host: "nat.example.com", Upstream: "127.0.0.1:32769", DNSProviderModule: "dns.providers.cloudflare"},
-	})
-	require.NoError(t, err)
-
-	policies := built.Apps.TLS.Automation.Policies
-	require.Len(t, policies, 2)
-	assert.Nil(t, policies[0].Issuers[0].Challenges, "the default policy uses the default challenges")
-	require.NotNil(t, policies[1].Issuers[0].Challenges)
-	assert.Equal(t, "cloudflare", policies[1].Issuers[0].Challenges.DNS.Provider["name"])
-	assert.Equal(t, []string{"nat.example.com"}, policies[1].Subjects)
-}
-
-func TestRoute_Validate(t *testing.T) {
-	tests := []struct {
-		name       string
-		route      caddy.Route
-		wantCode   i18n.Code
-		wantStatus int
-	}{
-		{
-			name:       "upstream without a port",
-			route:      caddy.Route{Owner: "deployments", Host: "app.example.com", Upstream: "127.0.0.1"},
-			wantCode:   i18n.CodePlatformRoutingInvalidUpstream,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "upstream port out of range",
-			route:      caddy.Route{Owner: "deployments", Host: "app.example.com", Upstream: "127.0.0.1:70000"},
-			wantCode:   i18n.CodePlatformRoutingInvalidUpstream,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "path prefix without a leading slash",
-			route:      caddy.Route{Owner: "deployments", Host: "app.example.com", Upstream: "127.0.0.1:8081", PathPrefix: "api"},
-			wantCode:   i18n.CodePlatformRoutingInvalidPath,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			// TLS clients treat "*.localhost" like "*.com" and refuse to match it, so
-			// Caddy would serve a certificate every request then rejects.
-			name:       "wildcard over a single-label parent",
-			route:      caddy.Route{Owner: "deployments", Host: "*.localhost", Upstream: "127.0.0.1:8081"},
-			wantCode:   i18n.CodePlatformRoutingInvalidHost,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "wildcard outside the leading label",
-			route:      caddy.Route{Owner: "deployments", Host: "app.*.example.com", Upstream: "127.0.0.1:8081"},
-			wantCode:   i18n.CodePlatformRoutingInvalidHost,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "host carrying a port",
-			route:      caddy.Route{Owner: "deployments", Host: "app.example.com:8443", Upstream: "127.0.0.1:8081"},
-			wantCode:   i18n.CodePlatformRoutingInvalidHost,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name: "header value containing a newline",
-			route: caddy.Route{
-				Owner: "deployments", Host: "app.example.com", Upstream: "127.0.0.1:8081",
-				Headers: map[string]string{"X-Test": "value\r\nInjected: yes"},
-			},
-			wantCode:   i18n.CodePlatformRoutingInvalidHeader,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name: "header name outside the token grammar",
-			route: caddy.Route{
-				Owner: "deployments", Host: "app.example.com", Upstream: "127.0.0.1:8081",
-				Headers: map[string]string{"Bad Header": "value"},
-			},
-			wantCode:   i18n.CodePlatformRoutingInvalidHeader,
-			wantStatus: http.StatusBadRequest,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assertCode(t, tt.route.Resolve().Validate(), tt.wantCode, tt.wantStatus)
-		})
-	}
-}
-
-func TestRoute_ValidateAcceptsWildcardAndPlainHosts(t *testing.T) {
-	for _, host := range []string{"localhost", "app.example.com", "*.apps.example.com", "*.dinchy.localhost"} {
-		t.Run(host, func(t *testing.T) {
-			route := caddy.Route{Owner: "deployments", Host: host, Upstream: "127.0.0.1:8081"}
-			require.NoError(t, route.Resolve().Validate())
-		})
-	}
-}
-
-func TestRouteID_IsStableAcrossCaseAndWhitespace(t *testing.T) {
+func TestRoute_ResolveNormalizesCaseAndWhitespace(t *testing.T) {
 	first := caddy.Route{Owner: "deployments", Host: "App.Example.COM", Upstream: "127.0.0.1:8081"}
 	second := caddy.Route{Owner: "deployments", Host: "  app.example.com  ", Upstream: "127.0.0.1:8081"}
 
-	assert.Equal(t, caddy.RouteID(first.Resolve()), caddy.RouteID(second.Resolve()))
+	assert.Equal(t, first.Resolve(), second.Resolve())
 }
 
 func TestHSTS_UsesConfiguredMaxAge(t *testing.T) {
@@ -591,10 +335,11 @@ func proxyHandler(t *testing.T, server *caddy.HTTPServer) caddy.RouteHandler {
 	return caddy.RouteHandler{}
 }
 
-func routeIDs(server *caddy.HTTPServer) []string {
-	ids := make([]string, 0, len(server.Routes))
+// routeHosts returns the host each route matches, in the order Caddy evaluates them.
+func routeHosts(server *caddy.HTTPServer) []string {
+	hosts := make([]string, 0, len(server.Routes))
 	for _, route := range server.Routes {
-		ids = append(ids, route.ID)
+		hosts = append(hosts, route.Match[0].Host[0])
 	}
-	return ids
+	return hosts
 }

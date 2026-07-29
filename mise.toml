@@ -7,15 +7,12 @@ node = "24.15.0"
 "github:golangci/golangci-lint" = "2.12.2"
 lefthook = "2.1.9"
 "go:github.com/go-delve/delve/cmd/dlv" = "1.27.0"
-# mkcert is the single local certificate authority: it issues the cert Caddy serves for
-# dev HTTPS, and Mailpit's STARTTLS cert. Production uses Caddy's ACME automation instead.
+# mkcert issues Mailpit's STARTTLS cert, and nothing else: Caddy signs its own dev
+# certificates with its internal CA. Kept because Mailpit cannot generate one itself and
+# the SMTP client verifies against the system trust store.
 "aqua:FiloSottile/mkcert" = "latest"
-# Caddy terminates all TLS and routes every deployment. This vanilla build covers
-# development; `mise run caddy:build` replaces it in tmp/ when plugins are declared in
-# deploy/caddy/plugins.txt, so contributors who touch no plugins never need a build.
-"aqua:caddyserver/caddy" = "2"
-# xcaddy compiles Caddy with plugins. Operators are meant to extend their own Caddy, so
-# this is a supported path rather than a maintainer-only trick.
+# xcaddy compiles Caddy with plugins. cmd/caddy pins the version; xcaddy is how an operator
+# adds modules to it, so it is a supported path in development and in production.
 "go:github.com/caddyserver/xcaddy/cmd/xcaddy" = "0.4.6"
 uv = "latest"
 "pipx:podman-compose" = "1.6.0"
@@ -26,17 +23,23 @@ _.file = [".env", ".env.local"]
 
 [tasks]
 dev = "go run ./cmd/dinchy"
-# Generate locally-trusted TLS certs (mkcert) for Caddy and Mailpit, so dev runs over
-# verified TLS like production. Covers localhost and *.localhost for deployment routes.
+# Issue Mailpit's STARTTLS cert with mkcert. Caddy needs nothing from this: it signs its
+# own dev certificates with its internal CA (see caddy:trust).
 "dev:certs" = "bash deploy/certs/gen-dev-certs.sh"
-# Run Caddy against the configuration Dinchy pushes over the admin API. Start
-# `mise run dev` first: Caddy comes up with only its admin endpoint, then Dinchy
-# converges it. --resume restores the last pushed configuration across restarts.
-"caddy:dev" = "caddy run --resume"
-# Rebuild Caddy with the plugins declared in deploy/caddy/plugins.txt.
-"caddy:build" = "bash deploy/caddy/build.sh"
-# Print the Caddy modules compiled into the binary Dinchy will introspect.
-"caddy:modules" = "caddy list-modules --versions"
+# Build the pinned, vanilla Caddy. go.mod locks the version, so this is reproducible.
+"caddy:build" = "go build -o tmp/caddy ./cmd/caddy"
+# The pinned Caddy version, for building a plugin against the same one:
+#   xcaddy build "$(mise run caddy:version)" --with <module> --output tmp/caddy
+# Parsed with awk rather than `go list -f`, whose {{...}} template mise would expand itself.
+"caddy:version" = "go list -m github.com/caddyserver/caddy/v2 | awk '{print $2}'"
+# Install Caddy's local CA root into the system trust store, once, so dev HTTPS on
+# localhost is trusted with no warning. Prompts for your password.
+"caddy:trust" = { depends = ["caddy:build"], run = "tmp/caddy trust" }
+# Run Caddy. Start this BEFORE `mise run dev`: Dinchy pushes its routes once at startup and
+# does not retry indefinitely. --resume restores the last pushed configuration.
+"caddy:dev" = { depends = ["caddy:build"], run = "tmp/caddy run --resume" }
+# Print the Caddy modules compiled in, which is how you confirm a plugin registered.
+"caddy:modules" = { depends = ["caddy:build"], run = "tmp/caddy list-modules --versions" }
 # NETAVARK_FW (if set in .env) is inherited from the mise env — see .env.example for the WSL2 note.
 "infra:up" = "podman-compose up -d"
 "infra:down" = "podman-compose down"

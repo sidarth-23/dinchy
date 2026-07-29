@@ -104,7 +104,7 @@ func TestReadyz_DegradedCheckStaysReady(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{}, Check{
 		Name:     "caddy",
-		Degraded: func() string { return "the reverse proxy is not reachable" },
+		Degraded: func(context.Context) string { return "the reverse proxy is not reachable" },
 	})
 
 	code, body := readyz(t, handler)
@@ -118,7 +118,7 @@ func TestReadyz_HealthyCheckIsReportedOK(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, fakePinger{}, Check{
 		Name:     "caddy",
-		Degraded: func() string { return "" },
+		Degraded: func(context.Context) string { return "" },
 	})
 
 	code, body := readyz(t, handler)
@@ -129,7 +129,7 @@ func TestReadyz_HealthyCheckIsReportedOK(t *testing.T) {
 
 func TestReadyz_IncompleteCheckIsIgnored(t *testing.T) {
 	t.Parallel()
-	handler := newTestHandler(t, fakePinger{}, Check{Name: "caddy"}, Check{Degraded: func() string { return "x" }})
+	handler := newTestHandler(t, fakePinger{}, Check{Name: "caddy"}, Check{Degraded: func(context.Context) string { return "x" }})
 
 	code, body := readyz(t, handler)
 

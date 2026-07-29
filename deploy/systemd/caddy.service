@@ -1,16 +1,16 @@
 [Unit]
 Description=Caddy reverse proxy for Dinchy
 Documentation=https://caddyserver.com/docs/
-After=network-online.target dinchy.service
+After=network-online.target
 Wants=network-online.target
-# Deliberately not Requires=dinchy.service: Caddy serves the last configuration Dinchy
-# pushed, so it must keep routing traffic while the management plane is restarting.
-Wants=dinchy.service
+# Caddy starts before Dinchy and knows nothing about it: --resume restores the last
+# configuration Dinchy pushed, so Caddy keeps routing traffic whether or not the
+# management plane is running. dinchy.service orders itself after this one.
 
 [Service]
 Type=simple
-# No --config: the configuration comes from Dinchy over the admin API, and --resume
-# restores the last one Dinchy pushed. That is what makes restarting Caddy safe after a
+# No --config: the configuration comes from Dinchy over the admin API at its startup, and
+# --resume restores the last one pushed. That is what makes restarting Caddy safe after a
 # plugin rebuild, with no Dinchy involvement and no routes lost.
 ExecStart=/usr/local/bin/caddy run --resume
 ExecReload=/usr/local/bin/caddy reload --force

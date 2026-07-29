@@ -34,7 +34,6 @@ func Example() {
 	// Output:
 	// [
 	//   {
-	//     "@id": "dinchy-panel-panel.example.com-root",
 	//     "match": [
 	//       {
 	//         "host": [
@@ -75,7 +74,6 @@ func Example() {
 	//     "terminal": true
 	//   },
 	//   {
-	//     "@id": "dinchy-deployments-whoami.example.com-root",
 	//     "match": [
 	//       {
 	//         "host": [
@@ -118,11 +116,11 @@ func Example() {
 	// ]
 }
 
-// ExampleRouteID shows that a route's identity is stable under case and whitespace,
-// which is what lets Dinchy address the same route again to update or remove it.
-func ExampleRouteID() {
+// ExampleRoute_Resolve shows the canonicalization every Route goes through before it is
+// compared or rendered, so two spellings of one host cannot both claim it.
+func ExampleRoute_Resolve() {
 	route := caddy.Route{Owner: "deployments", Host: "  App.Example.COM  ", Upstream: "127.0.0.1:32768"}
 
-	fmt.Println(caddy.RouteID(route.Resolve()))
-	// Output: dinchy-deployments-app.example.com-root
+	fmt.Println(route.Resolve().Host)
+	// Output: app.example.com
 }

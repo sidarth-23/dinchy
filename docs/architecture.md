@@ -10,7 +10,7 @@ Dinchy needs direct system access: spawning PTYs for web terminal, talking to th
 
 **Consequence:** Distribution is the Dinchy binary + a Caddy binary + service files. Installation is an install script, not `docker pull`.
 
-The Caddy binary is deliberately **rebuildable by the operator** (`deploy/caddy/plugins.txt`, `mise run caddy:build`), which costs the "one artifact" story: compiling plugins needs a Go toolchain, git, and network access at install time. First-class plugin extensibility is worth more than a single-artifact install, and the default build is vanilla so only operators who want a plugin pay for it.
+The Caddy binary is deliberately **rebuildable by the operator**, which costs the "one artifact" story: compiling it needs a Go toolchain and network access at install time. First-class plugin extensibility is worth more than a single-artifact install. `cmd/caddy` is a vanilla build whose only job is to pin the Caddy version through `go.mod`; plugins are the operator's, compiled with `xcaddy` against that same pinned version (`mise run caddy:version`). There is no manifest and no second lockfile to keep honest.
 
 ---
 
@@ -35,32 +35,48 @@ Caddy can be imported as a Go library (`github.com/caddyserver/caddy/v2`) and ru
 
 1. **Failure isolation** — a Caddy bug or OOM from a misconfigured route should not crash the management plane. If routing breaks, the user needs the UI to remain accessible to fix it.
 2. **Independent upgrades** — Caddy releases security patches frequently. Users should not need to wait for a Dinchy release to get a Caddy fix. The sidecar can be updated independently.
-3. **Plugin flexibility** — homelab users want Caddy plugins (`caddy-cloudflare` for DNS-01 challenges behind NAT, `caddy-security` for auth middleware, etc.). With embedded Caddy, plugins are compiled in at build time. With a sidecar, users swap in their own `xcaddy` build.
+3. **Plugin flexibility** — homelab users want Caddy plugins (`caddy-cloudflare` for DNS-01 challenges behind NAT, `caddy-security` for auth middleware, etc.). With embedded Caddy, a plugin would have to be linked into the management plane itself, and its dependency tree would ship with every Dinchy binary. With a sidecar, the operator builds their own with `xcaddy` and Dinchy never knows.
 
 The sidecar is controlled entirely via Caddy's [JSON Admin API](https://caddyserver.com/docs/api) at `localhost:2019`. Dinchy is the single source of truth — routes are stored in PostgreSQL and pushed to Caddy on change. No Docker labels, no config file templating, no process reloads.
 
-### Full load at startup, one route at a time after
+### One push at startup, and then hands off
 
-Dinchy replaces Caddy's **entire** configuration exactly once, at startup, and then addresses individual routes for every subsequent change.
+Dinchy replaces Caddy's **entire** configuration exactly once, at startup, and never writes again. The only routes are the panel's and they are fixed for the life of the process, so nothing is lost by replacing everything.
 
-The split exists because a full configuration reload makes Caddy close active streaming connections ([caddy#6420](https://github.com/caddyserver/caddy/issues/6420), [#7222](https://github.com/caddyserver/caddy/issues/7222)). The web terminal and live log viewer are WebSockets behind Caddy, so reloading on every routing change would drop one operator's terminal because another added a domain — and in development it would kill Vite HMR on every save. At startup there are no such connections, so converging in one call is free, and it is the only way to guarantee Caddy matches PostgreSQL after a restore or a restart.
+There is deliberately no drift job. On a self-hosted box the operator owns the machine: a management plane that re-asserts its own view every minute silently discards whatever they changed, and it does so at a moment they are not watching. Setting the proxy up correctly is Dinchy's job; keeping it that way is theirs. Restoring a known-good configuration from the database is a thing to offer *on request*, later — not a background loop.
 
-Each route is tagged with a stable `@id` derived from its owner, host and path, which makes it addressable at `/id/<id>` without knowing its index in the route array.
+The cost is that a push failing at startup is not retried. Startup covers the race — Caddy's unit is ordered first and Dinchy waits a few seconds for its admin endpoint — but an outage past that is reported and left alone. Readiness probes Caddy live rather than remembering the last push, so the panel still tells an operator the proxy is down.
 
-Two invariants make the targeted path safe:
+That stops being true as soon as routes come and go. A full configuration reload makes Caddy close active streaming connections ([caddy#6420](https://github.com/caddyserver/caddy/issues/6420), [#7222](https://github.com/caddyserver/caddy/issues/7222)). The web terminal and live log viewer are WebSockets behind Caddy, so reloading on every routing change would drop one operator's terminal because another added a domain — and in development it would kill Vite HMR on every save. Startup is still the exception: there are no such connections, and a full load is the only way to guarantee Caddy matches PostgreSQL after a restore or a restart.
+
+The targeted path is therefore deferred rather than rejected. When it lands it needs three things, none of which exist yet: routes tagged with a stable `@id` so they are addressable at `/id/<id>` without knowing their index; the panel hostname reserved against other sources; and disjoint route match sets, so appending a route can never change which route wins a request — an exact host that an existing wildcard would also match must be rejected as a conflict. Wildcard hosts are refused outright until that model is in place.
+
+One invariant holds either way:
 
 - **The configuration always contains an `admin` block.** `POST /load` replaces everything, and Caddy tears down the old admin endpoint on every load, so a document omitting it would destroy the very endpoint Dinchy pushes through — unrecoverable without editing files by hand.
-- **Route match sets are kept disjoint.** An exact host that an existing wildcard would also match is rejected as a conflict, so appending a route can never change which route wins a request.
 
 TLS is *not* a reload concern: Caddy keeps its certificate cache in a process-level global and reloads managed certificates from storage, so a reload with unchanged hostnames makes zero ACME requests. The limit that is actually reachable is failed authorizations per hour, which is why a domain whose DNS does not resolve is quarantined rather than retried indefinitely.
+
+### Caddy is the validator, except for upstreams
+
+Dinchy screens almost nothing before pushing. `POST /load` provisions the whole document and rolls back to the previous one if anything fails, so a bad module identifier or a malformed structure comes back as a rejection with Caddy's own explanation — duplicating that in Go buys worse messages and a second thing to keep current across Caddy releases.
+
+Two gaps make Dinchy check anything at all:
+
+- **Duplicate host + path.** Caddy accepts it, stops at the first terminal match, and leaves the losing route silently unreachable. Dinchy rejects the pair instead.
+- **Reverse-proxy dial addresses.** Caddy does *not* parse these at load time — `not a host:8080` loads with a 200 and every request through the route 502s (pinned by a contract test). Nothing composing a Route from user input can rely on Caddy to catch a typo here.
 
 ### Restart durability
 
 Caddy runs as `caddy run --resume`, with no `--config`. The API is the source of truth, so Caddy's autosaved configuration *is* the state to restore. That is what makes restarting Caddy — after a plugin rebuild, or a crash — safe without Dinchy being up. `--watch` is irrelevant for the same reason: there is no configuration file to watch.
 
-### Certificates must be served explicitly
+### Caddy issues every certificate, development included
 
-Loading a certificate is not sufficient. For an SNI Caddy is not managing automatically, it needs a `tls_connection_policy` selecting that certificate by tag, or it aborts the handshake with a TLS internal error. Dinchy emits tagged certificates and matching policies, mirroring what Caddy's own Caddyfile adapter produces.
+Dinchy loads no certificate from disk anywhere. In production Caddy obtains them over ACME; in development it signs them itself with its built-in local CA (`DINCHY_CADDY_TLS_ISSUER=internal`), per host, on demand. `caddy trust` installs that CA's root once, which is the same one-time cost `mkcert -install` used to carry.
+
+That removes a surprising amount of machinery. Loading a certificate is not sufficient on its own: for an SNI Caddy is not managing, it needs a `tls_connection_policy` selecting that certificate by tag, or it aborts the handshake with a TLS internal error — so a file-cert design has to emit tagged certificates and matching policies. When every certificate is Caddy-managed, Caddy adds the policy itself and none of that exists. A new development hostname also needs no regeneration, where a wildcard mkcert certificate did.
+
+mkcert survives for Mailpit alone, which serves STARTTLS from a cert file or not at all and cannot generate one. Development therefore has two local authorities; production has neither.
 
 ### Consequences
 

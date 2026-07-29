@@ -11,16 +11,13 @@ type MetaKey string
 
 // Metadata keys for the value-carrying options attached to an AppError.
 const (
-	MetaKeyConflictingOwner MetaKey = "conflicting_owner"
-	MetaKeyDeletedCount     MetaKey = "deleted_count"
-	MetaKeyFieldKind        MetaKey = "field_kind"
-	MetaKeyFieldName        MetaKey = "field_name"
-	MetaKeyHostname         MetaKey = "hostname"
-	MetaKeyModule           MetaKey = "module"
-	MetaKeyOwner            MetaKey = "owner"
-	MetaKeyPath             MetaKey = "path"
-	MetaKeyTask             MetaKey = "task"
-	MetaKeyUpstream         MetaKey = "upstream"
+	MetaKeyDeletedCount MetaKey = "deleted_count"
+	MetaKeyFieldKind    MetaKey = "field_kind"
+	MetaKeyFieldName    MetaKey = "field_name"
+	MetaKeyHostname     MetaKey = "hostname"
+	MetaKeyOwner        MetaKey = "owner"
+	MetaKeyPath         MetaKey = "path"
+	MetaKeyTask         MetaKey = "task"
 )
 
 type metaValue interface {
@@ -104,25 +101,6 @@ func (hostname Hostname) metaValue() any   { return string(hostname) }
 // WithHostname attaches a hostname to the error.
 func WithHostname(hostname Hostname) Option { return withMetaValue(hostname) }
 
-// Upstream records the backend address a failure concerns.
-type Upstream string
-
-func (upstream Upstream) metaKey() MetaKey { return MetaKeyUpstream }
-func (upstream Upstream) metaValue() any   { return string(upstream) }
-
-// WithUpstream attaches an upstream address to the error.
-func WithUpstream(upstream Upstream) Option { return withMetaValue(upstream) }
-
-// Module records the identifier of a pluggable module a failure concerns, such as a
-// Caddy module that is not compiled into the running binary.
-type Module string
-
-func (module Module) metaKey() MetaKey { return MetaKeyModule }
-func (module Module) metaValue() any   { return string(module) }
-
-// WithModule attaches a module identifier to the error.
-func WithModule(module Module) Option { return withMetaValue(module) }
-
 // Owner records the component that contributed the value a failure concerns.
 type Owner string
 
@@ -131,18 +109,6 @@ func (owner Owner) metaValue() any   { return string(owner) }
 
 // WithOwner attaches an owning component name to the error.
 func WithOwner(owner Owner) Option { return withMetaValue(owner) }
-
-// ConflictingOwner records the second claimant in a conflict, so both sides of the
-// collision are visible without inspecting the cause chain.
-type ConflictingOwner string
-
-func (conflictingOwner ConflictingOwner) metaKey() MetaKey { return MetaKeyConflictingOwner }
-func (conflictingOwner ConflictingOwner) metaValue() any   { return string(conflictingOwner) }
-
-// WithConflictingOwner attaches the conflicting component name to the error.
-func WithConflictingOwner(conflictingOwner ConflictingOwner) Option {
-	return withMetaValue(conflictingOwner)
-}
 
 // Task records the durable background task a failure concerns.
 type Task string

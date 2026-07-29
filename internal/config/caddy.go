@@ -1,11 +1,16 @@
 package config
 
 import (
-	"fmt"
 	"time"
+)
 
-	apperrors "github.com/sidarth-23/dinchy/internal/foundation/errors"
-	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
+// TLS issuer names for CaddyConfig.TLSIssuer. They are Caddy's own module identifiers,
+// passed through to the certificate automation policy unchanged.
+const (
+	// TLSIssuerACME obtains certificates from a public authority over ACME.
+	TLSIssuerACME = "acme"
+	// TLSIssuerInternal signs certificates with Caddy's own local CA.
+	TLSIssuerInternal = "internal"
 )
 
 // CaddyConfig holds the settings for the Caddy reverse proxy that fronts Dinchy.
@@ -13,8 +18,8 @@ import (
 // Caddy owns certificates, automatic HTTPS, and HSTS.
 //
 // An empty environment variable keeps the default below, so a value that must differ
-// from its default has to be set explicitly — writing DINCHY_CADDY_AUTOMATIC_HTTPS=
-// leaves automatic HTTPS on rather than disabling it.
+// from its default has to be set explicitly — writing DINCHY_CADDY_ENABLED= leaves
+// management on rather than disabling it.
 type CaddyConfig struct {
 	// Enabled turns on Caddy configuration management. When false Dinchy pushes
 	// nothing and an operator drives Caddy themselves.
@@ -24,23 +29,15 @@ type CaddyConfig struct {
 	// AdminTimeout bounds a single admin API call. Loading a configuration can block
 	// on certificate provisioning, so this is generous by default.
 	AdminTimeout time.Duration `env:"DINCHY_CADDY_ADMIN_TIMEOUT" validate:"gt=0"`
-	// Binary is the path to the Caddy executable, used to read the compiled module
-	// set so Dinchy only offers plugins that are actually available.
-	Binary string `env:"DINCHY_CADDY_BINARY" mod:"trim" validate:"required"`
-	// ReconcileInterval is how often the drift job re-pushes the desired routes.
-	ReconcileInterval time.Duration `env:"DINCHY_CADDY_RECONCILE_INTERVAL" validate:"gt=0"`
 	// HTTPSPort is the port Caddy serves HTTPS on.
 	HTTPSPort uint16 `env:"DINCHY_CADDY_HTTPS_PORT" validate:"gt=0"`
-	// PanelHost is the hostname Caddy serves the Dinchy panel on. No deployment
-	// route may claim it.
+	// PanelHost is the hostname Caddy serves the Dinchy panel on.
 	PanelHost string `env:"DINCHY_CADDY_PANEL_HOST" mod:"trim,lower" validate:"required,hostname_rfc1123"`
-	// AutomaticHTTPS lets Caddy obtain certificates over ACME. Disable it to serve
-	// CertFile and KeyFile instead, as local development does with mkcert.
-	AutomaticHTTPS bool `env:"DINCHY_CADDY_AUTOMATIC_HTTPS"`
-	// CertFile is the PEM certificate served when AutomaticHTTPS is false.
-	CertFile string `env:"DINCHY_CADDY_CERT_FILE" mod:"trim"`
-	// KeyFile is the PEM private key served when AutomaticHTTPS is false.
-	KeyFile string `env:"DINCHY_CADDY_KEY_FILE" mod:"trim"`
+	// TLSIssuer selects where certificates come from: TLSIssuerACME for a public domain,
+	// or TLSIssuerInternal for Caddy's own local CA. Development uses the local CA
+	// because no public authority can validate localhost; `caddy trust` installs its root
+	// so the browser accepts it without a warning.
+	TLSIssuer string `env:"DINCHY_CADDY_TLS_ISSUER" mod:"trim,lower" validate:"required,oneof=acme internal"`
 	// ACMEEmail is the contact address registered with the ACME certificate authority.
 	ACMEEmail string `env:"DINCHY_CADDY_ACME_EMAIL" mod:"trim" validate:"omitempty,email"`
 	// ACMECA overrides the ACME directory URL, for a staging or private authority.
@@ -66,32 +63,16 @@ func DefaultCaddy() CaddyConfig {
 		Enabled:               true,
 		AdminEndpoint:         "127.0.0.1:2019",
 		AdminTimeout:          30 * time.Second,
-		Binary:                "/usr/local/bin/caddy",
-		ReconcileInterval:     time.Minute,
 		HTTPSPort:             443,
 		PanelHost:             "localhost",
-		AutomaticHTTPS:        true,
+		TLSIssuer:             TLSIssuerACME,
 		HSTSMaxAge:            365 * 24 * time.Hour,
 		HSTSIncludeSubdomains: true,
 	}
 }
 
-// ServesOwnCertificate reports whether Caddy serves CertFile and KeyFile rather than
-// obtaining certificates over ACME.
-func (c CaddyConfig) ServesOwnCertificate() bool {
-	return !c.AutomaticHTTPS
-}
-
-// validate reports configuration that would leave Caddy unable to serve TLS.
-func (c CaddyConfig) validate() error {
-	if !c.Enabled || c.AutomaticHTTPS {
-		return nil
-	}
-	if c.CertFile == "" || c.KeyFile == "" {
-		return apperrors.Internal(
-			i18n.Msg(i18n.CodePlatformConfigValidationFailed),
-			apperrors.WithCause(fmt.Errorf("DINCHY_CADDY_CERT_FILE and DINCHY_CADDY_KEY_FILE are required when DINCHY_CADDY_AUTOMATIC_HTTPS is false")),
-		)
-	}
-	return nil
+// UsesLocalCA reports whether Caddy signs its own certificates instead of obtaining them
+// from a public authority.
+func (c CaddyConfig) UsesLocalCA() bool {
+	return c.TLSIssuer == TLSIssuerInternal
 }

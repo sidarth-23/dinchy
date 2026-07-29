@@ -119,10 +119,6 @@ func Load() (Config, error) {
 		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigValidationFailed), apperrors.WithCause(fmt.Errorf("public base URL is required when SMTP is configured")))
 	}
 
-	if err := cfg.Caddy.validate(); err != nil {
-		return Config{}, err
-	}
-
 	if err := validateLoopbackAddr(cfg.Addr); err != nil {
 		return Config{}, err
 	}

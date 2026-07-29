@@ -74,15 +74,21 @@
 
 **Caddy sidecar** — foundation delivered (`internal/platform/caddy`):
 - Go HTTP client wrapping Caddy Admin API (`localhost:2019`)
-- Whole configuration pushed once at startup to converge Caddy with PostgreSQL, then
-  targeted per-route add/update/remove so a change never closes other routes' connections
+- Whole configuration pushed once at startup; no drift job, so an operator's own changes to
+  the running proxy survive
 - `caddy.RouteSource` seam: the deployments feature contributes its routes here
-- Operator-rebuildable Caddy (`deploy/caddy/plugins.txt`) with module introspection
+- Version-pinned vanilla Caddy (`cmd/caddy`); operators add plugins with `xcaddy`
+
+Deferred until the deployments feature needs them: targeted per-route add/update/remove so
+a change never closes other routes' connections, wildcard hosts, the panel-host
+reservation, upstream validation (Caddy does not check dial addresses), and surfacing the
+compiled-in DNS providers in the UI.
 
 **Domain routing UI:**
 - Per-deployment domain assignment
 - Port mapping
-- Auto-HTTPS toggle (ACME for public hosts; the mkcert certificate locally — one CA, not a second)
+- Auto-HTTPS toggle (ACME for public hosts; Caddy's own local CA in development, which
+  issues per host on demand so a new deployment name needs no certificate work)
 
 **Customization:**
 - Custom headers, CORS, redirects via UI → Caddy API

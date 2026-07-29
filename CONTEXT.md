@@ -42,14 +42,15 @@ This file is domain facts, not rules of conduct: behavioral rules live in
   drift at all.
 
 - **Reconciler** (`internal/platform/caddy`) — the apply seam. `ReconcileAll` replaces
-  Caddy's whole configuration and runs once at startup; `ApplyRoute`/`RemoveRoute` address
-  a single route afterwards. The split is deliberate — replacing the whole configuration
-  makes Caddy close active streaming connections, so a routing change must never do it.
+  Caddy's whole configuration, once, at startup. That is the only write there is: Dinchy
+  does not re-assert on a timer, because the operator owns the running proxy once it is set
+  up. Replacing the whole configuration makes Caddy close active streaming connections, so
+  once routes come and go, changing one must address that one instead.
 
 - **Panel** — Dinchy's own UI and API, served as one `Route` like any deployment
-  (`DINCHY_CADDY_PANEL_HOST`). It names the reserved entrypoint: no other source may claim
-  that host, and no route may proxy to its upstream, because losing the panel means losing
-  the only interface that could repair the routing.
+  (`DINCHY_CADDY_PANEL_HOST`). It is the entrypoint that must not be lost: losing the panel
+  means losing the only interface that could repair the routing. Reserving its host against
+  other sources is deferred until there is a source that could claim it.
 
 - **Upstream** — the loopback `host:port` a `Route` proxies to. The panel API's is
   `DINCHY_ADDR`; a deployment's is its published container port.
@@ -62,11 +63,16 @@ This file is domain facts, not rules of conduct: behavioral rules live in
   Within a host, a Route with a longer PathPrefix is matched first, because Caddy stops at
   the first terminal match.
 
-- **Module set** (`internal/platform/caddy`, `ModuleSet`) — the Caddy modules compiled into
-  the installed binary, read from the binary itself rather than from the plugin manifest,
-  because the manifest records what was requested and only the binary knows what actually
-  registered. A route naming an absent module is rejected by name; an unreadable binary
-  leaves the set unknown, which skips the check rather than blocking startup.
+- **Caddy build** (`cmd/caddy`) — vanilla upstream Caddy, existing only to pin the version
+  through `go.mod`. Plugins belong to the operator and are compiled with `xcaddy` against
+  that same version (`mise run caddy:version`). What a build actually provides is read with
+  `caddy list-modules`, never from a manifest, because a Go module can resolve and build
+  while registering no Caddy module.
+
+- **TLS issuer** (`DINCHY_CADDY_TLS_ISSUER`) — `acme` for a public domain, `internal` for
+  Caddy's own local CA. Dinchy never loads a certificate from disk; development uses the
+  local CA because no public authority can validate localhost. mkcert remains only for
+  Mailpit, which cannot generate its own.
 
 ## Transport
 

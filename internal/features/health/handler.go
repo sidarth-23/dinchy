@@ -79,7 +79,7 @@ func (a *API) readyz(ctx context.Context, _ *struct{}) (*ReadyzOut, error) {
 		if check.Name == "" || check.Degraded == nil {
 			continue
 		}
-		if reason := check.Degraded(); reason != "" {
+		if reason := check.Degraded(ctx); reason != "" {
 			checks[check.Name] = "degraded: " + reason
 			continue
 		}

@@ -65,8 +65,7 @@ comment and its default (or empty for optional/secret values). Copy it to
 | `dinchy.env.example` | `/etc/dinchy/dinchy.env` | Shared config for app + containers |
 | `systemd/dinchy.service` | `~/.config/systemd/user/` | The Dinchy server unit |
 | `systemd/caddy.service` | `~/.config/systemd/user/` | The Caddy reverse proxy unit |
-| `caddy/plugins.txt` | (stays in the repo) | Caddy plugins to compile in |
-| `caddy/build.sh` | (stays in the repo) | Rebuilds Caddy with those plugins |
+| `../cmd/caddy/main.go` | (stays in the repo) | The vanilla Caddy build; pins the version |
 | `quadlet/dinchy.network` | `~/.config/containers/systemd/` | Podman network `dinchy` |
 | `quadlet/postgres.container` | `~/.config/containers/systemd/` | PostgreSQL container |
 | `quadlet/redis.container` | `~/.config/containers/systemd/` | Redis container |
@@ -78,7 +77,8 @@ comment and its default (or empty for optional/secret values). Copy it to
 sudo useradd --system --create-home --shell /usr/sbin/nologin dinchy
 sudo loginctl enable-linger dinchy
 
-# 2. Binaries. Caddy comes from a release download or `mise run caddy:build`.
+# 2. Binaries. Caddy comes from `mise run caddy:build` (vanilla, version pinned by go.mod),
+#    or from `xcaddy build "$(mise run caddy:version)" --with <module>` if you want plugins.
 sudo install -m 0755 dinchy /usr/local/bin/dinchy
 sudo install -m 0755 caddy /usr/local/bin/caddy
 # Let Caddy bind 80/443 without root (survives rebuilding the binary).
@@ -100,9 +100,10 @@ sudo -u dinchy install -m 0644 systemd/dinchy.service systemd/caddy.service ~din
 sudo -u dinchy XDG_RUNTIME_DIR=/run/user/$(id -u dinchy) systemctl --user daemon-reload
 sudo -u dinchy XDG_RUNTIME_DIR=/run/user/$(id -u dinchy) systemctl --user start postgres redis
 DINCHY_ENV_FILE=/etc/dinchy/dinchy.env mise run db:migrate   # or: goose ... up
-sudo -u dinchy XDG_RUNTIME_DIR=/run/user/$(id -u dinchy) systemctl --user enable --now dinchy
-# Caddy last: Dinchy pushes it the routes once it is up.
+# Caddy first: Dinchy pushes it the routes once, at its own startup. The units already
+# order themselves this way, so `enable --now dinchy` alone would also work.
 sudo -u dinchy XDG_RUNTIME_DIR=/run/user/$(id -u dinchy) systemctl --user enable --now caddy
+sudo -u dinchy XDG_RUNTIME_DIR=/run/user/$(id -u dinchy) systemctl --user enable --now dinchy
 ```
 
 ## Verify
@@ -138,8 +139,9 @@ curl -fsS http://127.0.0.1:8080/api/bootstrap   # expect 403: plaintext is rejec
   `sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80` (persist it in
   `/etc/sysctl.d/`), which survives rebuilding the Caddy binary. `sudo setcap
   cap_net_bind_service=+ep /usr/local/bin/caddy` also works but is **lost every time the
-  binary is replaced**, so `mise run caddy:build` warns when it drops one. Otherwise use a
-  high `DINCHY_CADDY_HTTPS_PORT` behind your firewall or port-forward.
+  binary is replaced**, so it has to be reapplied after every rebuild — which is the reason
+  to prefer the sysctl. Otherwise use a high `DINCHY_CADDY_HTTPS_PORT` behind your firewall
+  or port-forward.
   `AmbientCapabilities=` is ignored in a systemd *user* unit, which is why it is not used
   here; both units are user units so they can be ordered against each other and against
   the rootless podman quadlets.
@@ -151,12 +153,17 @@ curl -fsS http://127.0.0.1:8080/api/bootstrap   # expect 403: plaintext is rejec
   can read them. Sharing one hostname is deliberate: it keeps the browser same-origin, which
   is what lets the session and CSRF cookies stay `SameSite=Lax`.
 
-- **Caddy needs no config file.** It runs as `caddy run --resume`: Dinchy pushes the
-  routes over the admin API, and Caddy restores the last pushed configuration by itself
-  across restarts. Start Dinchy before Caddy on a fresh install — Caddy comes up with only
-  its admin endpoint, and Dinchy converges it. Getting the order wrong is harmless: Dinchy
-  logs one warning and a background job retries every
-  `DINCHY_CADDY_RECONCILE_INTERVAL`.
+- **Caddy needs no config file.** It runs as `caddy run --resume`: Dinchy pushes the routes
+  over the admin API, and Caddy restores the last pushed configuration by itself across
+  restarts. Caddy starts first (`dinchy.service` orders itself `After=caddy.service`), and
+  Dinchy converges it once at its own startup, waiting a few seconds if Caddy's admin
+  endpoint is not answering yet.
+
+- **Dinchy does not re-assert the configuration.** There is no drift job. Once the routes
+  are pushed, changes you make to the running proxy stay, and Dinchy will not overwrite them
+  on a timer. The cost is that a push which fails at startup is not retried later — check
+  `journalctl --user -u dinchy` for "Caddy reconcile at startup failed" and restart Dinchy
+  after fixing whatever was wrong.
 
 - **Certificate storage must be persistent.** `caddy.service` pins `XDG_DATA_HOME` so
   certificates and ACME account keys live at a stable path. If that path moves, Caddy
@@ -177,15 +184,16 @@ curl -fsS http://127.0.0.1:8080/api/bootstrap   # expect 403: plaintext is rejec
   ```
 
   No special headers are needed — the app does not reject plaintext, because the loopback
-  bind is what keeps the network out. Readiness reports Caddy as `degraded` rather than
-  failing, so an orchestrator will not restart the management plane over a routing fault.
+  bind is what keeps the network out. Readiness probes Caddy's admin API on each request
+  and reports it as `degraded` rather than failing, so an orchestrator will not restart the
+  management plane over a routing fault.
 
-- **Rebuilding Caddy with plugins.** Add `module@version` lines to
-  `deploy/caddy/plugins.txt`, run `mise run caddy:build` (needs Go, git, and network),
-  install the result to `/usr/local/bin/caddy`, and
-  `systemctl --user restart caddy`. The restart is safe because `--resume` restores the
-  routes. The build refuses an unpinned entry and fails if a requested plugin registered no
-  Caddy module, so a successful build really does mean the plugin is loaded.
+- **Rebuilding Caddy with plugins.** `xcaddy build "$(mise run caddy:version)" --with <module>`
+  (needs Go and network), install the result to `/usr/local/bin/caddy`, and
+  `systemctl --user restart caddy`. Passing the pinned version keeps your build on the same
+  Caddy as the baseline. The restart is safe because `--resume` restores the routes, and
+  Dinchy need not be running. Confirm the plugin registered with `caddy list-modules`: a Go
+  module can resolve and build while registering no Caddy module at all.
 - **Datastore TLS.** `dinchy.env.example` connects to Postgres with `sslmode=verify-full`
   and Redis with `DINCHY_REDIS_TLS=true`. Provision loopback server certificates for the
   Postgres/Redis containers, mount them into the quadlets, enable TLS in each container,

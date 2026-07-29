@@ -81,10 +81,7 @@ const (
 	CodeDiagnosticsAuthTOTPEnroll                            Code = "diagnostics.auth.totp.enroll"
 	CodeDiagnosticsCaddyBuildConfig                          Code = "diagnostics.caddy.build_config"
 	CodeDiagnosticsCaddyCollectRoutes                        Code = "diagnostics.caddy.collect_routes"
-	CodeDiagnosticsCaddyDeleteRouteRequest                   Code = "diagnostics.caddy.delete_route_request"
-	CodeDiagnosticsCaddyListModules                          Code = "diagnostics.caddy.list_modules"
 	CodeDiagnosticsCaddyLoadRequest                          Code = "diagnostics.caddy.load_request"
-	CodeDiagnosticsCaddyPutRouteRequest                      Code = "diagnostics.caddy.put_route_request"
 	CodeDiagnosticsCaddyReadConfig                           Code = "diagnostics.caddy.read_config"
 	CodeDiagnosticsCaddyReconcile                            Code = "diagnostics.caddy.reconcile"
 	CodeDiagnosticsSessionCreateSession                      Code = "diagnostics.session.create_session"
@@ -94,7 +91,6 @@ const (
 	CodeDiagnosticsStoreClose                                Code = "diagnostics.store.close"
 	CodeDiagnosticsStoreEnsureDefaultSettings                Code = "diagnostics.store.ensure_default_settings"
 	CodeDiagnosticsStorePing                                 Code = "diagnostics.store.ping"
-	CodeDiagnosticsWorkersCaddyReconcile                     Code = "diagnostics.workers.caddy_reconcile"
 	CodeDiagnosticsWorkersEventProcessing                    Code = "diagnostics.workers.event_processing"
 	CodeDiagnosticsWorkersSessionCleanup                     Code = "diagnostics.workers.session_cleanup"
 	CodeNotificationEmailFooter                              Code = "notification.email.footer"
@@ -111,15 +107,8 @@ const (
 	CodePlatformConfigValidationFailed                       Code = "platform.config.validation_failed"
 	CodePlatformRoutingConfigRejected                        Code = "platform.routing.config_rejected"
 	CodePlatformRoutingHostConflict                          Code = "platform.routing.host_conflict"
-	CodePlatformRoutingInvalidHeader                         Code = "platform.routing.invalid_header"
-	CodePlatformRoutingInvalidHost                           Code = "platform.routing.invalid_host"
-	CodePlatformRoutingInvalidPath                           Code = "platform.routing.invalid_path"
-	CodePlatformRoutingInvalidUpstream                       Code = "platform.routing.invalid_upstream"
-	CodePlatformRoutingPanelHostReserved                     Code = "platform.routing.panel_host_reserved"
-	CodePlatformRoutingPluginMissing                         Code = "platform.routing.plugin_missing"
 	CodePlatformRoutingReloadFailed                          Code = "platform.routing.reload_failed"
 	CodePlatformRoutingUnavailable                           Code = "platform.routing.unavailable"
-	CodePlatformRoutingUpstreamLoop                          Code = "platform.routing.upstream_loop"
 	CodePlatformServerInternalError                          Code = "platform.server.internal_error"
 	CodeTransportRequestValidationFailed                     Code = "transport.request.validation_failed"
 	CodeTransportSecurityCSRFFailed                          Code = "transport.security.csrf_failed"
@@ -199,10 +188,7 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsAuthTOTPEnroll:                            "Enroll two-factor authentication failed",
 		CodeDiagnosticsCaddyBuildConfig:                          "Build Caddy configuration failed",
 		CodeDiagnosticsCaddyCollectRoutes:                        "Collect routes for Caddy failed",
-		CodeDiagnosticsCaddyDeleteRouteRequest:                   "Remove Caddy route failed",
-		CodeDiagnosticsCaddyListModules:                          "Read Caddy module list failed",
 		CodeDiagnosticsCaddyLoadRequest:                          "Load Caddy configuration failed",
-		CodeDiagnosticsCaddyPutRouteRequest:                      "Apply Caddy route failed",
 		CodeDiagnosticsCaddyReadConfig:                           "Read Caddy configuration failed",
 		CodeDiagnosticsCaddyReconcile:                            "Caddy reconcile failed",
 		CodeDiagnosticsSessionCreateSession:                      "Create session failed",
@@ -212,7 +198,6 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsStoreClose:                                "Close store failed",
 		CodeDiagnosticsStoreEnsureDefaultSettings:                "Ensure default settings failed",
 		CodeDiagnosticsStorePing:                                 "Ping store failed",
-		CodeDiagnosticsWorkersCaddyReconcile:                     "Caddy reconcile worker execution failed",
 		CodeDiagnosticsWorkersEventProcessing:                    "Event subscriber processing failed",
 		CodeDiagnosticsWorkersSessionCleanup:                     "Session cleanup worker execution failed",
 		CodeNotificationEmailFooter:                              "This is an automated message from Dinchy. Please do not reply to this email.",
@@ -229,15 +214,8 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodePlatformConfigValidationFailed:                       "Configuration is invalid.",
 		CodePlatformRoutingConfigRejected:                        "The reverse proxy rejected the generated configuration.",
 		CodePlatformRoutingHostConflict:                          "Another route already serves this domain and path.",
-		CodePlatformRoutingInvalidHeader:                         "The response header name or value is not allowed.",
-		CodePlatformRoutingInvalidHost:                           "The domain is not a valid hostname.",
-		CodePlatformRoutingInvalidPath:                           "The path must start with a slash.",
-		CodePlatformRoutingInvalidUpstream:                       "The upstream address must be a host and port.",
-		CodePlatformRoutingPanelHostReserved:                     "This domain is reserved for the Dinchy panel.",
-		CodePlatformRoutingPluginMissing:                         "This route needs a Caddy plugin that is not installed. Add it to deploy/caddy/plugins.txt and rebuild Caddy.",
 		CodePlatformRoutingReloadFailed:                          "The reverse proxy could not be reloaded.",
 		CodePlatformRoutingUnavailable:                           "The reverse proxy is not reachable.",
-		CodePlatformRoutingUpstreamLoop:                          "The upstream address points back at Dinchy itself.",
 		CodePlatformServerInternalError:                          "An unexpected error occurred.",
 		CodeTransportRequestValidationFailed:                     "Some fields need attention.",
 		CodeTransportSecurityCSRFFailed:                          "Missing or invalid CSRF token.",

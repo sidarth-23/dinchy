@@ -27,51 +27,9 @@
           "description": "Reverse proxy routing messages",
           "messages": [
             {
-              "name": "invalid_host",
-              "translations": {
-                "en": "The domain is not a valid hostname."
-              }
-            },
-            {
-              "name": "invalid_upstream",
-              "translations": {
-                "en": "The upstream address must be a host and port."
-              }
-            },
-            {
-              "name": "invalid_path",
-              "translations": {
-                "en": "The path must start with a slash."
-              }
-            },
-            {
-              "name": "invalid_header",
-              "translations": {
-                "en": "The response header name or value is not allowed."
-              }
-            },
-            {
               "name": "host_conflict",
               "translations": {
                 "en": "Another route already serves this domain and path."
-              }
-            },
-            {
-              "name": "panel_host_reserved",
-              "translations": {
-                "en": "This domain is reserved for the Dinchy panel."
-              }
-            },
-            {
-              "name": "upstream_loop",
-              "translations": {
-                "en": "The upstream address points back at Dinchy itself."
-              }
-            },
-            {
-              "name": "plugin_missing",
-              "translations": {
-                "en": "This route needs a Caddy plugin that is not installed. Add it to deploy/caddy/plugins.txt and rebuild Caddy."
               }
             },
             {

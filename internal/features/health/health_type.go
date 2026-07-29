@@ -17,7 +17,9 @@ type Check struct {
 	// Name labels the subsystem in the readiness payload.
 	Name string
 	// Degraded returns a reason when the subsystem is unhealthy, or empty when it is fine.
-	Degraded func() string
+	// It takes a context because a Check may probe the subsystem over the network, and a
+	// readiness request that has gone away must not leave a probe running.
+	Degraded func(ctx context.Context) string
 }
 
 // LivenessOut is the plain-text response body for the liveness endpoint.

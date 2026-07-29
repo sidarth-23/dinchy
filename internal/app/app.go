@@ -125,7 +125,7 @@ func (a *App) Start() error {
 		PublicScheme:         a.cfg.PublicScheme(),
 	}, authSvc, sessionSvc, auditSvc, a.logger)
 
-	if err := a.startCaddy(ctx, clk); err != nil {
+	if err := a.startCaddy(ctx); err != nil {
 		return err
 	}
 
@@ -144,9 +144,6 @@ func (a *App) Start() error {
 	if err := events.RegisterWorkers(scheduler, eventBusSvc); err != nil {
 		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
 	}
-	if err := caddy.RegisterReconcileWorker(scheduler, a.caddy); err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppStartTaskRuntime), apperrors.WithCause(err))
-	}
 	scheduler.Start()
 	a.workers = scheduler
 	if err := riverClient.Start(ctx); err != nil {
@@ -156,117 +153,6 @@ func (a *App) Start() error {
 	go func() { a.errCh <- a.internal.ListenAndServe() }()
 	logging.Info(ctx, a.logger, "Application started", slog.String("public_addr", a.cfg.Addr), slog.String("internal_addr", a.cfg.InternalAddr), slog.Bool("dev_mode", a.cfg.DevMode))
 	return nil
-}
-
-// startCaddy builds the Caddy reconciler and converges the proxy on the routes Dinchy
-// owns. Only the panel route exists today; features that own public entrypoints
-// register their own caddy.RouteSource here.
-//
-// A proxy that cannot be reached must not stop the process from starting. Routing being
-// broken is exactly when an operator needs the interface that can repair it, so the
-// failure is recorded once here and the recurring reconcile job retries until Caddy
-// answers. Dinchy keeps serving on its loopback listener throughout, which is what makes
-// recovery over an SSH tunnel possible.
-func (a *App) startCaddy(ctx context.Context, clk clock.Clock) error {
-	if !a.cfg.Caddy.Enabled {
-		logging.Info(ctx, a.logger, "Caddy management disabled", slog.String("component", "caddy"))
-		return nil
-	}
-
-	// A Caddy binary that cannot be run leaves the module set unknown, which disables
-	// plugin availability checks rather than rejecting routes that name a plugin.
-	modules, err := caddy.ReadModuleSet(ctx, a.cfg.Caddy.Binary)
-	if err != nil {
-		logging.Warn(ctx, a.logger, "Caddy module list unavailable",
-			slog.String("component", "caddy"),
-			slog.String("binary", a.cfg.Caddy.Binary),
-		)
-	}
-
-	reconciler, err := caddy.NewReconciler(a.cfg.Caddy, caddy.NewAdminClient(a.cfg.Caddy), clk, modules)
-	if err != nil {
-		return apperrors.Internal(i18n.Msg(i18n.CodeDiagnosticsAppSetup), apperrors.WithCause(err))
-	}
-	reconciler.Register(caddy.NewStaticSource(caddy.PanelOwner, a.panelRoutes()...))
-	a.caddy = reconciler
-	a.reconcileCaddyAtStartup(ctx)
-	return nil
-}
-
-// reconcileCaddyAtStartup converges the proxy once and reports the outcome. It returns
-// nothing on purpose: startup is the end of the line for this failure, so it is logged
-// here and nowhere else, and the recurring reconcile job owns the retry.
-func (a *App) reconcileCaddyAtStartup(ctx context.Context) {
-	result, err := a.caddy.ReconcileAll(ctx)
-	if err != nil {
-		logging.Error(ctx, a.logger, "Caddy reconcile at startup failed", err, slog.String("component", "caddy"))
-		return
-	}
-	logging.Info(ctx, a.logger, "Caddy configuration reconciled",
-		slog.String("component", "caddy"),
-		slog.Int("routes", result.RouteCount),
-	)
-}
-
-// panelRoutes describes the entrypoints serving Dinchy's own API and web UI, on one
-// hostname split by path.
-//
-// The web assets do not pass through Dinchy: Caddy reads them from disk in production and
-// proxies to the Vite dev server in development, so the Go process only ever answers the
-// API. Keeping one hostname keeps the browser same-origin, which is what lets the session
-// and CSRF cookies stay SameSite=Lax and keeps CORS out of the picture.
-//
-// The app layer composes these because they span the listen address, the proxy settings
-// and the frontend location, the same way it composes the outbound email links.
-func (a *App) panelRoutes() []caddy.Route {
-	api := caddy.Route{
-		Owner:      caddy.PanelOwner,
-		Host:       a.cfg.Caddy.PanelHost,
-		PathPrefix: transport.APIPathPrefix,
-		Upstream:   a.cfg.Addr,
-	}
-
-	web := caddy.Route{
-		Owner: caddy.PanelOwner,
-		Host:  a.cfg.Caddy.PanelHost,
-	}
-	if a.cfg.DevMode {
-		// Vite serves the assets and its own HMR socket; Caddy forwards to it.
-		web.Upstream = a.cfg.FrontendUpstream()
-	} else {
-		web.Serve = caddy.ServeModeFiles
-		web.Root = a.cfg.FrontendRoot
-		// Client-side routes have no file behind them, so an unmatched path must serve
-		// the application document rather than 404.
-		web.FallbackPath = caddy.SPAFallbackPath
-	}
-
-	routes := []caddy.Route{api, web}
-	if a.cfg.Caddy.ServesOwnCertificate() {
-		for i := range routes {
-			routes[i].TLS = caddy.TLSModeFile
-			routes[i].CertFile = a.cfg.Caddy.CertFile
-			routes[i].KeyFile = a.cfg.Caddy.KeyFile
-		}
-	}
-	return routes
-}
-
-// caddyHealthCheck reports proxy health in the readiness payload without making the
-// process unready.
-func (a *App) caddyHealthCheck() health.Check {
-	return health.Check{
-		Name: "caddy",
-		Degraded: func() string {
-			if a.caddy == nil {
-				return ""
-			}
-			if status := a.caddy.Status(); status.Degraded {
-				return status.LastError
-			}
-			return ""
-		},
-	}
 }
 
 // Shutdown stops workers and servers and closes dependencies, joining any errors.

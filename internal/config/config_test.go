@@ -22,10 +22,9 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.False(t, cfg.DevMode)
 	assert.True(t, cfg.Caddy.Enabled)
 	assert.Equal(t, "127.0.0.1:2019", cfg.Caddy.AdminEndpoint)
-	assert.Equal(t, "/usr/local/bin/caddy", cfg.Caddy.Binary)
 	assert.Equal(t, uint16(443), cfg.Caddy.HTTPSPort)
-	assert.True(t, cfg.Caddy.AutomaticHTTPS)
-	assert.False(t, cfg.Caddy.ServesOwnCertificate())
+	assert.Equal(t, config.TLSIssuerACME, cfg.Caddy.TLSIssuer)
+	assert.False(t, cfg.Caddy.UsesLocalCA())
 	assert.Equal(t, "dinchy_session", cfg.Session.SessionCookieName)
 	assert.Equal(t, "dinchy_sso_state", cfg.Auth.SSOStateCookieName)
 	assert.Equal(t, 30*time.Minute, cfg.Session.SessionIdleTimeout)
@@ -77,8 +76,6 @@ func TestLoad_AllOverrides(t *testing.T) {
 	t.Setenv("DINCHY_PUBLIC_BASE_URL", "https://app.example.com")
 	t.Setenv("DINCHY_CADDY_ADMIN_ENDPOINT", "127.0.0.1:3019")
 	t.Setenv("DINCHY_CADDY_ADMIN_TIMEOUT", "10s")
-	t.Setenv("DINCHY_CADDY_BINARY", "/opt/caddy/bin/caddy")
-	t.Setenv("DINCHY_CADDY_RECONCILE_INTERVAL", "2m")
 	t.Setenv("DINCHY_CADDY_HTTPS_PORT", "8443")
 	t.Setenv("DINCHY_CADDY_PANEL_HOST", "Panel.Example.COM")
 	t.Setenv("DINCHY_CADDY_ACME_EMAIL", "ops@example.com")
@@ -112,8 +109,6 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, "https://app.example.com", cfg.PublicBaseURL)
 	assert.Equal(t, "127.0.0.1:3019", cfg.Caddy.AdminEndpoint)
 	assert.Equal(t, 10*time.Second, cfg.Caddy.AdminTimeout)
-	assert.Equal(t, "/opt/caddy/bin/caddy", cfg.Caddy.Binary)
-	assert.Equal(t, 2*time.Minute, cfg.Caddy.ReconcileInterval)
 	assert.Equal(t, uint16(8443), cfg.Caddy.HTTPSPort)
 	assert.Equal(t, "panel.example.com", cfg.Caddy.PanelHost, "panel host is lowercased so route comparisons are case-insensitive")
 	assert.Equal(t, "ops@example.com", cfg.Caddy.ACMEEmail)
@@ -226,48 +221,30 @@ func TestLoad_MissingExplicitEnvFile_Fails(t *testing.T) {
 	require.Error(t, err, "explicit env file that doesn't exist should fail")
 }
 
-func TestLoad_Caddy_CertificateRequiredWhenAutomaticHTTPSDisabled(t *testing.T) {
-	t.Run("both set serves its own certificate", func(t *testing.T) {
+func TestLoad_Caddy_TLSIssuer(t *testing.T) {
+	t.Run("internal selects Caddy's local CA", func(t *testing.T) {
 		clearDinchyEnv(t)
-		t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "false")
-		t.Setenv("DINCHY_CADDY_CERT_FILE", "deploy/certs/app.pem")
-		t.Setenv("DINCHY_CADDY_KEY_FILE", "deploy/certs/app-key.pem")
+		t.Setenv("DINCHY_CADDY_TLS_ISSUER", "Internal")
 		cfg, err := config.Load()
 		require.NoError(t, err)
-		assert.True(t, cfg.Caddy.ServesOwnCertificate())
+		assert.Equal(t, config.TLSIssuerInternal, cfg.Caddy.TLSIssuer, "the value is lowercased")
+		assert.True(t, cfg.Caddy.UsesLocalCA())
 	})
-	t.Run("only cert set fails", func(t *testing.T) {
+	t.Run("an unknown issuer fails rather than falling back", func(t *testing.T) {
 		clearDinchyEnv(t)
-		t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "false")
-		t.Setenv("DINCHY_CADDY_CERT_FILE", "deploy/certs/app.pem")
+		t.Setenv("DINCHY_CADDY_TLS_ISSUER", "letsencrypt")
 		_, err := config.Load()
 		require.Error(t, err)
 	})
-	t.Run("only key set fails", func(t *testing.T) {
+	// Blanking the variable keeps the default, so a developer who wants the local CA must
+	// write it explicitly or Caddy will attempt ACME against localhost.
+	t.Run("blank keeps the ACME default", func(t *testing.T) {
 		clearDinchyEnv(t)
-		t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "false")
-		t.Setenv("DINCHY_CADDY_KEY_FILE", "deploy/certs/app-key.pem")
-		_, err := config.Load()
-		require.Error(t, err)
-	})
-	t.Run("neither needed when automatic HTTPS is on", func(t *testing.T) {
-		clearDinchyEnv(t)
-		_, err := config.Load()
+		t.Setenv("DINCHY_CADDY_TLS_ISSUER", "")
+		cfg, err := config.Load()
 		require.NoError(t, err)
+		assert.Equal(t, config.TLSIssuerACME, cfg.Caddy.TLSIssuer)
 	})
-}
-
-// TestLoad_Caddy_BlankEnvKeepsDefault pins the loader's "empty means keep the default"
-// behavior for the Caddy booleans. Blanking DINCHY_CADDY_AUTOMATIC_HTTPS does not
-// disable automatic HTTPS, so a developer who wants mkcert certs must write `false`
-// explicitly or Caddy will attempt ACME against localhost.
-func TestLoad_Caddy_BlankEnvKeepsDefault(t *testing.T) {
-	clearDinchyEnv(t)
-	t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "")
-
-	cfg, err := config.Load()
-	require.NoError(t, err)
-	assert.True(t, cfg.Caddy.AutomaticHTTPS)
 }
 
 func TestLoad_RejectsNonLoopbackAddr(t *testing.T) {
@@ -369,9 +346,8 @@ func clearDinchyEnv(t *testing.T) {
 		"DINCHY_SMTP_HOST", "DINCHY_SMTP_PORT", "DINCHY_SMTP_USERNAME", "DINCHY_SMTP_PASSWORD", "DINCHY_SMTP_FROM",
 		"DINCHY_REDIS_TLS", "DINCHY_PUBLIC_BASE_URL",
 		"DINCHY_CADDY_ENABLED", "DINCHY_CADDY_ADMIN_ENDPOINT", "DINCHY_CADDY_ADMIN_TIMEOUT",
-		"DINCHY_CADDY_BINARY", "DINCHY_CADDY_RECONCILE_INTERVAL", "DINCHY_CADDY_HTTPS_PORT",
-		"DINCHY_CADDY_PANEL_HOST", "DINCHY_CADDY_AUTOMATIC_HTTPS",
-		"DINCHY_CADDY_CERT_FILE", "DINCHY_CADDY_KEY_FILE",
+		"DINCHY_CADDY_HTTPS_PORT",
+		"DINCHY_CADDY_PANEL_HOST", "DINCHY_CADDY_TLS_ISSUER",
 		"DINCHY_CADDY_ACME_EMAIL", "DINCHY_CADDY_ACME_CA", "DINCHY_CADDY_STORAGE_PATH",
 		"DINCHY_CADDY_HSTS_MAX_AGE", "DINCHY_CADDY_HSTS_INCLUDE_SUBDOMAINS",
 		"DINCHY_ENV_FILE",

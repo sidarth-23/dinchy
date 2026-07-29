@@ -52,43 +52,22 @@ type (
 		Servers   map[string]*HTTPServer `json:"servers,omitempty"`
 	}
 
-	// HTTPServer is one listening HTTP server.
+	// HTTPServer is one listening HTTP server. It carries no TLS connection policy:
+	// Caddy adds one itself for a server that listens only on the HTTPS port, and every
+	// certificate here is one Caddy manages.
 	HTTPServer struct {
-		Listen                []string              `json:"listen"`
-		Routes                []ServerRoute         `json:"routes,omitempty"`
-		TLSConnectionPolicies []TLSConnectionPolicy `json:"tls_connection_policies,omitempty"`
-		AutomaticHTTPS        *AutomaticHTTPS       `json:"automatic_https,omitempty"`
+		Listen         []string        `json:"listen"`
+		Routes         []ServerRoute   `json:"routes,omitempty"`
+		AutomaticHTTPS *AutomaticHTTPS `json:"automatic_https,omitempty"`
 	}
 
-	// TLSConnectionPolicy picks which certificate answers a TLS handshake. Without a
-	// policy naming the loaded certificate, Caddy has nothing to offer for an SNI it is
-	// not managing automatically and aborts the handshake with an internal error.
-	TLSConnectionPolicy struct {
-		Match                *TLSPolicyMatch       `json:"match,omitempty"`
-		CertificateSelection *CertificateSelection `json:"certificate_selection,omitempty"`
-	}
-
-	// TLSPolicyMatch selects the handshakes a policy applies to.
-	TLSPolicyMatch struct {
-		SNI []string `json:"sni,omitempty"`
-	}
-
-	// CertificateSelection narrows which loaded certificates a policy may serve.
-	CertificateSelection struct {
-		AnyTag []string `json:"any_tag,omitempty"`
-	}
-
-	// AutomaticHTTPS controls Caddy's implicit certificate and redirect behavior.
+	// AutomaticHTTPS controls Caddy's implicit HTTP-to-HTTPS redirect.
 	AutomaticHTTPS struct {
-		Disable          bool `json:"disable,omitempty"`
 		DisableRedirects bool `json:"disable_redirects,omitempty"`
-		DisableCerts     bool `json:"disable_certificates,omitempty"`
 	}
 
-	// ServerRoute is one route within a server. ID is Caddy's "@id" tag, which is what
-	// makes a single route addressable at /id/<ID> for targeted updates.
+	// ServerRoute is one route within a server.
 	ServerRoute struct {
-		ID       string         `json:"@id,omitempty"`
 		Match    []RouteMatch   `json:"match,omitempty"`
 		Handle   []RouteHandler `json:"handle,omitempty"`
 		Terminal bool           `json:"terminal,omitempty"`
@@ -138,23 +117,9 @@ type (
 		Dial string `json:"dial"`
 	}
 
-	// TLSApp configures certificate loading and automation.
+	// TLSApp configures certificate automation.
 	TLSApp struct {
-		Certificates *TLSCertificates `json:"certificates,omitempty"`
-		Automation   *TLSAutomation   `json:"automation,omitempty"`
-	}
-
-	// TLSCertificates lists certificates loaded from disk.
-	TLSCertificates struct {
-		LoadFiles []CertificateFile `json:"load_files,omitempty"`
-	}
-
-	// CertificateFile is one certificate and key pair on disk. Tags let a connection
-	// policy select this certificate by name.
-	CertificateFile struct {
-		Certificate string   `json:"certificate"`
-		Key         string   `json:"key"`
-		Tags        []string `json:"tags,omitempty"`
+		Automation *TLSAutomation `json:"automation,omitempty"`
 	}
 
 	// TLSAutomation holds the certificate automation policies.
@@ -170,37 +135,11 @@ type (
 
 	// Issuer is a certificate issuer module configuration.
 	Issuer struct {
-		Module     string      `json:"module"`
-		CA         string      `json:"ca,omitempty"`
-		Email      string      `json:"email,omitempty"`
-		Challenges *Challenges `json:"challenges,omitempty"`
-	}
-
-	// Challenges configures ACME challenge types.
-	Challenges struct {
-		DNS *DNSChallenge `json:"dns,omitempty"`
-	}
-
-	// DNSChallenge configures the DNS-01 challenge provider.
-	DNSChallenge struct {
-		Provider map[string]any `json:"provider,omitempty"`
+		Module string `json:"module"`
+		CA     string `json:"ca,omitempty"`
+		Email  string `json:"email,omitempty"`
 	}
 )
-
-// RouteID returns the stable "@id" Caddy tags this Route with. It is derived from the
-// owner, host and path so the same logical route always addresses the same object,
-// which is what lets Dinchy update one route without replacing the whole config.
-//
-// The identifier carries no slash: the admin API addresses an object at /id/<id> and
-// then treats anything further as a path into that object, so a slash inside the
-// identifier would make the request ambiguous.
-func RouteID(route Route) string {
-	path := strings.ReplaceAll(strings.Trim(route.PathPrefix, "/"), "/", "_")
-	if path == "" {
-		path = "root"
-	}
-	return fmt.Sprintf("dinchy-%s-%s-%s", route.Owner, route.Host, path)
-}
 
 // BuildConfig translates the desired routes into a whole Caddy configuration document.
 //
@@ -208,7 +147,7 @@ func RouteID(route Route) string {
 // including that block, so a document that omitted it would tear down the very endpoint
 // Dinchy uses to push, leaving no way to recover without editing files by hand.
 func BuildConfig(cfg config.CaddyConfig, routes []Route) (Config, error) {
-	ordered, err := orderRoutes(cfg, routes)
+	ordered, err := orderRoutes(routes)
 	if err != nil {
 		return Config{}, err
 	}
@@ -236,129 +175,50 @@ func BuildConfig(cfg config.CaddyConfig, routes []Route) (Config, error) {
 		built.Storage = &StorageConfig{Module: "file_system", Root: cfg.StoragePath}
 	}
 	server := built.Apps.HTTP.Servers[ServerName]
-	tlsApp, policies := buildTLS(cfg, ordered)
-	built.Apps.TLS = tlsApp
-	server.TLSConnectionPolicies = policies
-	applyAutomaticHTTPS(cfg, server)
+	built.Apps.TLS = buildTLS(cfg, ordered)
+	if cfg.UsesLocalCA() {
+		// Caddy creates the redirect vhost on port 80 for every HTTPS site regardless of
+		// the site's own port. On a development machine where unprivileged ports start at
+		// 1024, binding 80 fails and Caddy rejects the whole configuration.
+		server.AutomaticHTTPS = &AutomaticHTTPS{DisableRedirects: true}
+	}
 	return built, nil
 }
 
-// applyAutomaticHTTPS disables Caddy's implicit certificate management and its
-// HTTP-to-HTTPS redirect when Dinchy supplies the certificate itself.
-//
-// Redirects must be off in that mode because Caddy creates the redirect vhost on port
-// 80 for every HTTPS site regardless of the site's own port. On a development machine
-// where unprivileged ports start at 1024, binding 80 fails and Caddy exits.
-func applyAutomaticHTTPS(cfg config.CaddyConfig, server *HTTPServer) {
-	if !cfg.ServesOwnCertificate() {
-		return
-	}
-	server.AutomaticHTTPS = &AutomaticHTTPS{DisableCerts: true, DisableRedirects: true}
-}
-
-// buildTLS loads explicit certificates or configures ACME automation, and returns the
-// connection policies that let Caddy actually serve what was loaded.
-//
-// A loaded certificate is not enough on its own: for an SNI Caddy is not managing
-// automatically, it needs a connection policy selecting that certificate, or it aborts
-// the handshake with a TLS internal error. Each certificate is therefore tagged and
-// matched by tag, mirroring what Caddy's own Caddyfile adapter produces.
-func buildTLS(cfg config.CaddyConfig, routes []Route) (*TLSApp, []TLSConnectionPolicy) {
-	app := &TLSApp{}
-	var loadFiles []CertificateFile
-	var policies []TLSConnectionPolicy
-	tagByPair := map[string]string{}
-	hostsByTag := map[string][]string{}
-
+// buildTLS configures certificate automation for every host Dinchy serves. Nothing is
+// loaded from disk and no connection policy is emitted: every certificate here is one
+// Caddy manages, and Caddy adds the policy itself for a server that listens only on the
+// HTTPS port.
+func buildTLS(cfg config.CaddyConfig, routes []Route) *TLSApp {
+	subjects := make([]string, 0, len(routes))
 	for i := range routes {
-		route := &routes[i]
-		certFile, keyFile := route.CertFile, route.KeyFile
-		if route.TLS != TLSModeFile {
-			if !cfg.ServesOwnCertificate() || route.TLS == TLSModeAutomatic {
-				continue
-			}
-			certFile, keyFile = cfg.CertFile, cfg.KeyFile
-		}
-		if certFile == "" || keyFile == "" {
-			continue
-		}
-		pair := certFile + "\x00" + keyFile
-		tag, ok := tagByPair[pair]
-		if !ok {
-			tag = "cert" + strconv.Itoa(len(tagByPair))
-			tagByPair[pair] = tag
-			loadFiles = append(loadFiles, CertificateFile{Certificate: certFile, Key: keyFile, Tags: []string{tag}})
-		}
-		hostsByTag[tag] = append(hostsByTag[tag], route.Host)
+		subjects = append(subjects, routes[i].Host)
 	}
-
-	switch len(loadFiles) {
-	case 0:
-	case 1:
-		// One certificate serves every name it covers, so the policy carries no SNI
-		// match. That is what lets a route added later — a new deployment under the
-		// wildcard — be served without also rewriting the connection policies.
-		policies = append(policies, TLSConnectionPolicy{
-			CertificateSelection: &CertificateSelection{AnyTag: []string{loadFiles[0].Tags[0]}},
-		})
-	default:
-		// Several certificates need an SNI match each to be told apart, plus a trailing
-		// catch-all so names none of them claim still complete a handshake.
-		for _, file := range loadFiles {
-			tag := file.Tags[0]
-			hosts := hostsByTag[tag]
-			slices.Sort(hosts)
-			policies = append(policies, TLSConnectionPolicy{
-				Match:                &TLSPolicyMatch{SNI: slices.Compact(hosts)},
-				CertificateSelection: &CertificateSelection{AnyTag: []string{tag}},
-			})
-		}
-		policies = append(policies, TLSConnectionPolicy{})
-	}
-
-	if len(loadFiles) > 0 {
-		app.Certificates = &TLSCertificates{LoadFiles: loadFiles}
-	}
-	if automation := buildAutomationPolicies(cfg, routes); len(automation) > 0 {
-		app.Automation = &TLSAutomation{Policies: automation}
-	}
-	if app.Certificates == nil && app.Automation == nil {
-		return nil, policies
-	}
-	return app, policies
-}
-
-// buildAutomationPolicies emits one ACME policy per DNS provider in use, plus a
-// default policy, so routes needing DNS-01 get it and the rest use the defaults.
-func buildAutomationPolicies(cfg config.CaddyConfig, routes []Route) []AutomationPolicy {
-	if cfg.ServesOwnCertificate() {
+	if len(subjects) == 0 {
 		return nil
 	}
-	byProvider := map[string][]string{}
-	for i := range routes {
-		route := &routes[i]
-		if route.TLS == TLSModeFile {
-			continue
-		}
-		byProvider[route.DNSProviderModule] = append(byProvider[route.DNSProviderModule], route.Host)
+	slices.Sort(subjects)
+
+	// The local CA takes no contact address or directory URL — both are ACME notions, and
+	// Issuer.CA means an authority identifier to the internal module, not a directory.
+	issuer := Issuer{Module: config.TLSIssuerInternal}
+	if !cfg.UsesLocalCA() {
+		issuer = Issuer{Module: config.TLSIssuerACME, CA: cfg.ACMECA, Email: cfg.ACMEEmail}
 	}
-	policies := make([]AutomationPolicy, 0, len(byProvider))
-	for _, provider := range slices.Sorted(maps.Keys(byProvider)) {
-		subjects := byProvider[provider]
-		slices.Sort(subjects)
-		issuer := Issuer{Module: "acme", CA: cfg.ACMECA, Email: cfg.ACMEEmail}
-		if provider != "" {
-			issuer.Challenges = &Challenges{DNS: &DNSChallenge{Provider: map[string]any{"name": dnsProviderName(provider)}}}
-		}
-		policies = append(policies, AutomationPolicy{Subjects: subjects, Issuers: []Issuer{issuer}})
-	}
-	return policies
+	return &TLSApp{Automation: &TLSAutomation{Policies: []AutomationPolicy{{
+		Subjects: slices.Compact(subjects),
+		Issuers:  []Issuer{issuer},
+	}}}}
 }
 
-// dnsProviderName reduces a Caddy DNS provider module ID to the provider name the
-// acme issuer's challenge configuration expects.
-func dnsProviderName(module string) string {
-	return module[strings.LastIndex(module, ".")+1:]
+// matcherPath renders a PathPrefix as the Caddy path matcher it becomes, or empty for a
+// route that serves the whole host. A trailing slash is insignificant, so "/api" and
+// "/api/" produce the same matcher.
+func matcherPath(pathPrefix string) string {
+	if pathPrefix == "" {
+		return ""
+	}
+	return strings.TrimSuffix(pathPrefix, "/") + "/*"
 }
 
 // buildServerRoute translates one Route into a Caddy route object.
@@ -368,8 +228,8 @@ func dnsProviderName(module string) string {
 // it to the upstream address would reject every cross-origin request.
 func buildServerRoute(cfg config.CaddyConfig, route Route) ServerRoute {
 	match := RouteMatch{Host: []string{route.Host}}
-	if route.PathPrefix != "" {
-		match.Path = []string{strings.TrimSuffix(route.PathPrefix, "/") + "/*"}
+	if path := matcherPath(route.PathPrefix); path != "" {
+		match.Path = []string{path}
 	}
 
 	var handlers []RouteHandler
@@ -386,7 +246,7 @@ func buildServerRoute(cfg config.CaddyConfig, route Route) ServerRoute {
 		})
 	}
 
-	return ServerRoute{ID: RouteID(route), Match: []RouteMatch{match}, Handle: handlers, Terminal: true}
+	return ServerRoute{Match: []RouteMatch{match}, Handle: handlers, Terminal: true}
 }
 
 // staticFileHandler serves Root from disk, optionally falling back to a single document
@@ -395,8 +255,7 @@ func buildServerRoute(cfg config.CaddyConfig, route Route) ServerRoute {
 // The three steps are nested in a subroute because the fallback needs its own matcher and
 // a top-level route carries only one: the root is set first so file matching resolves
 // against it, then a rewrite redirects unmatched paths to the fallback, then the file
-// server responds. Keeping it inside one route also keeps the route individually
-// addressable at /id/<id>. This mirrors what Caddy's own Caddyfile adapter emits for
+// server responds. This mirrors what Caddy's own Caddyfile adapter emits for
 // `root` + `try_files` + `file_server`, verified with `caddy adapt`.
 func staticFileHandler(route Route) RouteHandler {
 	nested := []ServerRoute{
@@ -468,22 +327,19 @@ func hstsValue(cfg config.CaddyConfig) string {
 }
 
 // orderRoutes validates the route set as a whole and returns it in a deterministic
-// order: the panel first, then exact hosts, then wildcards, and within one host the more
-// specific path before the less specific.
+// order: the panel first, then by host, and within one host the more specific path
+// before the less specific.
 //
 // Caddy evaluates routes in array order and stops at the first terminal match, so path
 // ordering is correctness rather than tidiness: an unprefixed route listed before a
 // "/api" one on the same host would swallow every API request.
-func orderRoutes(cfg config.CaddyConfig, routes []Route) ([]Route, error) {
+func orderRoutes(routes []Route) ([]Route, error) {
 	ordered := make([]Route, 0, len(routes))
 	for i := range routes {
 		ordered = append(ordered, routes[i].Resolve())
 	}
 	slices.SortStableFunc(ordered, func(a, b Route) int {
 		if c := cmp.Compare(panelRank(a), panelRank(b)); c != 0 {
-			return c
-		}
-		if c := cmp.Compare(wildcardRank(a), wildcardRank(b)); c != 0 {
 			return c
 		}
 		return cmp.Or(
@@ -494,7 +350,7 @@ func orderRoutes(cfg config.CaddyConfig, routes []Route) ([]Route, error) {
 			cmp.Compare(a.Owner, b.Owner),
 		)
 	})
-	if err := validateRouteSet(cfg, ordered); err != nil {
+	if err := validateRouteSet(ordered); err != nil {
 		return nil, err
 	}
 	return ordered, nil
@@ -507,113 +363,29 @@ func panelRank(route Route) int {
 	return 1
 }
 
-func wildcardRank(route Route) int {
-	if strings.HasPrefix(route.Host, "*.") {
-		return 1
-	}
-	return 0
-}
-
-// validateRouteSet enforces the invariants that keep the proxy configuration coherent
-// and, above all, keep the panel reachable.
-func validateRouteSet(cfg config.CaddyConfig, routes []Route) error {
-	// The panel contributes more than one route — the API and the web assets — so look
-	// for the one that actually proxies, not merely the first the panel owns.
-	panelUpstream := ""
-	for i := range routes {
-		if routes[i].Owner == PanelOwner && routes[i].Upstream != "" {
-			panelUpstream = routes[i].Upstream
-			break
-		}
-	}
-
+// validateRouteSet rejects two routes claiming the same host and path.
+//
+// This is the only check Dinchy makes. Everything else a malformed route can be wrong
+// about, Caddy reports when the configuration is loaded — it provisions before swapping
+// and rolls back on failure, and that rejection reaches the caller as config_rejected.
+// A duplicate is the exception: Caddy accepts it and stops at the first terminal match,
+// leaving the losing route silently unreachable.
+func validateRouteSet(routes []Route) error {
 	ownerByKey := map[string]string{}
 	for i := range routes {
 		route := &routes[i]
-		if err := route.Validate(); err != nil {
-			return err
-		}
-		if err := validatePanelReservation(cfg, *route); err != nil {
-			return err
-		}
-		if err := validateNoUpstreamLoop(panelUpstream, *route); err != nil {
-			return err
-		}
-		key := route.siteKey() + "\x00" + route.PathPrefix
+		// Keyed on the matcher Caddy will actually see, so "/api" and "/api/" collide
+		// here the same way they would collide in the running configuration.
+		key := route.siteKey() + "\x00" + matcherPath(route.PathPrefix)
 		if existingOwner, ok := ownerByKey[key]; ok {
 			return apperrors.Conflict(
 				i18n.Msg(i18n.CodePlatformRoutingHostConflict),
 				apperrors.WithHostname(apperrors.Hostname(route.Host)),
-				apperrors.WithOwner(apperrors.Owner(existingOwner)),
-				apperrors.WithConflictingOwner(apperrors.ConflictingOwner(route.Owner)),
+				apperrors.WithOwner(apperrors.Owner(route.Owner)),
 				apperrors.WithCause(fmt.Errorf("host %q with path %q is claimed by both %q and %q", route.Host, route.PathPrefix, existingOwner, route.Owner)),
 			)
 		}
 		ownerByKey[key] = route.Owner
 	}
-	return validateNoWildcardShadowing(routes)
-}
-
-// validatePanelReservation keeps any other source from claiming the panel's hostname.
-// Without this a route can shadow the panel, and the operator loses the only interface
-// that could remove the offending route.
-func validatePanelReservation(cfg config.CaddyConfig, route Route) error {
-	if route.Owner == PanelOwner || route.Host != cfg.PanelHost {
-		return nil
-	}
-	return apperrors.Conflict(
-		i18n.Msg(i18n.CodePlatformRoutingPanelHostReserved),
-		apperrors.WithHostname(apperrors.Hostname(route.Host)),
-		apperrors.WithOwner(apperrors.Owner(route.Owner)),
-		apperrors.WithCause(fmt.Errorf("owner %q claimed the panel host %q", route.Owner, cfg.PanelHost)),
-	)
-}
-
-// validateNoUpstreamLoop rejects a route that proxies back to the panel's own
-// listener, which would make Caddy forward requests to Dinchy in a loop.
-func validateNoUpstreamLoop(panelUpstream string, route Route) error {
-	if route.Owner == PanelOwner || panelUpstream == "" || route.Upstream != panelUpstream {
-		return nil
-	}
-	return apperrors.Conflict(
-		i18n.Msg(i18n.CodePlatformRoutingUpstreamLoop),
-		apperrors.WithHostname(apperrors.Hostname(route.Host)),
-		apperrors.WithUpstream(apperrors.Upstream(route.Upstream)),
-		apperrors.WithOwner(apperrors.Owner(route.Owner)),
-		apperrors.WithCause(fmt.Errorf("owner %q pointed host %q at the panel upstream %q", route.Owner, route.Host, route.Upstream)),
-	)
-}
-
-// validateNoWildcardShadowing rejects an exact host that a wildcard route would also
-// match. Keeping every route's match set disjoint means Caddy's route ordering cannot
-// change which route wins, so an incremental update can append safely.
-func validateNoWildcardShadowing(routes []Route) error {
-	for i := range routes {
-		wildcard := &routes[i]
-		suffix, ok := strings.CutPrefix(wildcard.Host, "*.")
-		if !ok {
-			continue
-		}
-		for j := range routes {
-			exact := &routes[j]
-			if exact.Host == wildcard.Host || !coveredByWildcard(exact.Host, suffix) {
-				continue
-			}
-			return apperrors.Conflict(
-				i18n.Msg(i18n.CodePlatformRoutingHostConflict),
-				apperrors.WithHostname(apperrors.Hostname(exact.Host)),
-				apperrors.WithOwner(apperrors.Owner(wildcard.Owner)),
-				apperrors.WithConflictingOwner(apperrors.ConflictingOwner(exact.Owner)),
-				apperrors.WithCause(fmt.Errorf("host %q is already covered by the wildcard %q", exact.Host, wildcard.Host)),
-			)
-		}
-	}
 	return nil
-}
-
-// coveredByWildcard reports whether host is the single extra label under suffix, which
-// is exactly what a "*.suffix" wildcard certificate and matcher cover.
-func coveredByWildcard(host, suffix string) bool {
-	label, ok := strings.CutSuffix(host, "."+suffix)
-	return ok && label != "" && !strings.Contains(label, ".")
 }

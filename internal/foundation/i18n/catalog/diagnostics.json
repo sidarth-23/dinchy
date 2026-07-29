@@ -403,12 +403,6 @@
               "translations": {
                 "en": "Event subscriber processing failed"
               }
-            },
-            {
-              "name": "caddy_reconcile",
-              "translations": {
-                "en": "Caddy reconcile worker execution failed"
-              }
             }
           ]
         },
@@ -429,18 +423,6 @@
               }
             },
             {
-              "name": "put_route_request",
-              "translations": {
-                "en": "Apply Caddy route failed"
-              }
-            },
-            {
-              "name": "delete_route_request",
-              "translations": {
-                "en": "Remove Caddy route failed"
-              }
-            },
-            {
               "name": "read_config",
               "translations": {
                 "en": "Read Caddy configuration failed"
@@ -456,12 +438,6 @@
               "name": "reconcile",
               "translations": {
                 "en": "Caddy reconcile failed"
-              }
-            },
-            {
-              "name": "list_modules",
-              "translations": {
-                "en": "Read Caddy module list failed"
               }
             }
           ]

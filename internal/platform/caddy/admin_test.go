@@ -91,52 +91,6 @@ func TestAdminClient_LoadConfigPostsJSONToLoad(t *testing.T) {
 	assert.Contains(t, sent, "admin", "the loaded document must keep the admin endpoint alive")
 }
 
-func TestAdminClient_PutRoutePatchesExistingRouteByID(t *testing.T) {
-	fake := newFakeAdmin(t)
-	client := caddy.NewAdminClient(fake.clientConfig())
-
-	route := caddy.ServerRoute{ID: "dinchy-deployments-app.example.com-root"}
-	require.NoError(t, client.PutRoute(context.Background(), route))
-
-	calls := fake.recorded()
-	require.Len(t, calls, 1, "an existing route is patched in place, not appended")
-	assert.Equal(t, http.MethodPatch, calls[0].Method)
-	assert.Equal(t, "/id/dinchy-deployments-app.example.com-root", calls[0].Path)
-}
-
-func TestAdminClient_PutRouteAppendsWhenTheIDIsUnknown(t *testing.T) {
-	fake := newFakeAdmin(t)
-	fake.respondWith(func(w http.ResponseWriter, r *http.Request) bool {
-		if r.Method != http.MethodPatch {
-			return false
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"unknown object ID '/id/dinchy-new'"}`))
-		return true
-	})
-	client := caddy.NewAdminClient(fake.clientConfig())
-
-	require.NoError(t, client.PutRoute(context.Background(), caddy.ServerRoute{ID: "dinchy-new"}))
-
-	calls := fake.recorded()
-	require.Len(t, calls, 2)
-	assert.Equal(t, http.MethodPatch, calls[0].Method)
-	assert.Equal(t, http.MethodPost, calls[1].Method)
-	assert.Equal(t, "/config/apps/http/servers/"+caddy.ServerName+"/routes", calls[1].Path)
-}
-
-func TestAdminClient_DeleteRouteTreatsMissingRouteAsDone(t *testing.T) {
-	fake := newFakeAdmin(t)
-	fake.respondWith(func(w http.ResponseWriter, _ *http.Request) bool {
-		w.WriteHeader(http.StatusNotFound)
-		return true
-	})
-	client := caddy.NewAdminClient(fake.clientConfig())
-
-	// The desired end state is reached either way, so an absent route is not an error.
-	require.NoError(t, client.DeleteRoute(context.Background(), "dinchy-gone"))
-}
-
 func TestAdminClient_RejectedConfigurationReportsConfigRejected(t *testing.T) {
 	fake := newFakeAdmin(t)
 	fake.respondWith(func(w http.ResponseWriter, _ *http.Request) bool {

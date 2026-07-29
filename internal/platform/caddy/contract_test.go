@@ -2,17 +2,11 @@ package caddy_test
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -28,31 +22,28 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/sidarth-23/dinchy/internal/config"
-	"github.com/sidarth-23/dinchy/internal/foundation/clock"
 	"github.com/sidarth-23/dinchy/internal/platform/caddy"
 )
 
 // These tests drive a real Caddy process. They exist because the defects this package is
 // most likely to ship are semantic rather than structural: a field can be present, of the
-// right type, and still fail to do anything. Both bugs found while building this package
-// were of that kind — a certificate that loaded but was never served, and a wildcard
-// hostname a TLS client refuses — and neither is expressible as a schema violation. Only
-// a live handshake and a live request find them.
+// right type, and still fail to do anything. The bug that motivated them was of that kind
+// — a certificate that loaded but was never served — and it is not expressible as a schema
+// violation. Only a live handshake and a live request find it.
 //
 // They also catch drift: every Caddy release is an opportunity for a field name or module
 // identifier in config.go to become wrong, which unit tests against our own structs
 // cannot detect.
 //
-// Not covered here: the single-label wildcard rule (`*.localhost`). curl and OpenSSL
-// reject a wildcard whose parent is one label, but Go's own certificate verification does
-// not enforce it, so a Go client cannot observe the failure. The guard is Route.Validate,
-// with unit coverage in config_test.go.
+// Certificates come from Caddy's own local CA, exactly as they do in development, so these
+// tests also cover the dev TLS setup end to end. Nothing is minted by the test.
 
 // caddyBinary locates a runnable Caddy, skipping the test when there is none so a machine
-// without Caddy still passes the suite.
+// without Caddy still passes the suite. DINCHY_TEST_CADDY_BINARY is a test-only override
+// for a CI image that installs Caddy somewhere else; it is not application configuration.
 func caddyBinary(t *testing.T) string {
 	t.Helper()
-	candidates := []string{os.Getenv("DINCHY_CADDY_BINARY"), "tmp/caddy", "../../../tmp/caddy", "caddy"}
+	candidates := []string{os.Getenv("DINCHY_TEST_CADDY_BINARY"), "tmp/caddy", "../../../tmp/caddy", "caddy"}
 	for _, candidate := range candidates {
 		if candidate == "" {
 			continue
@@ -61,7 +52,7 @@ func caddyBinary(t *testing.T) string {
 			return resolved
 		}
 	}
-	t.Skip("no runnable Caddy binary found; set DINCHY_CADDY_BINARY or run `mise run caddy:build`")
+	t.Skip("no runnable Caddy binary found; run `mise run caddy:build`")
 	return ""
 }
 
@@ -76,55 +67,52 @@ func freePort(t *testing.T) int {
 	return port
 }
 
-// issueCertificate writes a self-signed certificate covering hosts, and returns the paths
-// plus a pool that trusts it. Generating it here avoids depending on mkcert and keeps the
-// test hermetic.
-func issueCertificate(t *testing.T, dir string, hosts ...string) (certPath, keyPath string, roots *x509.CertPool) {
+// localCARoots returns a pool trusting the root of Caddy's own local CA, which is what
+// signs every certificate in development. Caddy writes it when the TLS app first
+// provisions the internal issuer, so the file appears shortly after the configuration
+// loads rather than at startup.
+func localCARoots(t *testing.T, dataDir string) *x509.CertPool {
 	t.Helper()
+	rootPath := filepath.Join(dataDir, "caddy", "pki", "authorities", "local", "root.crt")
 
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	var pem []byte
+	require.Eventually(t, func() bool {
+		contents, err := os.ReadFile(rootPath) //nolint:gosec // path is test-controlled
+		if err != nil {
+			return false
+		}
+		pem = contents
+		return true
+	}, 30*time.Second, 200*time.Millisecond, "caddy never provisioned its local CA at %s", rootPath)
 
-	template := x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: hosts[0]},
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(24 * time.Hour),
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-		DNSNames:              hosts,
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
-	}
-	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	require.NoError(t, err)
+	roots := x509.NewCertPool()
+	require.True(t, roots.AppendCertsFromPEM(pem))
+	return roots
+}
 
-	certPath = filepath.Join(dir, "cert.pem")
-	keyPath = filepath.Join(dir, "key.pem")
-
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	require.NoError(t, os.WriteFile(certPath, certPEM, 0o600))
-
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600))
-
-	roots = x509.NewCertPool()
-	require.True(t, roots.AppendCertsFromPEM(certPEM))
-	return certPath, keyPath, roots
+// waitForCertificate blocks until Caddy has issued host's certificate. Issuance is
+// asynchronous: POST /load returns before it finishes, so a request sent straight after a
+// reconcile races it and fails the handshake with "tls: internal error".
+func waitForCertificate(t *testing.T, dataDir, host string) {
+	t.Helper()
+	path := filepath.Join(dataDir, "caddy", "certificates", "local", host, host+".crt")
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}, 30*time.Second, 100*time.Millisecond, "caddy never issued a certificate for %s", host)
 }
 
 // liveCaddy is a running Caddy plus everything needed to talk to it and through it.
 type liveCaddy struct {
-	cfg    config.CaddyConfig
-	admin  caddy.AdminClient
-	client *http.Client
-	port   int
+	cfg     config.CaddyConfig
+	admin   caddy.AdminClient
+	dataDir string
+	port    int
 }
 
-// startCaddy launches an isolated Caddy and returns once its admin API answers.
-func startCaddy(t *testing.T, hosts ...string) liveCaddy {
+// startCaddy launches an isolated Caddy on the given panel host and returns once its admin
+// API answers.
+func startCaddy(t *testing.T, panelHost string) liveCaddy {
 	t.Helper()
 	binary := caddyBinary(t)
 	dir := t.TempDir()
@@ -139,14 +127,13 @@ func startCaddy(t *testing.T, hosts ...string) liveCaddy {
 	require.NoError(t, os.WriteFile(bootstrap,
 		[]byte(`{"admin":{"listen":"`+adminEndpoint+`"}}`), 0o600))
 
-	certPath, keyPath, roots := issueCertificate(t, dir, hosts...)
-
 	cmd := exec.Command(binary, "run", "--config", bootstrap) //nolint:gosec // path is test-controlled
 	// Point Caddy's storage at the temp dir. Without this the test writes into the
 	// developer's real certificate and ACME-account storage. --resume is deliberately
 	// absent for the same reason: it would restore their dev configuration.
+	dataDir := filepath.Join(dir, "data")
 	cmd.Env = append(os.Environ(),
-		"XDG_DATA_HOME="+filepath.Join(dir, "data"),
+		"XDG_DATA_HOME="+dataDir,
 		"XDG_CONFIG_HOME="+filepath.Join(dir, "config"),
 	)
 	var output strings.Builder
@@ -166,9 +153,8 @@ func startCaddy(t *testing.T, hosts ...string) liveCaddy {
 	cfg.AdminEndpoint = adminEndpoint
 	cfg.AdminTimeout = 15 * time.Second
 	cfg.HTTPSPort = uint16(httpsPort) //nolint:gosec // freePort returns a valid port
-	cfg.PanelHost = hosts[0]
-	cfg.AutomaticHTTPS = false
-	cfg.CertFile, cfg.KeyFile = certPath, keyPath
+	cfg.PanelHost = panelHost
+	cfg.TLSIssuer = config.TLSIssuerInternal
 	cfg.HSTSMaxAge = 0
 	cfg.StoragePath = ""
 
@@ -177,12 +163,15 @@ func startCaddy(t *testing.T, hosts ...string) liveCaddy {
 	require.Eventually(t, func() bool { return admin.Ping(ctx) == nil }, 30*time.Second, 200*time.Millisecond,
 		"caddy admin API never came up")
 
-	return liveCaddy{cfg: cfg, admin: admin, client: httpsClient(roots, httpsPort), port: httpsPort}
+	return liveCaddy{cfg: cfg, admin: admin, dataDir: dataDir, port: httpsPort}
 }
 
-// httpsClient dials every host at the loopback port Caddy listens on, so the test does not
-// depend on how the machine resolves the hostnames being served.
-func httpsClient(roots *x509.CertPool, port int) *http.Client {
+// client dials every host at the loopback port Caddy listens on, so the test does not
+// depend on how the machine resolves the hostnames being served. It is built per request
+// because Caddy's local CA root only exists once a configuration has been loaded.
+func (l liveCaddy) client(t *testing.T) *http.Client {
+	t.Helper()
+	roots, port := localCARoots(t, l.dataDir), l.port
 	return &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
@@ -220,11 +209,12 @@ func echoUpstream(t *testing.T, name string) string {
 // getRaw performs a request through Caddy and returns the status and the body as text.
 func (l liveCaddy) getRaw(t *testing.T, host, path string) (status int, body string) {
 	t.Helper()
+	waitForCertificate(t, l.dataDir, host)
 	url := fmt.Sprintf("https://%s:%d%s", host, l.port, path)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
 	require.NoError(t, err)
 
-	resp, err := l.client.Do(req)
+	resp, err := l.client(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -243,15 +233,14 @@ func (l liveCaddy) get(t *testing.T, host string) (status int, body map[string]s
 }
 
 func TestContract_RealCaddyServesTheGeneratedConfiguration(t *testing.T) {
-	live := startCaddy(t, "panel.test", "*.apps.test")
+	live := startCaddy(t, "panel.test")
 	ctx := context.Background()
 	panelUpstream := echoUpstream(t, "panel")
 
-	reconciler, err := caddy.NewReconciler(live.cfg, live.admin, clock.System{}, caddy.ModuleSet{})
+	reconciler, err := caddy.NewReconciler(live.cfg, live.admin)
 	require.NoError(t, err)
 	reconciler.Register(caddy.NewStaticSource(caddy.PanelOwner, caddy.Route{
 		Owner: caddy.PanelOwner, Host: live.cfg.PanelHost, Upstream: panelUpstream,
-		TLS: caddy.TLSModeFile, CertFile: live.cfg.CertFile, KeyFile: live.cfg.KeyFile,
 	}))
 
 	// 1. A real Caddy accepts the document. This is what catches field-name and module-ID
@@ -293,7 +282,6 @@ func TestContract_ConfigurationRoundTripsThroughCaddy(t *testing.T) {
 
 	built, err := caddy.BuildConfig(live.cfg, []caddy.Route{{
 		Owner: caddy.PanelOwner, Host: live.cfg.PanelHost, Upstream: echoUpstream(t, "panel"),
-		TLS: caddy.TLSModeFile, CertFile: live.cfg.CertFile, KeyFile: live.cfg.KeyFile,
 	}})
 	require.NoError(t, err)
 	require.NoError(t, live.admin.LoadConfig(ctx, built))
@@ -306,45 +294,37 @@ func TestContract_ConfigurationRoundTripsThroughCaddy(t *testing.T) {
 	require.True(t, ok, "the running configuration must keep an admin block")
 	assert.Equal(t, live.cfg.AdminEndpoint, admin["listen"])
 
-	// Caddy kept the route under our server name and preserved its identifier, which the
-	// targeted-update path addresses at /id/<id>.
-	assert.Contains(t, live.routeIDs(t, running), caddy.RouteID(caddy.Route{
-		Owner: caddy.PanelOwner, Host: live.cfg.PanelHost,
-	}))
+	// Caddy kept the route under our server name and matching our host.
+	assert.Contains(t, live.routeHosts(t, running), live.cfg.PanelHost)
 }
 
-func TestContract_TargetedRouteChangesTakeEffect(t *testing.T) {
-	live := startCaddy(t, "panel.test", "*.apps.test")
+// TestContract_ReconcileConvergesASecondRoute covers the path a drift repair takes: a
+// source reports a new route and the next full reconcile serves it, with the panel
+// untouched throughout.
+func TestContract_ReconcileConvergesASecondRoute(t *testing.T) {
+	live := startCaddy(t, "panel.test")
 	ctx := context.Background()
 
-	reconciler, err := caddy.NewReconciler(live.cfg, live.admin, clock.System{}, caddy.ModuleSet{})
+	reconciler, err := caddy.NewReconciler(live.cfg, live.admin)
 	require.NoError(t, err)
 	reconciler.Register(caddy.NewStaticSource(caddy.PanelOwner, caddy.Route{
 		Owner: caddy.PanelOwner, Host: live.cfg.PanelHost, Upstream: echoUpstream(t, "panel"),
-		TLS: caddy.TLSModeFile, CertFile: live.cfg.CertFile, KeyFile: live.cfg.KeyFile,
 	}))
 	_, err = reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
 
-	deployment := caddy.Route{
+	reconciler.Register(caddy.NewStaticSource("deployments", caddy.Route{
 		Owner: "deployments", Host: "whoami.apps.test", Upstream: echoUpstream(t, "deployment"),
-		TLS: caddy.TLSModeFile, CertFile: live.cfg.CertFile, KeyFile: live.cfg.KeyFile,
-	}
+	}))
+	_, err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
 
-	require.NoError(t, reconciler.ApplyRoute(ctx, deployment))
-	status, body := live.get(t, deployment.Host)
+	status, body := live.get(t, "whoami.apps.test")
 	assert.Equal(t, http.StatusOK, status)
-	assert.Equal(t, "deployment", body["upstream"], "a route added without a full reload must serve")
+	assert.Equal(t, "deployment", body["upstream"])
 
-	// The panel keeps working, which is the point of updating one route at a time.
 	_, panelBody := live.get(t, live.cfg.PanelHost)
-	assert.Equal(t, "panel", panelBody["upstream"])
-
-	require.NoError(t, reconciler.RemoveRoute(ctx, deployment))
-	// Assert on the body, not the status: Caddy answers 200 with an empty body when no
-	// route matches, so a status check would pass whether or not the route was removed.
-	_, removedBody := live.get(t, deployment.Host)
-	assert.NotEqual(t, "deployment", removedBody["upstream"], "the removed route must stop serving")
+	assert.Equal(t, "panel", panelBody["upstream"], "converging a new route must not disturb the panel")
 }
 
 // TestContract_CaddyServesTheWebUIAndAPIOnOneHost is the check behind the frontend split.
@@ -362,23 +342,17 @@ func TestContract_CaddyServesTheWebUIAndAPIOnOneHost(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(webRoot, "assets", "app.js"),
 		[]byte("console.log('app')"), 0o600))
 
-	certified := func(route caddy.Route) caddy.Route {
-		route.TLS = caddy.TLSModeFile
-		route.CertFile, route.KeyFile = live.cfg.CertFile, live.cfg.KeyFile
-		return route
-	}
-
-	reconciler, err := caddy.NewReconciler(live.cfg, live.admin, clock.System{}, caddy.ModuleSet{})
+	reconciler, err := caddy.NewReconciler(live.cfg, live.admin)
 	require.NoError(t, err)
 	reconciler.Register(caddy.NewStaticSource(caddy.PanelOwner,
-		certified(caddy.Route{
+		caddy.Route{
 			Owner: caddy.PanelOwner, Host: live.cfg.PanelHost,
 			PathPrefix: "/api", Upstream: echoUpstream(t, "api"),
-		}),
-		certified(caddy.Route{
+		},
+		caddy.Route{
 			Owner: caddy.PanelOwner, Host: live.cfg.PanelHost,
 			Serve: caddy.ServeModeFiles, Root: webRoot, FallbackPath: caddy.SPAFallbackPath,
-		}),
+		},
 	))
 	_, err = reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
@@ -400,21 +374,27 @@ func TestContract_CaddyServesTheWebUIAndAPIOnOneHost(t *testing.T) {
 	assert.Contains(t, body, `"upstream":"api"`, "/api must be proxied, not served from disk")
 }
 
-func TestContract_CaddyRejectsAnInvalidUpstream(t *testing.T) {
+// TestContract_CaddyAcceptsAMalformedUpstreamAndFailsPerRequest records where Caddy stops
+// being a validator. It provisions and rolls back a configuration it cannot load, which is
+// what lets Dinchy delegate structural checks — but a reverse-proxy dial address is not
+// among them. Caddy parses it lazily, per request, so a typo loads cleanly and every
+// request through the route 502s with nothing reported at push time.
+//
+// Anything that composes a Route from user input therefore has to screen the upstream
+// itself; there is no backstop here.
+func TestContract_CaddyAcceptsAMalformedUpstreamAndFailsPerRequest(t *testing.T) {
 	live := startCaddy(t, "panel.test")
 	ctx := context.Background()
 
-	// A syntactically valid document Caddy still refuses to provision, proving rejections
-	// surface as errors rather than being silently accepted.
 	built, err := caddy.BuildConfig(live.cfg, []caddy.Route{{
-		Owner: caddy.PanelOwner, Host: live.cfg.PanelHost, Upstream: "127.0.0.1:8080",
-		TLS: caddy.TLSModeFile, CertFile: live.cfg.CertFile, KeyFile: "/nonexistent/key.pem",
+		Owner: caddy.PanelOwner, Host: live.cfg.PanelHost, Upstream: "not a host:8080",
 	}})
 	require.NoError(t, err)
 
-	err = live.admin.LoadConfig(ctx, built)
+	require.NoError(t, live.admin.LoadConfig(ctx, built), "Caddy does not check dial addresses at load time")
 
-	require.Error(t, err, "a missing key file must be reported, not ignored")
+	status, _ := live.getRaw(t, live.cfg.PanelHost, "/")
+	assert.Equal(t, http.StatusBadGateway, status, "the failure surfaces per request instead")
 }
 
 // fetchConfig reads the configuration Caddy is currently running.
@@ -433,8 +413,8 @@ func (l liveCaddy) fetchConfig(t *testing.T) map[string]any {
 	return running
 }
 
-// routeIDs extracts the "@id" of every route Caddy is serving under Dinchy's server.
-func (l liveCaddy) routeIDs(t *testing.T, running map[string]any) []string {
+// routeHosts extracts the host every route Caddy is serving under Dinchy's server matches.
+func (l liveCaddy) routeHosts(t *testing.T, running map[string]any) []string {
 	t.Helper()
 	apps, ok := running["apps"].(map[string]any)
 	require.True(t, ok)
@@ -447,13 +427,25 @@ func (l liveCaddy) routeIDs(t *testing.T, running map[string]any) []string {
 	routes, ok := server["routes"].([]any)
 	require.True(t, ok)
 
-	ids := make([]string, 0, len(routes))
+	hosts := make([]string, 0, len(routes))
 	for _, entry := range routes {
-		if route, ok := entry.(map[string]any); ok {
-			if id, ok := route["@id"].(string); ok {
-				ids = append(ids, id)
+		route, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		matches, ok := route["match"].([]any)
+		if !ok || len(matches) == 0 {
+			continue
+		}
+		match, ok := matches[0].(map[string]any)
+		if !ok {
+			continue
+		}
+		if matched, ok := match["host"].([]any); ok && len(matched) > 0 {
+			if host, ok := matched[0].(string); ok {
+				hosts = append(hosts, host)
 			}
 		}
 	}
-	return ids
+	return hosts
 }
