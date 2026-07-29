@@ -91,7 +91,7 @@ func TestCORS_RejectsTheViteDevServerOrigin(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodPost, "https://app.example.test/api/auth/login", http.NoBody)
-	req.Header.Set("Origin", "http://127.0.0.1:5173")
+	req.Header.Set("Origin", "http://127.0.0.1:3000")
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)

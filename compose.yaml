@@ -1,6 +1,7 @@
 # Local development infrastructure for Dinchy: Postgres + Redis + Mailpit.
 # Run via `mise run infra:up` (podman-compose — drives podman directly, no Docker daemon).
 # Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT / DINCHY_MAILPIT_*_PORT.
+# The defaults below match .env.example; keep the two in step.
 #
 # Postgres and Redis run plaintext on loopback (dev only) — mounting TLS keys into
 # rootless-podman containers is not worth the friction locally. Caddy still terminates
@@ -13,15 +14,19 @@
 # `mise run caddy:dev`, matching the host-native systemd unit used in production.
 services:
   postgres:
-    image: docker.io/library/postgres:16
+    image: docker.io/library/postgres:18
     ports:
-      - "${DINCHY_POSTGRES_PORT:-5433}:5432"
+      - "${DINCHY_POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: dinchy
       POSTGRES_PASSWORD: change-me
       POSTGRES_DB: dinchy
     volumes:
-      - dinchy-pg:/var/lib/postgresql/data
+      # From Postgres 18 the image's PGDATA is version-specific
+      # (/var/lib/postgresql/18/docker), so the mount point is the parent directory. Mounting
+      # /var/lib/postgresql/data instead would leave the real data directory in the
+      # container's writable layer, discarded on every recreate.
+      - dinchy-pg:/var/lib/postgresql
   redis:
     # 8.4+ required: the event bus uses XREADGROUP ... CLAIM (matches deploy quadlet).
     image: docker.io/library/redis:8.4

@@ -18,7 +18,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:8080", cfg.Addr)
 	assert.Equal(t, "127.0.0.1:9090", cfg.InternalAddr)
 	assert.Equal(t, "postgres://postgres:postgres@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
-	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
+	assert.Equal(t, "http://127.0.0.1:3000", cfg.DevProxyURL)
 	assert.False(t, cfg.DevMode)
 	assert.True(t, cfg.Caddy.Enabled)
 	assert.Equal(t, "127.0.0.1:2019", cfg.Caddy.AdminEndpoint)
@@ -53,7 +53,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	t.Setenv("DINCHY_INTERNAL_ADDR", "127.0.0.1:8888")
 	t.Setenv("DINCHY_POSTGRES_DSN", "postgres://test:test@localhost:5432/dinchy?sslmode=disable")
 	t.Setenv("DINCHY_DEV", "true")
-	t.Setenv("DINCHY_DEV_PROXY_URL", "http://localhost:3000")
+	t.Setenv("DINCHY_DEV_PROXY_URL", "http://localhost:4000")
 	t.Setenv("DINCHY_GITHUB_CLIENT_ID", "client")
 	t.Setenv("DINCHY_GITHUB_CLIENT_SECRET", "secret")
 	t.Setenv("DINCHY_GITHUB_CALLBACK_URL", "https://app.example.com/api/auth/sso/github/callback")
@@ -88,7 +88,7 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:8888", cfg.InternalAddr)
 	assert.Equal(t, "postgres://test:test@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
 	assert.True(t, cfg.DevMode)
-	assert.Equal(t, "http://localhost:3000", cfg.DevProxyURL)
+	assert.Equal(t, "http://localhost:4000", cfg.DevProxyURL)
 	require.Len(t, cfg.SSOProviders, 1)
 	assert.Equal(t, config.SSOProviderGitHub, cfg.SSOProviders[0].ID)
 	assert.Equal(t, "custom_session", cfg.Session.SessionCookieName)
@@ -139,12 +139,12 @@ func TestLoad_InvalidDevProxyURL_Fails(t *testing.T) {
 func TestLoad_DevMode_DefaultProxyURLPassesValidation(t *testing.T) {
 	clearDinchyEnv(t)
 	t.Setenv("DINCHY_DEV", "true")
-	// DevProxyURL intentionally not set — default "http://127.0.0.1:5173" must satisfy required_if.
+	// DevProxyURL intentionally not set — default "http://127.0.0.1:3000" must satisfy required_if.
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	assert.True(t, cfg.DevMode)
-	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
+	assert.Equal(t, "http://127.0.0.1:3000", cfg.DevProxyURL)
 }
 
 func TestLoad_InvalidLoggingConfig_Fails(t *testing.T) {
@@ -279,13 +279,13 @@ func TestLoad_AcceptsLoopbackAddr(t *testing.T) {
 
 func TestFrontendUpstream(t *testing.T) {
 	clearDinchyEnv(t)
-	t.Setenv("DINCHY_DEV_PROXY_URL", "http://127.0.0.1:5173")
+	t.Setenv("DINCHY_DEV_PROXY_URL", "http://127.0.0.1:3000")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
 	// Caddy needs a dial address, not a URL, because it proxies to Vite itself.
-	assert.Equal(t, "127.0.0.1:5173", cfg.FrontendUpstream())
+	assert.Equal(t, "127.0.0.1:3000", cfg.FrontendUpstream())
 }
 
 func TestLoad_FrontendRootDefault(t *testing.T) {

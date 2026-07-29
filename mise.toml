@@ -17,12 +17,16 @@ lefthook = "2.1.9"
 uv = "latest"
 "pipx:podman-compose" = "1.6.0"
 
-# .env holds your working config, .env.local optional overrides that win over .env.
+# .env is the single source of truth for local config; `.zed/debug.json` loads the same file.
 [env]
-_.file = [".env", ".env.local"]
+_.file = ".env"
 
 [tasks]
 dev = "go run ./cmd/dinchy"
+# Bring the datastores up, wait for Postgres, and migrate — everything the backend needs
+# before `mise run dev` or the Zed debugger. Caddy and Vite stay separate processes.
+# The steps run in order; `depends` alone would let them run concurrently.
+"dev:up" = { depends = ["infra:up"], run = ["mise run infra:wait", "mise run db:migrate"] }
 # Issue Mailpit's STARTTLS cert with mkcert. Caddy needs nothing from this: it signs its
 # own dev certificates with its internal CA (see caddy:trust).
 "dev:certs" = "bash deploy/certs/gen-dev-certs.sh"
@@ -44,6 +48,19 @@ dev = "go run ./cmd/dinchy"
 "infra:up" = "podman-compose up -d"
 "infra:down" = "podman-compose down"
 "infra:logs" = "podman-compose logs -f"
+# Block until Postgres accepts connections, so a migration or a debugger launch does not race
+# a cold container. It waits on goose rather than pg_isready to exercise the exact DSN the app
+# uses, with no dependency on the container's name.
+"infra:wait" = '''
+for _ in $(seq 1 30); do
+	if goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status >/dev/null 2>&1; then
+		exit 0
+	fi
+	sleep 1
+done
+echo "Postgres did not accept connections on $DINCHY_POSTGRES_DSN within 30s; the error was:" >&2
+goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status
+'''
 build = "go build -o dinchy ./cmd/dinchy"
 test = "go test ./..."
 # The race detector requires cgo; the app itself stays cgo-free, so race is an

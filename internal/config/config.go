@@ -88,7 +88,7 @@ func Load() (Config, error) {
 		Addr:          "127.0.0.1:8080",
 		InternalAddr:  "127.0.0.1:9090",
 		SecureCookies: true,
-		DevProxyURL:   "http://127.0.0.1:5173",
+		DevProxyURL:   "http://127.0.0.1:3000",
 		FrontendRoot:  "web/dist",
 		Caddy:         DefaultCaddy(),
 		Database:      DefaultDatabase(),

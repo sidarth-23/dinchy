@@ -1,11 +1,12 @@
 [
+  // Startup order for local development, top to bottom: datastores, then Caddy, then Vite,
+  // then the backend (normally launched from .zed/debug.json instead of the task below).
   {
-    "label": "dinchy: dev",
+    "label": "dinchy: dev up",
     "command": "mise",
-    "args": ["run", "dev"],
+    "args": ["run", "dev:up"],
     "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always",
-    "use_new_terminal": true
+    "reveal": "always"
   },
   {
     "label": "dinchy: caddy",
@@ -16,9 +17,32 @@
     "use_new_terminal": true
   },
   {
+    "label": "web: dev",
+    "command": "mise",
+    "args": ["run", "web:dev"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "use_new_terminal": true
+  },
+  {
+    "label": "dinchy: dev",
+    "command": "mise",
+    "args": ["run", "dev"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "use_new_terminal": true
+  },
+  {
     "label": "dinchy: caddy build",
     "command": "mise",
     "args": ["run", "caddy:build"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "dinchy: caddy trust",
+    "command": "mise",
+    "args": ["run", "caddy:trust"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always"
   },
@@ -86,14 +110,6 @@
     "args": ["run", "generate"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always"
-  },
-  {
-    "label": "web: dev",
-    "command": "mise",
-    "args": ["run", "web:dev"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always",
-    "use_new_terminal": true
   },
   {
     "label": "web: build",

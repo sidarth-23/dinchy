@@ -102,25 +102,41 @@ curl -fsSL https://dinchy.com/install.sh | bash
 
 ## Development
 
-This project uses [mise](https://mise.jdx.dev/) to manage all tooling. First-time setup:
+This project uses [mise](https://mise.jdx.dev/) to manage all tooling. Run the one-time
+setup once per machine:
 
 ```bash
 mise install               # install pinned Go, Bun, Node, dlv, mkcert, xcaddy
 cp .env.example .env       # your local config (gitignored) — edit as needed
-mise run caddy:trust       # trust Caddy's local CA, so dev HTTPS has no warning (one-time; sudo)
-mise run dev:certs         # mkcert: Mailpit's STARTTLS cert (one-time; needs sudo)
-mise run infra:up          # start Postgres + Redis + Mailpit
-mise run db:migrate        # apply database migrations
-mise run caddy:dev         # terminal 1: Caddy, which terminates TLS and routes
-mise run dev               # terminal 2: the API — colored, human-readable logs
-mise run web:dev           # terminal 3: Vite, once web/ exists
+mise run caddy:trust       # trust Caddy's local CA, so dev HTTPS has no warning (sudo)
+mise run dev:certs         # mkcert: Mailpit's STARTTLS cert (sudo)
 ```
 
-> **Upgrading an existing checkout?** Merge the `--- Server ---` and `--- Caddy ---` blocks
-> from `.env.example` into your `.env`. `DINCHY_ADDR` moved from `:8443` to `:8080`, the
-> `DINCHY_TLS_*` variables are gone, and `DINCHY_CADDY_AUTOMATIC_HTTPS` / `_CERT_FILE` /
-> `_KEY_FILE` / `_RECONCILE_INTERVAL` were replaced by `DINCHY_CADDY_TLS_ISSUER=internal`.
-> Run `mise run caddy:trust` once; Caddy now issues its own dev certificates.
+Then, every session, four independent processes. They are separate on purpose: only the
+backend restarts in a normal edit-debug cycle, so the edge, the datastores and the frontend
+keep their state.
+
+| # | Process | Start it with | Listens on |
+|---|---------|---------------|------------|
+| 1 | Postgres + Redis + Mailpit | `mise run dev:up` | 5432 / 6380 / 1025 + 8025 |
+| 2 | Caddy — terminates TLS | `mise run caddy:dev` | `:8443` HTTPS, `127.0.0.1:2019` admin |
+| 3 | Vite dev server | `mise run web:dev` | `127.0.0.1:3000` |
+| 4 | Go backend | `mise run dev`, or the Zed debugger | `127.0.0.1:8080` plaintext |
+
+`mise run dev:up` brings the containers up, waits until Postgres actually accepts
+connections, and applies migrations — so nothing downstream races a cold container. Steps 2,
+3 and 4 each want their own terminal, **in that order** (see "Start Caddy before Dinchy"
+below). Then open **https://localhost:8443**.
+
+> **Upgrading an existing checkout?** Re-copy `.env.example` over your `.env` rather than
+> patching it: `DINCHY_ADDR` moved from `:8443` to `:8080`, the `DINCHY_TLS_*` variables are
+> gone, `DINCHY_CADDY_AUTOMATIC_HTTPS` / `_CERT_FILE` / `_KEY_FILE` / `_RECONCILE_INTERVAL`
+> were replaced by `DINCHY_CADDY_TLS_ISSUER=internal`, and the whole `--- Caddy ---` block is
+> new. A variable the app no longer reads is ignored in silence, so a partially-merged `.env`
+> fails as a production-shaped default (ACME on `:443`) rather than as an error. Run
+> `mise run caddy:trust` once; Caddy now issues its own dev certificates. Local Postgres also
+> moved to 18, which cannot start a data directory written by an older major version — run
+> `podman volume rm dinchy_dinchy-pg` before `mise run dev:up` to reinitialize it.
 
 **Caddy terminates all TLS, exactly like production.** Open **https://localhost:8443** —
 Caddy serves it with a certificate it signed itself, per host, using its built-in local CA
@@ -159,16 +175,24 @@ system store that the Go SMTP client can verify against. Caddy needs nothing fro
 `mise run caddy:trust` installs its own CA root instead. Development therefore has two
 local authorities; production has neither, because it uses ACME with a real domain.
 
-`.env.example` is the only committed template. Copy it to `.env` (gitignored) for your
-working config — including `DINCHY_LOG_FORMAT=text`, which produces colored, human-readable
-logs in a terminal, and the Postgres DSN. An optional `.env.local` (also gitignored) can
-hold personal overrides; mise loads both, with `.env.local` winning over `.env`.
+**`.env` is the single source of truth for local configuration**, and `.env.example` is the
+only committed template. Copy it to `.env` (gitignored) for your working config — including
+`DINCHY_LOG_FORMAT=text`, which produces colored, human-readable logs in a terminal, and the
+Postgres DSN. Both mise (`[env] _.file` in `mise.toml`) and the Zed debugger (`envFile` in
+`.zed/debug.json`) load exactly that one file, so there is one place to look when a value
+looks wrong.
+
+The binary itself never reads `./.env`: `config.Load` resolves `DINCHY_ENV_FILE`, then
+`~/.config/dinchy/dinchy.env`, then `/etc/dinchy/dinchy.env` (see
+[`internal/config/env.go`](internal/config/env.go)). That is why `./dinchy` run by hand,
+outside mise, gets none of your local config — use `mise run dev` or the debugger.
 
 Local Postgres + Redis run from `compose.yaml` via **podman-compose** (a mise-managed tool
 that drives podman directly — no Docker daemon or socket). The host ports are **configurable
 via env**: `compose.yaml` interpolates `DINCHY_POSTGRES_PORT` / `DINCHY_REDIS_PORT` from
-`.env` (default `5433` / `6380`, to avoid clashing with anything already on `5432` / `6379`).
-Keep the DSN / `DINCHY_REDIS_ADDR` ports in sync with those keys.
+`.env`, defaulting to `5432` / `6380` — Redis is off its usual port because a system Redis
+commonly holds it. Move Postgres the same way if you already run one locally, and keep the
+DSN / `DINCHY_REDIS_ADDR` ports in sync with those keys.
 
 > **WSL2 note:** if `mise run infra:up` fails with `netavark: nftables error`, uncomment
 > `NETAVARK_FW=none` in your `.env` (nftables is unusable on some WSL2 kernels; rootless
@@ -178,8 +202,10 @@ Keep the DSN / `DINCHY_REDIS_ADDR` ports in sync with those keys.
 Everyday tasks:
 
 ```bash
-mise run caddy:dev    # run Caddy FIRST: terminates TLS on :8443 and routes to the backend
-mise run dev          # run the Go backend (plaintext on 127.0.0.1:8080, fronted by Caddy)
+mise run dev:up       # infra up, wait for Postgres, migrate — run this first
+mise run caddy:dev    # then Caddy: terminates TLS on :8443 and routes to the backend
+mise run web:dev      # then Vite on 127.0.0.1:3000, reached through Caddy
+mise run dev          # then the Go backend (plaintext on 127.0.0.1:8080, fronted by Caddy)
 mise run caddy:build  # build Caddy from cmd/caddy into tmp/caddy
 mise run caddy:version # the pinned Caddy version, for building a plugin with xcaddy
 mise run caddy:trust  # install Caddy's local CA root into the system trust store
@@ -191,6 +217,7 @@ mise run build        # build the production binary
 mise run generate     # regenerate generated Go code and sqlc queries
 mise run db:migrate   # run database migrations against DINCHY_POSTGRES_DSN
 mise run infra:up     # start local Postgres + Redis + Mailpit (podman-compose)
+mise run infra:wait   # block until Postgres accepts connections on DINCHY_POSTGRES_DSN
 mise run infra:down   # stop local infra
 mise run infra:logs   # follow infra logs
 ```
@@ -250,11 +277,28 @@ configuration is lost and Dinchy does not need to be running.
 ### Debugging in Zed
 
 `.zed/debug.json` defines a **dinchy (dev)** configuration that launches `cmd/dinchy` under
-Delve (`dlv`, installed by `mise install`). Set a breakpoint and start that configuration;
-its environment is loaded entirely from `.env` + `.env.local` via `envFile`, so nothing
-sensitive is committed and edits to those files take effect on the next launch.
-`.zed/tasks.json` also exposes the mise tasks (dev, infra up/down, migrate, test, …) in
-Zed's task runner (`task: spawn`).
+Delve (`dlv`, installed by `mise install`). Its environment comes entirely from `.env` via
+`envFile`, so nothing sensitive is committed and edits take effect on the next launch.
+
+Only the backend runs under the debugger — the other three processes are ordinary tasks, and
+`.zed/tasks.json` exposes them in Zed's task runner (`task: spawn`) in startup order:
+
+1. **dinchy: dev up** — once per session
+2. **dinchy: caddy** — leave it running
+3. **web: dev** — leave it running
+4. **dinchy (dev)** in the debugger — the only thing you restart while working
+
+Caddy tolerates the backend coming and going: each launch re-pushes the routes, and Caddy
+keeps serving between launches. The reverse is not true, which is why it starts first.
+
+Debugging the API directly is also fine — `curl 127.0.0.1:8080/api/...` skips Caddy
+entirely. What you lose is the browser's same-origin view of the app, so anything
+cookie-dependent should go through `https://localhost:8443`.
+
+> `DINCHY_EXPOSE_INTERNAL_ERRORS=true` in `.env` adds the internal code, the cause chain
+> (including SQL errors) and the error metadata to every API response — the fastest way to
+> see why a request failed without stepping through it. It leaks internal detail by design,
+> so it belongs in local `.env` only.
 
 > **Open this repo as the Zed project root**, not a parent folder. The debug config and
 > tasks resolve paths via `$ZED_WORKTREE_ROOT`, which Zed sets to the folder you opened. If
@@ -262,17 +306,25 @@ Zed's task runner (`task: spawn`).
 > and the debugger fails with `package cmd/dinchy is not in std`. Open the directory that
 > contains this `README.md`.
 
-When the frontend exists:
+### Frontend
 
 ```bash
 mise run web:install  # install frontend dependencies (via Bun)
-mise run web:dev      # run the frontend dev server (Bun runtime)
-mise run web:build    # build production frontend assets
+mise run web:dev      # run the Vite dev server on 127.0.0.1:3000
+mise run web:build    # build production frontend assets into web/dist
 ```
 
 Bun is the primary JS runtime for this project. Node is available via mise for compatibility, but all frontend tasks run through Bun.
 
-The database is PostgreSQL only. `DINCHY_POSTGRES_DSN` is supplied by `.env.local` for local dev; set it explicitly in other environments.
+Vite's port is pinned in [`web/vite.config.ts`](web/vite.config.ts) with `strictPort`, not on
+the command line: Caddy proxies to a fixed upstream (`DINCHY_DEV_PROXY_URL`), so silently
+falling back to the next free port would show up as a blank page behind the proxy rather than
+an error at startup. The same config points HMR's WebSocket at Caddy on `:8443`, because the
+browser reaches Vite through the edge and never dials `:3000` itself.
+
+The database is PostgreSQL only, and `DINCHY_POSTGRES_DSN` is the single knob — there are no
+separate host/port/user variables. Local dev reads it from `.env`; every other environment
+sets it explicitly.
 
 ## License
 

@@ -3,6 +3,10 @@ Description=Dinchy PostgreSQL
 After=network-online.target
 
 [Container]
+# Pinned to 17 while compose.yaml runs 18 for local development: an existing data directory
+# cannot be started by a newer major version, so moving this one is a pg_upgrade migration
+# rather than a config change. The mount below is correct for 17 and earlier; from 18 the
+# image's PGDATA is version-specific and the mount point becomes /var/lib/postgresql.
 Image=docker.io/library/postgres:17
 ContainerName=dinchy-postgres
 Network=dinchy.network
