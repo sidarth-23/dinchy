@@ -47,6 +47,12 @@ godoc that documents its mechanics in depth.
 * Tests cover caller-visible behavior (error codes, metadata, responses), not implementation trivia. Name test files after the parent feature or source file they validate.
 * Usage — feature file classes, the `Resolve` pattern, config, test naming: `go doc ./internal/features`.
 
+### Comments
+
+* A comment describes the current state of the code, never its history. Do not narrate what the code used to do, what approach was replaced, or why it changed — the commit message and the diff carry that. When you change code, rewrite or delete the comment that no longer holds.
+* Never stack a comment on a comment. One comment per thing being explained; if an existing one is stale or wrong, replace it rather than annotate it.
+* A comment that exists to justify an exception, a workaround, or a surprising special case is a signal, not a solution — analyse the root cause and fix it there. It stays only when the constraint is genuinely external (a third-party contract, a protocol quirk, a platform bug), and then the comment names that external constraint, not the local symptom.
+
 ### Godoc
 
 * Every package and exported symbol carries a terse, intent-focused doc comment beginning with its name (`// Package errors ...`, `// Annotate preserves ...`), enforced by `revive`. This is the doc-comment side of "keep comments rare": inline comments stay rare, doc comments are always required.
