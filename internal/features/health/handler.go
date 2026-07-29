@@ -16,18 +16,20 @@ import (
 // API groups the health handlers and their shared dependencies.
 type API struct {
 	*features.Service
-	db Pinger
+	db     Pinger
+	checks []Check
 }
 
-// NewAPI builds the health API.
-func NewAPI(base *features.Service, db Pinger) (*API, error) {
+// NewAPI builds the health API. Each Check reports an optional subsystem's health
+// without affecting readiness.
+func NewAPI(base *features.Service, db Pinger, checks ...Check) (*API, error) {
 	if base == nil {
 		return nil, apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(errors.New("health module service is required")))
 	}
 	if err := base.Initialize(); err != nil {
 		return nil, apperrors.Annotate(err)
 	}
-	return &API{Service: base, db: db}, nil
+	return &API{Service: base, db: db, checks: checks}, nil
 }
 
 // Register mounts the health API operations on the given huma.API instance.
@@ -70,6 +72,18 @@ func (a *API) readyz(ctx context.Context, _ *struct{}) (*ReadyzOut, error) {
 	} else if err := a.db.PingContext(ctx); err != nil {
 		ready = false
 		checks["database"] = err.Error()
+	}
+
+	// Optional subsystems are reported but deliberately do not affect readiness.
+	for _, check := range a.checks {
+		if check.Name == "" || check.Degraded == nil {
+			continue
+		}
+		if reason := check.Degraded(); reason != "" {
+			checks[check.Name] = "degraded: " + reason
+			continue
+		}
+		checks[check.Name] = "ok"
 	}
 
 	status := http.StatusOK

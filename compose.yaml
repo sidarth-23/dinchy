@@ -3,10 +3,13 @@
 # Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT / DINCHY_MAILPIT_*_PORT.
 #
 # Postgres and Redis run plaintext on loopback (dev only) — mounting TLS keys into
-# rootless-podman containers is not worth the friction locally. The app still serves
-# HTTPS itself, and Mailpit still enforces STARTTLS + auth (its cert comes from
+# rootless-podman containers is not worth the friction locally. Caddy still terminates
+# HTTPS for the app, and Mailpit still enforces STARTTLS + auth (both certs come from
 # `mise run dev:certs`, mkcert). Production infra TLS is configured separately in
 # deploy/. Dev-only; production uses the systemd/quadlet units in deploy/quadlet/.
+#
+# Caddy is deliberately not a service here: it runs as a host process via
+# `mise run caddy:dev`, matching the host-native systemd unit used in production.
 services:
   postgres:
     image: docker.io/library/postgres:16

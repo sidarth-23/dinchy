@@ -23,7 +23,7 @@ func TestConstructors_StatusAndCode(t *testing.T) {
 		{"InvalidCredentials", apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthInvalidCredentials)), http.StatusUnauthorized, i18n.CodeAccountAuthInvalidCredentials},
 		{"SetupCompleted", apperrors.Conflict(i18n.Msg(i18n.CodeAccountAuthSetupCompleted, i18n.P("resource", "users"), i18n.P("count", 3))), http.StatusConflict, i18n.CodeAccountAuthSetupCompleted},
 		{"Unauthenticated", apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated)), http.StatusUnauthorized, i18n.CodeAccountAuthUnauthenticated},
-		{"HTTPSRequired", apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired)), http.StatusForbidden, i18n.CodeTransportSecurityHTTPSRequired},
+		{"PanelHostReserved", apperrors.Forbidden(i18n.Msg(i18n.CodePlatformRoutingPanelHostReserved)), http.StatusForbidden, i18n.CodePlatformRoutingPanelHostReserved},
 		{"CSRFFailed", apperrors.BadRequest(i18n.Msg(i18n.CodeTransportSecurityCSRFFailed)), http.StatusBadRequest, i18n.CodeTransportSecurityCSRFFailed},
 		{"Internal", apperrors.Internal(i18n.Msg(i18n.CodePlatformServerInternalError), apperrors.WithCause(assert.AnError)), http.StatusInternalServerError, i18n.CodePlatformServerInternalError},
 	}

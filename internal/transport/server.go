@@ -2,12 +2,8 @@
 package transport
 
 import (
-	"context"
-	"io/fs"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -26,14 +22,34 @@ import (
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
-// New creates a fully configured http.Server with middleware, the Huma API,
-// and frontend asset serving. Health and readiness endpoints live on the
-// internal server created by NewInternal, not here.
-func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, devMode, exposeInternalErrors bool, devProxyURL string, logger *slog.Logger) *http.Server {
+// APIPathPrefix is the path every API operation is mounted under. Caddy routes this
+// prefix to Dinchy and everything else to the web assets, so it is the seam between the
+// two halves of one origin.
+const APIPathPrefix = "/api"
+
+// Options carries the non-service settings the public server needs. They are grouped
+// so the several values are named at the call site instead of being positional.
+type Options struct {
+	// Addr is the plaintext listen address; Caddy proxies to it.
+	Addr string
+	// ExposeInternalErrors adds internal failure detail to error responses.
+	ExposeInternalErrors bool
+	// SecureCookies marks every cookie Secure.
+	SecureCookies bool
+	// PublicScheme is the scheme users reach the app on, used to build the expected
+	// CORS origin. It comes from configuration because Caddy terminates TLS, so the
+	// request itself cannot report the browser's scheme.
+	PublicScheme string
+}
+
+// New creates a fully configured http.Server serving the API. It does not serve the web
+// UI: Caddy delivers those assets directly, so nothing here handles a document request.
+// Health and readiness endpoints live on the internal server created by NewInternal.
+func New(opts Options, authSvc *auth.Service, sessionSvc *session.Service, auditSvc *audit.Service, logger *slog.Logger) *http.Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	renderer := render.NewRenderer(i18n.Default, exposeInternalErrors)
+	renderer := render.NewRenderer(i18n.Default, opts.ExposeInternalErrors)
 	huma.NewError = func(status int, _ string, errs ...error) huma.StatusError {
 		return renderer.ResponseFor(language.English, status, errs...)
 	}
@@ -52,13 +68,12 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 
 	r.Use(mw.RequestID())
 	r.Use(mw.Recover(logger, renderer))
-	r.Use(mw.RealIP())
 	r.Use(mw.CleanPath())
-	r.Use(mw.SecureDetect())
+	r.Use(mw.CookiePolicy(opts.SecureCookies))
 	r.Use(mw.RequestInfo())
 	r.Use(mw.Lang(i18n.Default))
-	r.Use(mw.SecureHeaders(devMode))
-	r.Use(mw.CORS(devMode, devProxyURL))
+	r.Use(mw.SecureHeaders())
+	r.Use(mw.CORS(opts.PublicScheme))
 	r.Use(mw.CSRF(renderer))
 	r.Use(session.RequestMiddleware(sessionSvc.SessionCookieName(), sessionSvc.Session))
 	r.Use(mw.Timeout(30 * time.Second))
@@ -74,27 +89,15 @@ func New(addr string, dist fs.FS, authSvc *auth.Service, sessionSvc *session.Ser
 	if auditSvc != nil {
 		audit.Register(api, auditSvc)
 	}
-	r.Mount("/api", apiRouter)
+	r.Mount(APIPathPrefix, apiRouter)
 
-	if devMode {
-		target, err := url.Parse(devProxyURL)
-		if err != nil {
-			logging.Warn(
-				context.Background(), logger, "Invalid dev proxy URL",
-				slog.String("url", devProxyURL),
-				slog.Any("error", err),
-			)
-			r.Handle("/*", http.NotFoundHandler())
-		} else {
-			proxy := httputil.NewSingleHostReverseProxy(target)
-			r.Handle("/*", proxy)
-		}
-	} else {
-		r.Handle("/*", http.FileServer(http.FS(dist)))
-	}
+	// Anything outside the API prefix is Caddy's to serve. Reaching this handler means a
+	// request bypassed Caddy or its routing is wrong, so answer plainly rather than
+	// pretending to be a web server.
+	r.Handle("/*", http.NotFoundHandler())
 
 	return &http.Server{
-		Addr:    addr,
+		Addr:    opts.Addr,
 		Handler: otelhttp.NewHandler(r, "http.server"),
 	}
 }

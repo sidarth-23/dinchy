@@ -27,6 +27,47 @@ This file is domain facts, not rules of conduct: behavioral rules live in
   assemble a `Content.CTAURL`; base URL and route paths live in one place rather
   than inside the delivery module.
 
+## Routing
+
+- **Route** (`internal/platform/caddy`) — one fully-resolved public entrypoint Caddy
+  serves: the host it answers on, an optional path prefix, the loopback upstream it
+  proxies to, its TLS mode, and its response headers. The owning module composes it; the
+  platform module only translates and applies it. The routing analogue of `Content`.
+
+- **RouteSource** (`internal/platform/caddy`) — the contribution seam. A module that owns
+  public entrypoints implements `Routes(ctx)` and registers on the `Reconciler` at app
+  wiring, mirroring `eventBusSvc.Register(auditSvc)`. Sources are **pulled** on every
+  reconcile, never pushed: pulling is what keeps the desired configuration recomputable
+  from stored state, which is the prerequisite for converging at startup and repairing
+  drift at all.
+
+- **Reconciler** (`internal/platform/caddy`) — the apply seam. `ReconcileAll` replaces
+  Caddy's whole configuration and runs once at startup; `ApplyRoute`/`RemoveRoute` address
+  a single route afterwards. The split is deliberate — replacing the whole configuration
+  makes Caddy close active streaming connections, so a routing change must never do it.
+
+- **Panel** — Dinchy's own UI and API, served as one `Route` like any deployment
+  (`DINCHY_CADDY_PANEL_HOST`). It names the reserved entrypoint: no other source may claim
+  that host, and no route may proxy to its upstream, because losing the panel means losing
+  the only interface that could repair the routing.
+
+- **Upstream** — the loopback `host:port` a `Route` proxies to. The panel API's is
+  `DINCHY_ADDR`; a deployment's is its published container port.
+
+- **Serve mode** (`caddy.ServeMode`) — whether a `Route` proxies to an Upstream or serves
+  static files from a Root. The compiled web UI uses the file mode with a `FallbackPath`, so
+  client-side routes survive a page load. The panel is therefore *two* Routes on one
+  hostname — `/api` proxying to Dinchy and the catch-all serving files — which keeps the
+  browser same-origin and so keeps `SameSite=Lax` cookies and CSRF working without CORS.
+  Within a host, a Route with a longer PathPrefix is matched first, because Caddy stops at
+  the first terminal match.
+
+- **Module set** (`internal/platform/caddy`, `ModuleSet`) — the Caddy modules compiled into
+  the installed binary, read from the binary itself rather than from the plugin manifest,
+  because the manifest records what was requested and only the binary knows what actually
+  registered. A route naming an absent module is rejected by name; an unreadable binary
+  leaves the set unknown, which skips the check rather than blocking startup.
+
 ## Transport
 
 - **Renderer** (`internal/transport/render`) — the error-response rendering seam.
@@ -34,6 +75,21 @@ This file is domain facts, not rules of conduct: behavioral rules live in
   payload (`ResponsePayload`/`ErrorResponse`) for Huma, and owns whether internal
   failure detail is exposed. Rendering lives in transport, not in `internal/errors`:
   the errors package stays foundational and free of the HTTP framework.
+
+- **Transport security is Caddy's, not the app's.** Dinchy has no notion of whether a
+  request arrived securely and no endpoint rejects one for being plaintext. Caddy is the
+  only ingress and serves only HTTPS, and `DINCHY_ADDR` is required to be a loopback
+  address — enforced at startup — so a plaintext request from the network cannot reach the
+  app at all. Two consequences to keep in mind when adding transport code: the request
+  scheme must come from configuration (`Config.PublicScheme`, used for CORS origin
+  matching), and the client address must come from `X-Forwarded-For` (read once in
+  `RequestInfo`), because it is persisted to `audit_logs.ip_address`.
+
+- **Dinchy serves no documents, only the API.** Caddy delivers the web UI, so the
+  Content-Security-Policy in `middleware.SecureHeaders` is a JSON policy —
+  `default-src 'none'` — while the document policy naming `script-src`/`connect-src` belongs
+  to whoever serves the HTML. A directive here that only a document could use is a sign of
+  confusion about which response is being protected.
 
 ## Foundation
 

@@ -11,18 +11,18 @@ import (
 	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
-func TestSecure_RoundTrip(t *testing.T) {
+func TestSecureCookies_RoundTrip(t *testing.T) {
 	t.Parallel()
-	ctx := support.WithSecure(context.Background(), true)
-	assert.True(t, support.IsSecure(ctx))
+	ctx := support.WithSecureCookies(context.Background(), true)
+	assert.True(t, support.SecureCookies(ctx))
 
-	ctx = support.WithSecure(context.Background(), false)
-	assert.False(t, support.IsSecure(ctx))
+	ctx = support.WithSecureCookies(context.Background(), false)
+	assert.False(t, support.SecureCookies(ctx))
 }
 
-func TestIsSecure_Default(t *testing.T) {
+func TestSecureCookies_Default(t *testing.T) {
 	t.Parallel()
-	assert.False(t, support.IsSecure(context.Background()))
+	assert.False(t, support.SecureCookies(context.Background()))
 }
 
 func TestRequestCookies_RoundTrip(t *testing.T) {

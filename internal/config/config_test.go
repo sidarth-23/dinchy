@@ -15,12 +15,17 @@ func TestLoad_Defaults(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	assert.Equal(t, ":8080", cfg.Addr)
-	assert.Equal(t, ":9090", cfg.InternalAddr)
+	assert.Equal(t, "127.0.0.1:8080", cfg.Addr)
+	assert.Equal(t, "127.0.0.1:9090", cfg.InternalAddr)
 	assert.Equal(t, "postgres://postgres:postgres@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
 	assert.Equal(t, "http://127.0.0.1:5173", cfg.DevProxyURL)
 	assert.False(t, cfg.DevMode)
-	assert.False(t, cfg.TLS.Enabled())
+	assert.True(t, cfg.Caddy.Enabled)
+	assert.Equal(t, "127.0.0.1:2019", cfg.Caddy.AdminEndpoint)
+	assert.Equal(t, "/usr/local/bin/caddy", cfg.Caddy.Binary)
+	assert.Equal(t, uint16(443), cfg.Caddy.HTTPSPort)
+	assert.True(t, cfg.Caddy.AutomaticHTTPS)
+	assert.False(t, cfg.Caddy.ServesOwnCertificate())
 	assert.Equal(t, "dinchy_session", cfg.Session.SessionCookieName)
 	assert.Equal(t, "dinchy_sso_state", cfg.Auth.SSOStateCookieName)
 	assert.Equal(t, 30*time.Minute, cfg.Session.SessionIdleTimeout)
@@ -45,8 +50,8 @@ func TestLoad_Defaults(t *testing.T) {
 
 func TestLoad_AllOverrides(t *testing.T) {
 	clearDinchyEnv(t)
-	t.Setenv("DINCHY_ADDR", ":9999")
-	t.Setenv("DINCHY_INTERNAL_ADDR", ":8888")
+	t.Setenv("DINCHY_ADDR", "127.0.0.1:9999")
+	t.Setenv("DINCHY_INTERNAL_ADDR", "127.0.0.1:8888")
 	t.Setenv("DINCHY_POSTGRES_DSN", "postgres://test:test@localhost:5432/dinchy?sslmode=disable")
 	t.Setenv("DINCHY_DEV", "true")
 	t.Setenv("DINCHY_DEV_PROXY_URL", "http://localhost:3000")
@@ -70,11 +75,20 @@ func TestLoad_AllOverrides(t *testing.T) {
 	t.Setenv("DINCHY_SMTP_HOST", "smtp.example.com")
 	t.Setenv("DINCHY_SMTP_FROM", "dinchy@example.com")
 	t.Setenv("DINCHY_PUBLIC_BASE_URL", "https://app.example.com")
+	t.Setenv("DINCHY_CADDY_ADMIN_ENDPOINT", "127.0.0.1:3019")
+	t.Setenv("DINCHY_CADDY_ADMIN_TIMEOUT", "10s")
+	t.Setenv("DINCHY_CADDY_BINARY", "/opt/caddy/bin/caddy")
+	t.Setenv("DINCHY_CADDY_RECONCILE_INTERVAL", "2m")
+	t.Setenv("DINCHY_CADDY_HTTPS_PORT", "8443")
+	t.Setenv("DINCHY_CADDY_PANEL_HOST", "Panel.Example.COM")
+	t.Setenv("DINCHY_CADDY_ACME_EMAIL", "ops@example.com")
+	t.Setenv("DINCHY_CADDY_STORAGE_PATH", "/srv/caddy-data")
+	t.Setenv("DINCHY_CADDY_HSTS_MAX_AGE", "48h")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	assert.Equal(t, ":9999", cfg.Addr)
-	assert.Equal(t, ":8888", cfg.InternalAddr)
+	assert.Equal(t, "127.0.0.1:9999", cfg.Addr)
+	assert.Equal(t, "127.0.0.1:8888", cfg.InternalAddr)
 	assert.Equal(t, "postgres://test:test@localhost:5432/dinchy?sslmode=disable", cfg.Database.PostgresDSN)
 	assert.True(t, cfg.DevMode)
 	assert.Equal(t, "http://localhost:3000", cfg.DevProxyURL)
@@ -96,6 +110,15 @@ func TestLoad_AllOverrides(t *testing.T) {
 	assert.Equal(t, 15*time.Second, cfg.EventBus.WorkerInterval)
 	assert.True(t, cfg.SMTP.Enabled())
 	assert.Equal(t, "https://app.example.com", cfg.PublicBaseURL)
+	assert.Equal(t, "127.0.0.1:3019", cfg.Caddy.AdminEndpoint)
+	assert.Equal(t, 10*time.Second, cfg.Caddy.AdminTimeout)
+	assert.Equal(t, "/opt/caddy/bin/caddy", cfg.Caddy.Binary)
+	assert.Equal(t, 2*time.Minute, cfg.Caddy.ReconcileInterval)
+	assert.Equal(t, uint16(8443), cfg.Caddy.HTTPSPort)
+	assert.Equal(t, "panel.example.com", cfg.Caddy.PanelHost, "panel host is lowercased so route comparisons are case-insensitive")
+	assert.Equal(t, "ops@example.com", cfg.Caddy.ACMEEmail)
+	assert.Equal(t, "/srv/caddy-data", cfg.Caddy.StoragePath)
+	assert.Equal(t, 48*time.Hour, cfg.Caddy.HSTSMaxAge)
 }
 
 func TestLoad_DevMode_AcceptsMultipleBoolFormats(t *testing.T) {
@@ -203,27 +226,124 @@ func TestLoad_MissingExplicitEnvFile_Fails(t *testing.T) {
 	require.Error(t, err, "explicit env file that doesn't exist should fail")
 }
 
-func TestLoad_TLS_BothOrNeither(t *testing.T) {
-	t.Run("both set enables TLS", func(t *testing.T) {
+func TestLoad_Caddy_CertificateRequiredWhenAutomaticHTTPSDisabled(t *testing.T) {
+	t.Run("both set serves its own certificate", func(t *testing.T) {
 		clearDinchyEnv(t)
-		t.Setenv("DINCHY_TLS_CERT_FILE", "/etc/dinchy/certs/app.crt")
-		t.Setenv("DINCHY_TLS_KEY_FILE", "/etc/dinchy/certs/app.key")
+		t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "false")
+		t.Setenv("DINCHY_CADDY_CERT_FILE", "deploy/certs/app.pem")
+		t.Setenv("DINCHY_CADDY_KEY_FILE", "deploy/certs/app-key.pem")
 		cfg, err := config.Load()
 		require.NoError(t, err)
-		assert.True(t, cfg.TLS.Enabled())
+		assert.True(t, cfg.Caddy.ServesOwnCertificate())
 	})
 	t.Run("only cert set fails", func(t *testing.T) {
 		clearDinchyEnv(t)
-		t.Setenv("DINCHY_TLS_CERT_FILE", "/etc/dinchy/certs/app.crt")
+		t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "false")
+		t.Setenv("DINCHY_CADDY_CERT_FILE", "deploy/certs/app.pem")
 		_, err := config.Load()
 		require.Error(t, err)
 	})
 	t.Run("only key set fails", func(t *testing.T) {
 		clearDinchyEnv(t)
-		t.Setenv("DINCHY_TLS_KEY_FILE", "/etc/dinchy/certs/app.key")
+		t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "false")
+		t.Setenv("DINCHY_CADDY_KEY_FILE", "deploy/certs/app-key.pem")
 		_, err := config.Load()
 		require.Error(t, err)
 	})
+	t.Run("neither needed when automatic HTTPS is on", func(t *testing.T) {
+		clearDinchyEnv(t)
+		_, err := config.Load()
+		require.NoError(t, err)
+	})
+}
+
+// TestLoad_Caddy_BlankEnvKeepsDefault pins the loader's "empty means keep the default"
+// behavior for the Caddy booleans. Blanking DINCHY_CADDY_AUTOMATIC_HTTPS does not
+// disable automatic HTTPS, so a developer who wants mkcert certs must write `false`
+// explicitly or Caddy will attempt ACME against localhost.
+func TestLoad_Caddy_BlankEnvKeepsDefault(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_CADDY_AUTOMATIC_HTTPS", "")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.Caddy.AutomaticHTTPS)
+}
+
+func TestLoad_RejectsNonLoopbackAddr(t *testing.T) {
+	// The app trusts the forwarded client address and carries no transport check of its
+	// own, so restricting who can reach the listener is the boundary that replaces one.
+	for _, addr := range []string{":8080", "0.0.0.0:8080", "10.0.0.5:8080", "[::]:8080"} {
+		t.Run(addr, func(t *testing.T) {
+			clearDinchyEnv(t)
+			t.Setenv("DINCHY_ADDR", addr)
+
+			_, err := config.Load()
+
+			require.Error(t, err)
+			assert.Contains(t, err.(interface{ Unwrap() error }).Unwrap().Error(), "DINCHY_ADDR",
+				"the message must name the variable so the fix is obvious")
+		})
+	}
+}
+
+func TestLoad_AcceptsLoopbackAddr(t *testing.T) {
+	for _, addr := range []string{"127.0.0.1:8080", "127.0.0.2:8080", "[::1]:8080"} {
+		t.Run(addr, func(t *testing.T) {
+			clearDinchyEnv(t)
+			t.Setenv("DINCHY_ADDR", addr)
+
+			_, err := config.Load()
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestFrontendUpstream(t *testing.T) {
+	clearDinchyEnv(t)
+	t.Setenv("DINCHY_DEV_PROXY_URL", "http://127.0.0.1:5173")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	// Caddy needs a dial address, not a URL, because it proxies to Vite itself.
+	assert.Equal(t, "127.0.0.1:5173", cfg.FrontendUpstream())
+}
+
+func TestLoad_FrontendRootDefault(t *testing.T) {
+	clearDinchyEnv(t)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, "web/dist", cfg.FrontendRoot)
+}
+
+func TestPublicScheme(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{"from the public base URL", "https://panel.example.com", "https"},
+		{"plaintext base URL", "http://localhost:8080", "http"},
+		// Caddy always serves HTTPS, so that is the right answer when unset.
+		{"unset defaults to https", "", "https"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearDinchyEnv(t)
+			if tt.baseURL != "" {
+				t.Setenv("DINCHY_PUBLIC_BASE_URL", tt.baseURL)
+			}
+
+			cfg, err := config.Load()
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, cfg.PublicScheme())
+		})
+	}
 }
 
 // clearDinchyEnv clears all DINCHY_ env vars so tests start from a clean baseline.
@@ -231,7 +351,7 @@ func clearDinchyEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"DINCHY_ADDR", "DINCHY_INTERNAL_ADDR", "DINCHY_POSTGRES_DSN",
-		"DINCHY_DEV", "DINCHY_DEV_PROXY_URL",
+		"DINCHY_DEV", "DINCHY_DEV_PROXY_URL", "DINCHY_FRONTEND_ROOT",
 		"DINCHY_GOOGLE_CLIENT_ID", "DINCHY_GOOGLE_CLIENT_SECRET", "DINCHY_GOOGLE_CALLBACK_URL",
 		"DINCHY_GITHUB_CLIENT_ID", "DINCHY_GITHUB_CLIENT_SECRET", "DINCHY_GITHUB_CALLBACK_URL",
 		"DINCHY_GITLAB_CLIENT_ID", "DINCHY_GITLAB_CLIENT_SECRET", "DINCHY_GITLAB_CALLBACK_URL",
@@ -247,7 +367,13 @@ func clearDinchyEnv(t *testing.T) {
 		"DINCHY_REDIS_ADDR", "DINCHY_REDIS_USERNAME",
 		"DINCHY_REDIS_PASSWORD", "DINCHY_REDIS_DATABASE", "DINCHY_REDIS_KEY_PREFIX",
 		"DINCHY_SMTP_HOST", "DINCHY_SMTP_PORT", "DINCHY_SMTP_USERNAME", "DINCHY_SMTP_PASSWORD", "DINCHY_SMTP_FROM",
-		"DINCHY_TLS_CERT_FILE", "DINCHY_TLS_KEY_FILE",
+		"DINCHY_REDIS_TLS", "DINCHY_PUBLIC_BASE_URL",
+		"DINCHY_CADDY_ENABLED", "DINCHY_CADDY_ADMIN_ENDPOINT", "DINCHY_CADDY_ADMIN_TIMEOUT",
+		"DINCHY_CADDY_BINARY", "DINCHY_CADDY_RECONCILE_INTERVAL", "DINCHY_CADDY_HTTPS_PORT",
+		"DINCHY_CADDY_PANEL_HOST", "DINCHY_CADDY_AUTOMATIC_HTTPS",
+		"DINCHY_CADDY_CERT_FILE", "DINCHY_CADDY_KEY_FILE",
+		"DINCHY_CADDY_ACME_EMAIL", "DINCHY_CADDY_ACME_CA", "DINCHY_CADDY_STORAGE_PATH",
+		"DINCHY_CADDY_HSTS_MAX_AGE", "DINCHY_CADDY_HSTS_INCLUDE_SUBDOMAINS",
 		"DINCHY_ENV_FILE",
 	} {
 		t.Setenv(key, "")

@@ -72,18 +72,23 @@
 
 **Goal:** Deployed containers are reachable via domain names with automatic HTTPS.
 
-**Caddy sidecar:**
+**Caddy sidecar** — foundation delivered (`internal/platform/caddy`):
 - Go HTTP client wrapping Caddy Admin API (`localhost:2019`)
-- Route add/update/remove on deployment change
+- Whole configuration pushed once at startup to converge Caddy with PostgreSQL, then
+  targeted per-route add/update/remove so a change never closes other routes' connections
+- `caddy.RouteSource` seam: the deployments feature contributes its routes here
+- Operator-rebuildable Caddy (`deploy/caddy/plugins.txt`) with module introspection
 
 **Domain routing UI:**
 - Per-deployment domain assignment
 - Port mapping
-- Auto-HTTPS toggle (Let's Encrypt for public, self-signed for local)
+- Auto-HTTPS toggle (ACME for public hosts; the mkcert certificate locally — one CA, not a second)
 
 **Customization:**
 - Custom headers, CORS, redirects via UI → Caddy API
-- "Advanced config" textarea for raw Caddy JSON
+- An "advanced config" escape hatch is deferred: operator-authored JSON has to be held to
+  the same invariants as generated routes (it must not shadow the panel host, overlap
+  another route, or drop the admin block), and that validation is a design task of its own
 
 **Deliverable:** Deploy nginx, assign `test.home.lab`, access via browser over HTTPS.
 

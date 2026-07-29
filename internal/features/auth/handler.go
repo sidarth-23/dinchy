@@ -194,9 +194,6 @@ func Register(h huma.API, svc *Service, sessions *session.Service, sr SettingsRe
 }
 
 func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
 		return nil, err
@@ -211,9 +208,6 @@ func (a *API) bootstrap(ctx context.Context, _ *struct{}) (*BootstrapOut, error)
 }
 
 func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	token, err := a.auth.Login(
 		ctx,
 		in.Body.Email,
@@ -234,7 +228,7 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 	if err != nil || sess == nil {
 		return nil, err
 	}
-	secure := support.IsSecure(ctx)
+	secure := support.SecureCookies(ctx)
 	out := &LoginOut{}
 	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
@@ -247,9 +241,6 @@ func (a *API) login(ctx context.Context, in *LoginIn) (*LoginOut, error) {
 }
 
 func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	sessionToken := support.CookieValueFrom(ctx, a.sessions.SessionCookieName())
 	if sessionToken != "" {
 		principal, err := a.sessions.Logout(ctx, sessionToken)
@@ -266,14 +257,11 @@ func (a *API) logout(ctx context.Context, in *LogoutIn) (*LogoutOut, error) {
 		}
 	}
 	out := &LogoutOut{}
-	out.SetCookie = *session.ClearCookie(a.sessions.SessionCookieName(), support.IsSecure(ctx))
+	out.SetCookie = *session.ClearCookie(a.sessions.SessionCookieName(), support.SecureCookies(ctx))
 	return out, nil
 }
 
 func (a *API) session(ctx context.Context, _ *struct{}) (*SessionOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	bs, err := a.settings.Bootstrap(ctx)
 	if err != nil {
 		return nil, err
@@ -297,14 +285,11 @@ func (a *API) ssoProviders(ctx context.Context, _ *struct{}) (*SSOProvidersOut, 
 }
 
 func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	authURL, cookies, err := a.auth.startSSO(ctx, in.ProviderID, in.ReturnTo, in.OrganizationSlug)
 	if err != nil {
 		return nil, err
 	}
-	secure := support.IsSecure(ctx)
+	secure := support.SecureCookies(ctx)
 	for i := range cookies {
 		cookies[i].Secure = secure
 	}
@@ -312,9 +297,6 @@ func (a *API) ssoStart(ctx context.Context, in *SSOStartIn) (*SSOStartOut, error
 }
 
 func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	if in.Error != "" {
 		return nil, apperrors.BadRequest(i18n.Msg(i18n.CodeAccountAuthSSOLoginFailed), apperrors.WithCause(errors.New(in.ErrorDetail)))
 	}
@@ -330,7 +312,7 @@ func (a *API) ssoCallback(ctx context.Context, in *SSOCallbackIn) (*SSOCallbackO
 	if err != nil {
 		return nil, err
 	}
-	secure := support.IsSecure(ctx)
+	secure := support.SecureCookies(ctx)
 	for i := range clearCookie {
 		clearCookie[i].Secure = secure
 	}
@@ -355,7 +337,7 @@ func (a *API) selectOrganization(ctx context.Context, in *SelectOrganizationIn) 
 	if err != nil {
 		return nil, err
 	}
-	out := &SelectOrganizationOut{SetCookie: []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, support.IsSecure(ctx))}}
+	out := &SelectOrganizationOut{SetCookie: []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, support.SecureCookies(ctx))}}
 	if err := a.populateAuthenticatedBody(ctx, &out.Body, sess, bs.InstanceName); err != nil {
 		return nil, err
 	}
@@ -363,9 +345,6 @@ func (a *API) selectOrganization(ctx context.Context, in *SelectOrganizationIn) 
 }
 
 func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*CreateInvitationOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	sess := session.PrincipalFrom(ctx)
 	if sess == nil {
 		return nil, apperrors.Unauthorized(i18n.Msg(i18n.CodeAccountAuthUnauthenticated))
@@ -383,9 +362,6 @@ func (a *API) createInvitation(ctx context.Context, in *CreateInvitationIn) (*Cr
 }
 
 func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*AcceptInvitationOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	token, err := a.auth.AcceptInvitation(
 		ctx,
 		in.Token,
@@ -405,7 +381,7 @@ func (a *API) acceptInvitation(ctx context.Context, in *AcceptInvitationIn) (*Ac
 	if err != nil || sess == nil {
 		return nil, err
 	}
-	secure := support.IsSecure(ctx)
+	secure := support.SecureCookies(ctx)
 	out := &AcceptInvitationOut{}
 	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false
@@ -477,9 +453,6 @@ func (a *API) totpDisable(ctx context.Context, _ *struct{}) (*TOTPConfirmOut, er
 }
 
 func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
-	if !support.IsSecure(ctx) {
-		return nil, apperrors.Forbidden(i18n.Msg(i18n.CodeTransportSecurityHTTPSRequired))
-	}
 	token, err := a.auth.SetupFirstUser(
 		ctx,
 		in.Body.Email,
@@ -499,7 +472,7 @@ func (a *API) setup(ctx context.Context, in *SetupIn) (*SetupOut, error) {
 	if err != nil || sess == nil {
 		return nil, err
 	}
-	secure := support.IsSecure(ctx)
+	secure := support.SecureCookies(ctx)
 	out := &SetupOut{}
 	out.SetCookie = []http.Cookie{*session.Cookie(a.sessions.SessionCookieName(), token, secure)}
 	out.Body.SetupRequired = false

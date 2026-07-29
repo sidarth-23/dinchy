@@ -23,7 +23,7 @@ func CSRF(renderer *render.Renderer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			secure := support.IsSecure(ctx)
+			secure := support.SecureCookies(ctx)
 
 			var token string
 			cookie, err := r.Cookie(support.CSRFCookieName)

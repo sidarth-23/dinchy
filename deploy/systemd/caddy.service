@@ -1,0 +1,28 @@
+[Unit]
+Description=Caddy reverse proxy for Dinchy
+Documentation=https://caddyserver.com/docs/
+After=network-online.target dinchy.service
+Wants=network-online.target
+# Deliberately not Requires=dinchy.service: Caddy serves the last configuration Dinchy
+# pushed, so it must keep routing traffic while the management plane is restarting.
+Wants=dinchy.service
+
+[Service]
+Type=simple
+# No --config: the configuration comes from Dinchy over the admin API, and --resume
+# restores the last one Dinchy pushed. That is what makes restarting Caddy safe after a
+# plugin rebuild, with no Dinchy involvement and no routes lost.
+ExecStart=/usr/local/bin/caddy run --resume
+ExecReload=/usr/local/bin/caddy reload --force
+# Certificates and ACME account keys live here and must be persistent: if the path
+# changes, Caddy re-registers with the CA and re-issues everything, which is a fast way
+# to hit Let's Encrypt's per-domain rate limit. Pinned explicitly rather than left to
+# Caddy's default resolution so a change to the unit cannot silently move it.
+Environment=XDG_DATA_HOME=%h/.local/share
+Environment=XDG_CONFIG_HOME=%h/.config
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=default.target

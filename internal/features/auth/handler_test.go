@@ -46,19 +46,21 @@ func newHTTPTestAPI(t *testing.T) (*API, *MockStore) {
 	return api, store
 }
 
-// testHTTPContext mirrors a request arriving through the TLS-terminating proxy:
-// requests are always secure, since auth endpoints now reject plaintext.
+// testHTTPContext mirrors a request arriving through Caddy: request metadata is present
+// and cookies are marked Secure, which the CookiePolicy middleware decides from
+// configuration rather than from the request.
 func testHTTPContext() context.Context {
-	return support.WithSecure(requestmeta.WithRequestInfo(testCtx, "127.0.0.1", "ua"), true)
+	ctx := requestmeta.WithRequestInfo(testCtx, "127.0.0.1", "ua")
+	return support.WithSecureCookies(ctx, true)
 }
 
-// registerSecure builds a humatest API whose requests are marked secure, standing
-// in for the transport SecureDetect middleware that is absent from the huma-only pipeline.
+// registerSecure builds a humatest API whose requests carry the Secure-cookie policy,
+// standing in for the CookiePolicy middleware that is absent from the huma-only pipeline.
 func registerSecure(t *testing.T, svc *Service) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
 	api.UseMiddleware(func(ctx huma.Context, next func(huma.Context)) {
-		next(huma.WithContext(ctx, support.WithSecure(ctx.Context(), true)))
+		next(huma.WithContext(ctx, support.WithSecureCookies(ctx.Context(), true)))
 	})
 	Register(api, svc, svc.sessions, testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}})
 	return api
@@ -154,7 +156,7 @@ func TestAPISetup_ReturnsSessionCookieAndBootstrapBody(t *testing.T) {
 func TestAPISession_ReturnsCurrentViewer(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := session.WithPrincipal(support.WithSecure(testCtx, true), &session.Principal{
+	ctx := session.WithPrincipal(support.WithSecureCookies(testCtx, true), &session.Principal{
 		SessionID:        testSessionID,
 		UserID:           testUserID,
 		Email:            "viewer@example.com",
@@ -183,7 +185,7 @@ func TestAPIBootstrap_Anonymous(t *testing.T) {
 	api, _ := newHTTPTestAPI(t)
 	api.settings = testSettingsReader{state: BootstrapState{SetupRequired: true, InstanceName: "dinchy"}}
 
-	out, err := api.bootstrap(support.WithSecure(context.Background(), true), &struct{}{})
+	out, err := api.bootstrap(support.WithSecureCookies(context.Background(), true), &struct{}{})
 	require.NoError(t, err)
 	assert.True(t, out.Body.SetupRequired)
 	assert.False(t, out.Body.Authenticated)
@@ -193,7 +195,7 @@ func TestAPIBootstrap_Anonymous(t *testing.T) {
 func TestAPIBootstrap_WithSession(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
-	ctx := session.WithPrincipal(support.WithSecure(context.Background(), true), &session.Principal{
+	ctx := session.WithPrincipal(support.WithSecureCookies(context.Background(), true), &session.Principal{
 		SessionID:        testSessionID,
 		UserID:           testUserID,
 		Email:            "viewer@example.com",
@@ -220,7 +222,7 @@ func TestAPILogout_ClearsCookie(t *testing.T) {
 	t.Parallel()
 	api, store := newHTTPTestAPI(t)
 	publisher := api.auth.EventPublisher.(*recordingPublisher)
-	ctx := support.WithSecure(support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.sessions.SessionCookieName(), Value: "rawtoken"}}), true)
+	ctx := support.WithSecureCookies(support.WithRequestCookies(testCtx, []*http.Cookie{{Name: api.sessions.SessionCookieName(), Value: "rawtoken"}}), true)
 
 	gomock.InOrder(
 		store.EXPECT().
@@ -246,7 +248,7 @@ func TestAPISSOStart_SetsSecureOnAllCookies(t *testing.T) {
 	svc, _ := newSSOTestService(t)
 	api := &API{auth: svc, sessions: svc.sessions, settings: testSettingsReader{state: BootstrapState{InstanceName: "dinchy"}}}
 
-	out, err := api.ssoStart(support.WithSecure(context.Background(), true), &SSOStartIn{ProviderID: "github", ReturnTo: "/dashboard"})
+	out, err := api.ssoStart(support.WithSecureCookies(context.Background(), true), &SSOStartIn{ProviderID: "github", ReturnTo: "/dashboard"})
 	require.NoError(t, err)
 	require.Len(t, out.SetCookie, 1)
 	assert.True(t, out.SetCookie[0].Secure)
@@ -284,7 +286,7 @@ func TestAPISSOCallback_SetsSecureOnSessionAndClearCookies(t *testing.T) {
 	for i := range cookies {
 		requestCookies = append(requestCookies, &cookies[i])
 	}
-	ctx := support.WithSecure(
+	ctx := support.WithSecureCookies(
 		requestmeta.WithRequestInfo(
 			support.WithRequestCookies(context.Background(), requestCookies),
 			"127.0.0.1",

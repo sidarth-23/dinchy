@@ -2,11 +2,9 @@ package transport_test
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -24,15 +22,18 @@ import (
 
 var fixedTime = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
-func newTestServer(t *testing.T, devMode bool, devProxyURL string) http.Handler {
+func newTestServer(t *testing.T) http.Handler {
 	t.Helper()
 	sharedService := features.Service{Clock: clock.Fixed(fixedTime), IDGenerator: id.NewGenerator(), CacheKeyer: cache.NewKeyer("test")}
 	sessionSvc, err := session.NewService(sharedService.Named("session"), nil, config.DefaultSession(), config.DefaultCache())
 	require.NoError(t, err)
 	svc, err := auth.NewService(sharedService.Named("auth"), nil, sessionSvc, config.DefaultAuth(), config.NewLinks(""), nil)
 	require.NoError(t, err)
-	dist := fstest.MapFS{"hello.txt": {Data: []byte("hello")}}
-	srv := transport.New(":0", dist, svc, sessionSvc, nil, devMode, false, devProxyURL, nil)
+	srv := transport.New(transport.Options{
+		Addr:          ":0",
+		SecureCookies: true,
+		PublicScheme:  "https",
+	}, svc, sessionSvc, nil, nil)
 	return srv.Handler
 }
 
@@ -44,25 +45,26 @@ func doRequest(t *testing.T, handler http.Handler, method, path string) *http.Re
 	return rr.Result()
 }
 
-func TestNew_ServesFrontend(t *testing.T) {
+// TestNew_DoesNotServeTheWebUI pins the split: Caddy delivers the assets, so a document
+// request reaching Dinchy means routing is wrong and should say so rather than be quietly
+// answered by a second file server.
+func TestNew_DoesNotServeTheWebUI(t *testing.T) {
 	t.Parallel()
-	handler := newTestServer(t, false, "")
+	handler := newTestServer(t)
 
-	resp := doRequest(t, handler, http.MethodGet, "/hello.txt")
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, "hello", string(body))
+	for _, path := range []string{"/", "/index.html", "/assets/app.js", "/some/client/route"} {
+		resp := doRequest(t, handler, http.MethodGet, path)
+		_ = resp.Body.Close()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode, "path %q must not be served here", path)
+	}
 }
 
-func TestNew_DevMode_InvalidProxyFallsBackTo404(t *testing.T) {
+func TestNew_ServesTheAPIUnderItsPrefix(t *testing.T) {
 	t.Parallel()
-	handler := newTestServer(t, true, "://bad-url")
+	handler := newTestServer(t)
 
-	resp := doRequest(t, handler, http.MethodGet, "/hello.txt")
+	resp := doRequest(t, handler, http.MethodGet, transport.APIPathPrefix+"/auth/sso/providers")
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.NotEqual(t, http.StatusNotFound, resp.StatusCode, "the API prefix must reach the Huma router")
 }

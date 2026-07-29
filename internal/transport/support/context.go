@@ -10,19 +10,25 @@ import (
 type ctxKey int
 
 const (
-	ctxKeySecure ctxKey = iota
-	ctxKeyLang
+	ctxKeyLang ctxKey = iota
 	ctxKeyCookies
+	ctxKeySecureCookies
 )
 
-// WithSecure marks whether the current request arrived over a secure (HTTPS) connection.
-func WithSecure(ctx context.Context, secure bool) context.Context {
-	return context.WithValue(ctx, ctxKeySecure, secure)
+// WithSecureCookies records whether cookies must carry the Secure attribute.
+func WithSecureCookies(ctx context.Context, secure bool) context.Context {
+	return context.WithValue(ctx, ctxKeySecureCookies, secure)
 }
 
-// IsSecure reports whether the current request arrived over HTTPS (direct TLS or trusted proxy).
-func IsSecure(ctx context.Context) bool {
-	v, _ := ctx.Value(ctxKeySecure).(bool)
+// SecureCookies reports whether cookies must carry the Secure attribute.
+//
+// This is deliberately a deployment-wide setting rather than something inferred from the
+// current request. Cookies are not scoped by port or scheme, so a cookie minted without
+// Secure over plaintext on one port overwrites the Secure cookie of the same name from
+// HTTPS on another — which presents as being logged out at random. Caddy terminates TLS
+// for every route, so the answer is a property of the installation, not of one request.
+func SecureCookies(ctx context.Context) bool {
+	v, _ := ctx.Value(ctxKeySecureCookies).(bool)
 	return v
 }
 

@@ -2,26 +2,25 @@ package middleware
 
 import (
 	"net/http"
-	"net/url"
 
 	chi_cors "github.com/go-chi/cors"
-
-	"github.com/sidarth-23/dinchy/internal/transport/support"
 )
 
-// CORS enforces same-origin requests in production and allows the configured
-// frontend dev server origin in dev mode.
-func CORS(devMode bool, devProxyURL string) func(http.Handler) http.Handler {
-	allowedDevOrigin := ""
-	if devMode {
-		if u, err := url.Parse(devProxyURL); err == nil && u.Scheme != "" && u.Host != "" {
-			allowedDevOrigin = u.Scheme + "://" + u.Host
-		}
-	}
-
+// CORS rejects requests carrying a foreign Origin.
+//
+// Caddy serves the web UI and the API under one hostname, split by path, so the browser is
+// always same-origin and no cross-origin request is legitimate. There is deliberately no
+// allowance for the Vite dev server: in development Caddy forwards to Vite on the same
+// hostname, so the browser's origin is the panel's, not Vite's.
+//
+// publicScheme is the scheme users reach the app on, taken from configuration rather than
+// from the request. Caddy terminates TLS and proxies plaintext, so the request cannot say
+// what scheme the browser used, while the Origin header carries the external scheme it has
+// to be compared against.
+func CORS(publicScheme string) func(http.Handler) http.Handler {
 	cors := chi_cors.Handler(chi_cors.Options{
 		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			return isAllowedOrigin(r, origin, allowedDevOrigin)
+			return isAllowedOrigin(r, origin, publicScheme)
 		},
 		AllowedMethods: []string{
 			http.MethodGet,
@@ -44,7 +43,7 @@ func CORS(devMode bool, devProxyURL string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			if origin != "" && !isAllowedOrigin(r, origin, allowedDevOrigin) {
+			if origin != "" && !isAllowedOrigin(r, origin, publicScheme) {
 				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 				return
 			}
@@ -53,13 +52,10 @@ func CORS(devMode bool, devProxyURL string) func(http.Handler) http.Handler {
 	}
 }
 
-func isAllowedOrigin(r *http.Request, origin, allowedDevOrigin string) bool {
-	scheme := "http"
-	if support.IsSecure(r.Context()) {
-		scheme = "https"
-	}
-	if origin == scheme+"://"+r.Host {
-		return true
-	}
-	return allowedDevOrigin != "" && origin == allowedDevOrigin
+// isAllowedOrigin accepts only the app's own origin.
+//
+// Host comes from the request because Caddy forwards the original one, port included, so a
+// panel reached on a non-default port still matches itself.
+func isAllowedOrigin(r *http.Request, origin, publicScheme string) bool {
+	return origin == publicScheme+"://"+r.Host
 }

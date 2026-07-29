@@ -357,12 +357,6 @@
               }
             },
             {
-              "name": "load_frontend_assets",
-              "translations": {
-                "en": "Load frontend assets failed"
-              }
-            },
-            {
               "name": "start_task_runtime",
               "translations": {
                 "en": "Start task runtime failed"
@@ -408,6 +402,66 @@
               "name": "event_processing",
               "translations": {
                 "en": "Event subscriber processing failed"
+              }
+            },
+            {
+              "name": "caddy_reconcile",
+              "translations": {
+                "en": "Caddy reconcile worker execution failed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "caddy",
+          "description": "Internal reverse proxy configuration failure diagnostics",
+          "messages": [
+            {
+              "name": "build_config",
+              "translations": {
+                "en": "Build Caddy configuration failed"
+              }
+            },
+            {
+              "name": "load_request",
+              "translations": {
+                "en": "Load Caddy configuration failed"
+              }
+            },
+            {
+              "name": "put_route_request",
+              "translations": {
+                "en": "Apply Caddy route failed"
+              }
+            },
+            {
+              "name": "delete_route_request",
+              "translations": {
+                "en": "Remove Caddy route failed"
+              }
+            },
+            {
+              "name": "read_config",
+              "translations": {
+                "en": "Read Caddy configuration failed"
+              }
+            },
+            {
+              "name": "collect_routes",
+              "translations": {
+                "en": "Collect routes for Caddy failed"
+              }
+            },
+            {
+              "name": "reconcile",
+              "translations": {
+                "en": "Caddy reconcile failed"
+              }
+            },
+            {
+              "name": "list_modules",
+              "translations": {
+                "en": "Read Caddy module list failed"
               }
             }
           ]

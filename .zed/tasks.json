@@ -8,6 +8,21 @@
     "use_new_terminal": true
   },
   {
+    "label": "dinchy: caddy",
+    "command": "mise",
+    "args": ["run", "caddy:dev"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "use_new_terminal": true
+  },
+  {
+    "label": "dinchy: caddy build",
+    "command": "mise",
+    "args": ["run", "caddy:build"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
     "label": "dinchy: infra up",
     "command": "mise",
     "args": ["run", "infra:up"],

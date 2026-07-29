@@ -4,6 +4,11 @@ Documentation=https://github.com/sidarth-23/dinchy
 After=network-online.target postgres.service redis.service
 Wants=network-online.target
 Requires=postgres.service redis.service
+# Caddy is pulled in but never required: if routing breaks, Dinchy is the only thing
+# that can repair it, so its failure must not stop the management plane. Dinchy starts
+# first and pushes the configuration to Caddy over the admin API.
+Wants=caddy.service
+Before=caddy.service
 
 [Service]
 Type=simple

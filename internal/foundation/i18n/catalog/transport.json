@@ -21,12 +21,6 @@
           "description": "Transport security messages",
           "messages": [
             {
-              "name": "https_required",
-              "translations": {
-                "en": "This endpoint requires a secure (HTTPS) connection."
-              }
-            },
-            {
               "name": "csrf_failed",
               "translations": {
                 "en": "Missing or invalid CSRF token."

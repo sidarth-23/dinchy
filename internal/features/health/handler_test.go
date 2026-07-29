@@ -25,15 +25,25 @@ func (p fakePinger) PingContext(context.Context) error {
 	return p.err
 }
 
-func newTestHandler(t *testing.T, db Pinger) http.Handler {
+func newTestHandler(t *testing.T, db Pinger, checks ...Check) http.Handler {
 	t.Helper()
 	r := chi.NewRouter()
 	api := humachi.New(r, huma.DefaultConfig("Dinchy Internal API", "0.1.0"))
 	base := (&features.Service{Clock: clock.System{}}).Named("health")
-	healthAPI, err := NewAPI(base, db)
+	healthAPI, err := NewAPI(base, db, checks...)
 	require.NoError(t, err)
 	healthAPI.Register(api)
 	return r
+}
+
+// readyz issues a readiness request and decodes the payload.
+func readyz(t *testing.T, handler http.Handler) (int, ReadyzBody) {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody))
+	var body ReadyzBody
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
+	return rr.Code, body
 }
 
 func TestAPIName(t *testing.T) {
@@ -85,4 +95,44 @@ func TestReadyz_Unhealthy(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
 	assert.False(t, body.Ready)
 	assert.Equal(t, assert.AnError.Error(), body.Checks["database"])
+}
+
+// TestReadyz_DegradedCheckStaysReady pins the contract that keeps the management plane
+// reachable: a broken reverse proxy is reported, but must not make the process unready,
+// because restarting Dinchy is not how a routing fault gets fixed.
+func TestReadyz_DegradedCheckStaysReady(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, fakePinger{}, Check{
+		Name:     "caddy",
+		Degraded: func() string { return "the reverse proxy is not reachable" },
+	})
+
+	code, body := readyz(t, handler)
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.True(t, body.Ready)
+	assert.Equal(t, "degraded: the reverse proxy is not reachable", body.Checks["caddy"])
+}
+
+func TestReadyz_HealthyCheckIsReportedOK(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, fakePinger{}, Check{
+		Name:     "caddy",
+		Degraded: func() string { return "" },
+	})
+
+	code, body := readyz(t, handler)
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, "ok", body.Checks["caddy"])
+}
+
+func TestReadyz_IncompleteCheckIsIgnored(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, fakePinger{}, Check{Name: "caddy"}, Check{Degraded: func() string { return "x" }})
+
+	code, body := readyz(t, handler)
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.NotContains(t, body.Checks, "caddy")
 }
