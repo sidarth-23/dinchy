@@ -13,7 +13,10 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
 )
 
-//go:generate mockgen -self_package=github.com/sidarth-23/dinchy/internal/features/auth -destination=store_mockdata_test.go -package=auth . Store
+// The mock covers the whole query surface rather than Store alone: SetupFirstUser runs
+// the auth and session writes in one transaction, so the tests hand a single mock to both
+// this feature's service and the session service.
+//go:generate go tool mockgen -destination=store_mockdata_test.go -package=auth -mock_names=Querier=MockStore github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen Querier
 
 // AccountProvider identifies the authentication provider backing an account.
 type AccountProvider string

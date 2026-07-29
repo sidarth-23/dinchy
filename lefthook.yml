@@ -1,35 +1,78 @@
 # Git hooks install automatically via `mise install` (see the [hooks] postinstall in mise.toml).
+#
+# Pre-commit jobs are scoped to what changed: every job declares the sources *and* the
+# generated targets it owns, so staging a stale generated file re-runs its generator.
+# Generation is the validation gate too — cmd/codegen runs the same manifest.Validate*
+# checks before it writes. The exhaustive whole-repo checks live in pre-push.
 pre-commit:
     jobs:
-        - name: validate and generate
+        - name: generate
           group:
-              parallel: true
+              # Sequential: each job stages its own output, and concurrent `git add` calls
+              # contend on .git/index.lock.
               jobs:
-                  - name: validate event catalog
-                    glob: "internal/features/*/events.json"
-                    run: go run ./cmd/validate event -features internal/features
+                  - name: event catalog
+                    glob:
+                        - internal/features/*/events.json
+                        - internal/features/*/events_generated.go
+                    run: go generate ./internal/platform/events && git add internal/features/*/events_generated.go
 
-                  - name: validate i18n catalog
-                    glob: "internal/foundation/i18n/catalog/**/*.json"
-                    run: go run ./cmd/validate i18n -input internal/foundation/i18n/catalog
+                  - name: i18n catalog
+                    glob:
+                        # Flat by contract: manifest.LoadI18nCatalogDir globs catalog/*.json
+                        # and never recurses.
+                        - internal/foundation/i18n/catalog/*.json
+                        - internal/foundation/i18n/generated.go
+                    run: go generate ./internal/foundation/i18n && git add internal/foundation/i18n/generated.go
 
-                  - name: validate permission catalog
-                    glob: "internal/foundation/permission/{permissions,roles}.json"
-                    run: go run ./cmd/validate permission
+                  - name: permission catalog
+                    glob:
+                        - internal/foundation/permission/{permissions,roles}.json
+                        - internal/foundation/permission/{permission,role}_generated.go
+                        # Permission generation resolves every MessageCode against the i18n
+                        # catalog, so an i18n edit can invalidate the permission manifest.
+                        - internal/foundation/i18n/catalog/*.json
+                    run: go generate ./internal/foundation/permission && git add internal/foundation/permission/permission_generated.go internal/foundation/permission/role_generated.go
 
-                  - name: coderules logreturn
-                    glob: "*.go"
-                    run: go run ./cmd/coderules logreturn ./...
-
-                  - name: generate catalogs
-                    glob: "internal/{features/*/events.json,foundation/i18n/catalog/**/*.json,access/permission/{permissions,roles}.json}"
-                    run: go generate ./internal/foundation/i18n ./internal/platform/events ./internal/foundation/permission && git add internal/features/*/events_generated.go internal/foundation/i18n/generated.go internal/foundation/permission/permission_generated.go internal/foundation/permission/role_generated.go
-
-                  - name: generate sqlc
-                    glob: "{sqlc.yaml,internal/platform/store/queries/*,internal/platform/store/migrations/*}"
+                  - name: sqlc
+                    glob:
+                        - sqlc.yaml
+                        - internal/platform/store/queries/*
+                        - internal/platform/store/migrations/*
+                        - internal/platform/store/sqlcgen/*
                     run: mise exec -- sqlc generate && git add internal/platform/store/sqlcgen
+
+        - name: coderules logreturn
+          glob: "*.go"
+          # Mirrors the skips inside cmd/coderules, so a commit touching only these paths
+          # does not pay for loading packages that produce no findings.
+          exclude:
+              - "*_test.go"
+              - internal/platform/store/sqlcgen/*
+              - internal/platform/logging/*
+          # The rule is intra-function, so scanning only the changed packages yields the
+          # same verdict as ./... for the code that changed. pre-push covers the rest.
+          run: printf '%s\n' {staged_files} | xargs -r -n1 dirname | sort -u | sed 's|^|./|' | xargs -r go run ./cmd/coderules logreturn
 
         - name: golangci-lint
           glob: "*.go"
           run: for dir in $(printf '%s\n' {staged_files} | xargs -n1 dirname | sort -u); do mise run lint:fix -- --new-from-rev=HEAD "$dir" || exit $?; done
           stage_fixed: true
+
+# The exhaustive gate. Deliberately unscoped: it catches violations in packages the commit
+# never touched, and any generator not fast-pathed above — including newly added ones.
+pre-push:
+    jobs:
+        - name: coderules logreturn
+          run: mise run lint:logreturn
+
+        # Compares a working-tree snapshot across the run rather than asking for a clean
+        # tree, so unrelated uncommitted edits do not fail the push.
+        - name: generators up to date
+          run: |
+              before=$(git status --porcelain; git diff)
+              mise run generate
+              if [ "$before" != "$(git status --porcelain; git diff)" ]; then
+                  echo "generated files are out of date; commit the output of 'mise run generate'" >&2
+                  exit 1
+              fi

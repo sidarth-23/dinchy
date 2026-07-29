@@ -14,9 +14,8 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-
 	sqlcgen "github.com/sidarth-23/dinchy/internal/platform/store/sqlcgen"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockStore is a mock of Store interface.

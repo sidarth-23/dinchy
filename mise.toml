@@ -49,8 +49,11 @@ test = "go test ./..."
 "test:cover" = "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
 lint = "golangci-lint run"
 "lint:fix" = "golangci-lint run --fix"
+"lint:logreturn" = "go run ./cmd/coderules logreturn ./..."
 fmt = "golangci-lint fmt"
-generate = "go generate ./internal/foundation/errors ./internal/foundation/i18n ./internal/platform/events ./internal/foundation/permission && sqlc generate"
+# Whole-codebase on purpose: a new //go:generate directive is picked up without editing
+# this task. The pre-commit hook scopes generation per catalog; this is the exhaustive run.
+generate = "go generate ./... && sqlc generate"
 "db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
 "db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
 "web:build" = { dir = "web", run = "bun run build" }
