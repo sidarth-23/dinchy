@@ -59,12 +59,25 @@ pre-commit:
           run: for dir in $(printf '%s\n' {staged_files} | xargs -n1 dirname | sort -u); do mise run lint:fix -- --new-from-rev=HEAD "$dir" || exit $?; done
           stage_fixed: true
 
+        # `root` both scopes the job to the frontend and makes {staged_files} relative to
+        # web/, which is how Biome discovers web/biome.json through its normal upward search.
+        - name: biome
+          root: "web/"
+          glob: "*.{ts,tsx,js,jsx,json,jsonc,css,html}"
+          run: mise exec -- bun run check:fix --no-errors-on-unmatched {staged_files}
+          stage_fixed: true
+
 # The exhaustive gate. Deliberately unscoped: it catches violations in packages the commit
 # never touched, and any generator not fast-pathed above — including newly added ones.
 pre-push:
     jobs:
         - name: coderules logreturn
           run: mise run lint:logreturn
+
+        # Biome does not typecheck, so the only gate on a type error is tsc. Unscoped for the
+        # same reason as the jobs around it: a change in one file can break types in another.
+        - name: web typecheck
+          run: mise run web:typecheck
 
         # Compares a working-tree snapshot across the run rather than asking for a clean
         # tree, so unrelated uncommitted edits do not fail the push.

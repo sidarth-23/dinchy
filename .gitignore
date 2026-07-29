@@ -1,42 +1,48 @@
-# Go
+# Go build output
 /dinchy
 /dinchy-update
+dinchy.old
+/vendor/
+/dist/
+tmp
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+
+# Go test and coverage artifacts
 *.test
 *.out
-/vendor/
-/dist/
-tmp
+
+# Delve debug binaries (Zed/dlv `mode: debug` drops these in the repo root)
+/__debug_bin*
+
+# Frontend (web/) — dependencies, build output, and tool caches
+web/node_modules/
+web/dist/
+web/.tanstack/
+web/**/*.local
 
 # Local dev env files — only *.example templates are committed
 /.env
 /.env.*
 !/.env*.example
+web/.env
+web/.env.*
+!web/.env*.example
 
 # Local dev TLS material from mkcert (never committed; the generator script is tracked)
 /deploy/certs/*.pem
 
-# Frontend
-web/node_modules/
-web/dist/
-web/.env
-web/.env.local
-
-# Runtime
+# Runtime data
 *.db
 *.db-shm
 *.db-wal
-dinchy.old
 
-# Editor
+# Editor and OS
 .vscode/
 .idea/
+.DS_Store
 *.swp
 *.swo
-
-# Delve debug binaries (Zed/dlv `mode: debug` drops these in the repo root)
-/__debug_bin*

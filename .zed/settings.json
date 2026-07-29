@@ -1,68 +1,91 @@
 {
-    "languages": {
-        "JSON": {
-            "tab_size": 2,
-            "preferred_line_length": 120,
-            "formatter": "prettier"
-        },
-        "JSONC": {
-            "tab_size": 2,
-            "preferred_line_length": 120,
-            "formatter": "prettier"
-        },
-        "Go": {
-            "formatter": "language_server",
-            "format_on_save": "on"
-        },
-        "Go Text Template": {
-            "hard_tabs": true
-        },
-        "Go HTML Template": {
-            "hard_tabs": false,
-            "tab_size": 2
-        }
+  "languages": {
+    "JSON": {
+      "preferred_line_length": 120,
+      "formatter": "prettier"
     },
-    "file_types": {
-        "Go Text Template": ["**/*.go.tmpl", "**/*.txt.tmpl"],
-        "Go HTML Template": ["**/*.html.tmpl"]
+    "JSONC": {
+      "preferred_line_length": 120,
+      "formatter": "prettier"
     },
-    "lsp": {
-        "json-language-server": {
-            "settings": {
-                "json": {
-                    "schemas": [
-                        {
-                            "name": "Dinchy i18n catalog",
-                            "fileMatch": ["internal/foundation/i18n/catalog/*.json"],
-                            "url": "./internal/foundation/i18n/catalog.schema.json"
-                        },
-                        {
-                            "name": "Dinchy event catalog",
-                            "fileMatch": ["internal/features/*/events.json"],
-                            "url": "./internal/platform/events/catalog.schema.json"
-                        },
-                        {
-                            "name": "Dinchy permission catalog",
-                            "fileMatch": ["internal/foundation/permission/permissions.json"],
-                            "url": "./internal/foundation/permission/permissions.schema.json"
-                        },
-                        {
-                            "name": "Dinchy role catalog",
-                            "fileMatch": ["internal/foundation/permission/roles.json"],
-                            "url": "./internal/foundation/permission/roles.schema.json"
-                        }
-                    ]
-                }
+    "Go": {
+      "formatter": "language_server",
+      "format_on_save": "on"
+    },
+    "Go Text Template": {
+      "hard_tabs": true
+    },
+    "Go HTML Template": {
+      "hard_tabs": false,
+      "tab_size": 2
+    }
+  },
+  "file_types": {
+    "Go Text Template": ["**/*.go.tmpl", "**/*.txt.tmpl"],
+    "Go HTML Template": ["**/*.html.tmpl"]
+  },
+  "lsp": {
+    "biome": {
+      // Pins the editor to the same Biome as the lint task and the pre-commit hook.
+      // Without this the extension only probes for a root package.json, finds none,
+      // and npm-installs its own copy at latest.
+      "binary": {
+        "path": "web/node_modules/@biomejs/cli-linux-x64/biome"
+      },
+      "settings": {
+        "config_path": "web/biome.json",
+        "require_config_file": true
+      }
+    },
+    "json-language-server": {
+      "settings": {
+        "json": {
+          "schemas": [
+            {
+              "name": "Dinchy i18n catalog",
+              "fileMatch": ["internal/foundation/i18n/catalog/*.json"],
+              "url": "./internal/foundation/i18n/catalog.schema.json"
+            },
+            {
+              "name": "Dinchy event catalog",
+              "fileMatch": ["internal/features/*/events.json"],
+              "url": "./internal/platform/events/catalog.schema.json"
+            },
+            {
+              "name": "Dinchy permission catalog",
+              "fileMatch": ["internal/foundation/permission/permissions.json"],
+              "url": "./internal/foundation/permission/permissions.schema.json"
+            },
+            {
+              "name": "Dinchy role catalog",
+              "fileMatch": ["internal/foundation/permission/roles.json"],
+              "url": "./internal/foundation/permission/roles.schema.json"
             }
-        },
-        "gopls": {
-            "initialization_options": {
-                "templateExtensions": ["tmpl"]
-            }
+          ]
         }
+      }
     },
-    "hard_tabs": false,
-    "formatter": "auto",
-    "remove_trailing_whitespace_on_save": true,
-    "ensure_final_newline_on_save": true
+    "gopls": {
+      "initialization_options": {
+        "templateExtensions": ["tmpl"]
+      }
+    }
+  },
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/.jj",
+    "**/CVS",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/.classpath",
+    "**/.settings",
+    "**/routeTree.gen.ts"
+  ],
+  "tab_size": 2,
+  "hard_tabs": true,
+  "formatter": "auto",
+  "remove_trailing_whitespace_on_save": true,
+  "ensure_final_newline_on_save": true
 }

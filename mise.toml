@@ -59,8 +59,16 @@ fmt = "golangci-lint fmt"
 generate = "go generate ./... && sqlc generate"
 "db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
 "db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
-"web:build" = { dir = "web", run = "bun run build" }
-"web:dev" = { dir = "web", run = "bun run dev" }
+# Frontend tasks all run from web/, where package.json and biome.json live. The tasks that
+# need node_modules depend on web:install so a fresh checkout works without a manual step;
+# bun install is a no-op once the lockfile is satisfied.
+"web:install" = { dir = "web", run = "bun install" }
+"web:build" = { dir = "web", depends = ["web:install"], run = "bun run build" }
+"web:dev" = { dir = "web", depends = ["web:install"], run = "bun run dev" }
+"web:lint" = { dir = "web", run = "bun run lint" }
+"web:check" = { dir = "web", run = "bun run check" }
+"web:fmt" = { dir = "web", run = "bun run check:fix" }
+"web:typecheck" = { dir = "web", depends = ["web:install"], run = "bun run typecheck" }
 
 [settings]
 experimental = true

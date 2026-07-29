@@ -86,5 +86,36 @@
     "args": ["run", "generate"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always"
+  },
+  {
+    "label": "web: dev",
+    "command": "mise",
+    "args": ["run", "web:dev"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "use_new_terminal": true
+  },
+  {
+    "label": "web: build",
+    "command": "mise",
+    "args": ["run", "web:build"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "web: check",
+    "command": "mise",
+    "args": ["run", "web:check"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "web: typecheck",
+    "command": "mise",
+    "args": ["run", "web:typecheck"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "save": "all"
   }
 ]
