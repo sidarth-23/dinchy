@@ -1,3 +1,8 @@
+# mise owns the toolchain and nothing else. Every developer command lives in Taskfile.yml —
+# `mise trust && mise install` gets you the pinned tools, and `task setup` sets up the machine.
+#
+# Installing tools deliberately has no side effects: setup needs to prompt for a password, and a
+# postinstall hook cannot. That split is also what keeps this file free of `experimental`.
 [tools]
 go = "1.26.3"
 bun = "1.3.14"
@@ -7,6 +12,8 @@ node = "24.15.0"
 "github:golangci/golangci-lint" = "2.12.2"
 lefthook = "2.1.9"
 "go:github.com/go-delve/delve/cmd/dlv" = "1.27.0"
+# task runs every developer command; see Taskfile.yml.
+task = "3.52.0"
 # mkcert issues Mailpit's STARTTLS cert, and nothing else: Caddy signs its own dev
 # certificates with its internal CA. Kept because Mailpit cannot generate one itself and
 # the SMTP client verifies against the system trust store.
@@ -17,101 +24,13 @@ lefthook = "2.1.9"
 uv = "latest"
 "pipx:podman-compose" = "1.6.0"
 
-# .env is the single source of truth for local config; `.zed/debug.json` loads the same file.
+# .env is the single source of truth for local config; `Taskfile.yml` and `.zed/debug.json`
+# load the same file.
 [env]
 _.file = ".env"
 
-[tasks]
-dev = "go run ./cmd/dinchy"
-# One-time machine setup, run for you by the postinstall hook below. Both steps are idempotent,
-# so running it again costs nothing and is the way to repair a half-finished setup.
-"dev:setup" = { depends = ["dev:env", "dev:tls"] }
-# Seed .env from the committed template on a fresh checkout. Without it the app starts on
-# production-shaped defaults (ACME certificates on :443) instead of failing outright.
-"dev:env" = '''
-if [ -f .env ]; then
-	echo ".env already exists; left untouched."
-else
-	cp .env.example .env
-	echo "Created .env from .env.example."
-fi
-'''
-# Trust both development CA roots and issue Mailpit's certificate. Needs sudo; skips itself
-# with instructions when it cannot prompt. See the script for why there are two authorities.
-"dev:tls" = { depends = ["caddy:build"], run = "bash deploy/certs/setup-dev-tls.sh" }
-# Bring the datastores up, wait for Postgres, and migrate — everything the backend needs
-# before `mise run dev` or the Zed debugger. Caddy and Vite stay separate processes.
-# The steps run in order; `depends` alone would let them run concurrently.
-"dev:up" = { depends = ["infra:up"], run = ["mise run infra:wait", "mise run db:migrate"] }
-# Issue Mailpit's STARTTLS cert with mkcert, on its own. `dev:tls` already covers this as part
-# of setup; reach for this only to reissue after deleting the pair.
-"dev:certs" = "bash deploy/certs/gen-dev-certs.sh"
-# Build the pinned, vanilla Caddy. go.mod locks the version, so this is reproducible.
-"caddy:build" = "go build -o tmp/caddy ./cmd/caddy"
-# The pinned Caddy version, for building a plugin against the same one:
-#   xcaddy build "$(mise run caddy:version)" --with <module> --output tmp/caddy
-# Parsed with awk rather than `go list -f`, whose {{...}} template mise would expand itself.
-"caddy:version" = "go list -m github.com/caddyserver/caddy/v2 | awk '{print $2}'"
-# Install Caddy's local CA root into the system trust store, once, so dev HTTPS on
-# localhost is trusted with no warning. Prompts for your password.
-"caddy:trust" = { depends = ["caddy:build"], run = "tmp/caddy trust" }
-# Run Caddy. Start this BEFORE `mise run dev`: Dinchy pushes its routes once at startup and
-# does not retry indefinitely. --resume restores the last pushed configuration.
-"caddy:dev" = { depends = ["caddy:build"], run = "tmp/caddy run --resume" }
-# Print the Caddy modules compiled in, which is how you confirm a plugin registered.
-"caddy:modules" = { depends = ["caddy:build"], run = "tmp/caddy list-modules --versions" }
-# NETAVARK_FW (if set in .env) is inherited from the mise env — see .env.example for the WSL2 note.
-"infra:up" = "podman-compose up -d"
-"infra:down" = "podman-compose down"
-"infra:logs" = "podman-compose logs -f"
-# Block until Postgres accepts connections, so a migration or a debugger launch does not race
-# a cold container. It waits on goose rather than pg_isready to exercise the exact DSN the app
-# uses, with no dependency on the container's name.
-"infra:wait" = '''
-for _ in $(seq 1 30); do
-	if goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status >/dev/null 2>&1; then
-		exit 0
-	fi
-	sleep 1
-done
-echo "Postgres did not accept connections on $DINCHY_POSTGRES_DSN within 30s; the error was:" >&2
-goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status
-'''
-build = "go build -o dinchy ./cmd/dinchy"
-test = "go test ./..."
-# The race detector requires cgo; the app itself stays cgo-free, so race is an
-# opt-in task for environments that have a C toolchain.
-"test:race" = "CGO_ENABLED=1 go test -race ./..."
-"test:cover" = "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out"
-lint = "golangci-lint run"
-"lint:fix" = "golangci-lint run --fix"
-"lint:logreturn" = "go run ./cmd/coderules logreturn ./..."
-fmt = "golangci-lint fmt"
-# Whole-codebase on purpose: a new //go:generate directive is picked up without editing
-# this task. The pre-commit hook scopes generation per catalog; this is the exhaustive run.
-generate = "go generate ./... && sqlc generate"
-"db:migrate" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" up'
-"db:status" = 'goose -dir internal/platform/store/migrations postgres "$DINCHY_POSTGRES_DSN" status'
-# Frontend tasks all run from web/, where package.json and biome.json live. The tasks that
-# need node_modules depend on web:install so a fresh checkout works without a manual step;
-# bun install is a no-op once the lockfile is satisfied.
-"web:install" = { dir = "web", run = "bun install" }
-"web:build" = { dir = "web", depends = ["web:install"], run = "bun run build" }
-"web:dev" = { dir = "web", depends = ["web:install"], run = "bun run dev" }
-"web:lint" = { dir = "web", run = "bun run lint" }
-"web:check" = { dir = "web", run = "bun run check" }
-"web:fmt" = { dir = "web", run = "bun run check:fix" }
-"web:typecheck" = { dir = "web", depends = ["web:install"], run = "bun run typecheck" }
-
 [settings]
-experimental = true
 auto_install = true
 # Install pipx-backed tools (podman-compose) via uv/uvx instead of pipx, so no
 # separate pipx install is required — mise manages uv as a tool above.
 pipx.uvx = true
-
-# Finish the machine setup as part of `mise install`, so a fresh checkout is ready to commit and
-# ready to serve trusted HTTPS without a checklist. dev:setup is idempotent and declines to
-# prompt when it cannot, which is what keeps this safe on every later `mise install`.
-[hooks]
-postinstall = "lefthook install && mise run dev:setup"

@@ -1,0 +1,396 @@
+# Every developer command lives here. mise owns the toolchain (see mise.toml) and nothing else;
+# this file owns the tasks. `task --list` is the index, `task --summary <task>` the detail.
+#
+# Bootstrap on a new machine: `mise trust && mise install`, then `task setup`.
+version: "3"
+
+# .env is the single source of truth for local configuration, and `.zed/debug.json` loads the
+# same file. A missing .env is not an error: `task setup` is what creates it, and setup itself
+# reads nothing from it.
+dotenv: [".env"]
+
+includes:
+  web:
+    taskfile: ./web/Taskfile.yml
+    dir: ./web
+
+vars:
+  CADDY_BIN: tmp/caddy
+  MIGRATIONS: internal/platform/store/migrations
+  # Development TLS material lives outside the repo, in the XDG state directory: it is machine
+  # state, not source, and a private key has no business in a working tree. Anything that reads
+  # it — Mailpit, through the bind mount below — is pointed here by task, never by a path
+  # hardcoded somewhere else.
+  CERT_DIR:
+    sh: echo "${XDG_STATE_HOME:-$HOME/.local/state}/dinchy/certs"
+  DATA_HOME:
+    sh: echo "${XDG_DATA_HOME:-$HOME/.local/share}"
+  CADDY_ROOT: "{{.DATA_HOME}}/caddy/pki/authorities/local/root.crt"
+  MKCERT_ROOT:
+    sh: echo "${CAROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/mkcert}/rootCA.pem"
+
+env:
+  # compose.yaml bind-mounts the Mailpit certificate from here. This is a compose-only
+  # variable — the binary never reads it, so it is deliberately absent from .env.example,
+  # which stays app configuration sourced from internal/config.
+  DINCHY_DEV_CERT_DIR: "{{.CERT_DIR}}"
+
+tasks:
+  default:
+    cmd: task --list
+    silent: true
+
+  # --- setup ----------------------------------------------------------------------------
+
+  setup:
+    desc: One-time machine setup — .env, git hooks, frontend deps, and local TLS trust
+    summary: |
+      Run this once after `mise install`, from a terminal: the TLS half installs CA roots and
+      so prompts for your password.
+
+      Every step tests for its own result first, so running setup again is a no-op and is the
+      way to repair a half-finished machine. Nothing here is hung off `mise install` — mise
+      installs tools and has no side effects, which is why setup is allowed to be interactive.
+    deps: [env:seed, web:install]
+    cmds:
+      - task: hooks:install
+      - task: tls
+
+  env:seed:
+    desc: Create .env from the committed template if you have none
+    summary: |
+      Without a .env the app starts on production-shaped defaults (ACME certificates on :443)
+      instead of failing outright, so a fresh checkout needs this before anything else.
+    status:
+      - test -f .env
+    cmds:
+      - cp .env.example .env
+      - 'echo "Created .env from .env.example — review it before starting the app."'
+
+  hooks:install:
+    desc: Install the git hooks defined in lefthook.yml
+    status:
+      - test -f .git/hooks/pre-commit
+    cmd: lefthook install
+
+  # --- local TLS ------------------------------------------------------------------------
+
+  tls:
+    desc: Trust both development CA roots and issue Mailpit's certificate
+    summary: |
+      Development has two local certificate authorities because they solve different problems:
+      Caddy signs the app's certificates with its own internal CA, and mkcert issues Mailpit's,
+      which Mailpit cannot generate for itself. Production has neither — it uses ACME with a
+      real domain.
+
+      Each root goes into two independent stores. The system store needs root privileges and is
+      what curl and the Go SMTP client read; the browser store is a per-user NSS database that
+      Chrome and Firefox read instead, and that the system store does not cover. A machine with
+      only the system half looks correctly set up right up until the browser rejects the page.
+
+      Steps run in order — certutil has to exist before a root can be written to the browser
+      store, and Caddy's root has to be generated before it can be copied there.
+    cmds:
+      - task: tls:certutil
+      - task: tls:nssdb
+      - task: tls:mailpit-cert
+      - task: tls:trust-system
+      - task: tls:trust-browser
+
+  tls:system:
+    desc: The system-store half of `task tls`, skipping browser trust
+    summary: |
+      The escape hatch for a machine where certutil cannot be installed. curl, the Go SMTP
+      client and Mailpit all work after this; Chrome and Firefox will show a certificate
+      interstitial on https://localhost:8443.
+    cmds:
+      - task: tls:mailpit-cert
+      - task: tls:trust-system
+
+  tls:certutil:
+    desc: Install certutil, which is how a CA root reaches the browser trust store
+    interactive: true
+    status:
+      - command -v certutil
+    cmd: scripts/dev-tls.sh certutil
+
+  tls:nssdb:
+    desc: Create the browser certificate database if no browser has made one yet
+    summary: |
+      Both mkcert and caddy write to an NSS database only if one already exists, and one exists
+      only once a browser has run. Until then every root lands in the system store and silently
+      nowhere else.
+    status:
+      - test -d "$HOME/.pki/nssdb"
+    cmd: scripts/dev-tls.sh nssdb
+
+  tls:mkcert-install:
+    desc: Put mkcert's CA root into the trust stores
+    summary: |
+      Pulled in as a dependency of `task tls:mailpit-cert`, which is the only thing that needs
+      it. Listed separately so a root that was never installed can be repaired on its own.
+    interactive: true
+    run: once
+    status:
+      - scripts/dev-tls.sh is-trusted system {{.MKCERT_ROOT}}
+    cmd: mkcert -install
+
+  tls:mailpit-cert:
+    desc: Issue Mailpit's STARTTLS certificate with mkcert
+    summary: |
+      Mailpit only, and only because it cannot generate one itself: it serves STARTTLS from a
+      cert file or not at all, and the app connects with mandatory STARTTLS in every
+      environment. The Go SMTP client has no CA-file option, so it verifies against the system
+      trust store that `task tls:mkcert-install` populated.
+
+      Caddy needs nothing from mkcert — it signs its own certificates, per host, on demand.
+      Postgres and Redis run plaintext on loopback in development and need no certificates.
+
+      Delete the pair to reissue it.
+    deps: [tls:mkcert-install]
+    status:
+      - test -f {{.CERT_DIR}}/mailpit.pem
+      - test -f {{.CERT_DIR}}/mailpit-key.pem
+    cmds:
+      - mkdir -p {{.CERT_DIR}}
+      - mkcert -cert-file {{.CERT_DIR}}/mailpit.pem -key-file {{.CERT_DIR}}/mailpit-key.pem mailpit localhost 127.0.0.1
+      - chmod 600 {{.CERT_DIR}}/mailpit-key.pem
+      - 'echo "Wrote Mailpit''s certificate to {{.CERT_DIR}}"'
+
+  tls:trust-system:
+    desc: Put Caddy's local CA root into the system trust store
+    summary: |
+      `caddy trust` reads the root from the admin API rather than from disk, so Caddy has to be
+      running — and setup has to work before the edge is up, because that is what setup is. The
+      script starts a configuration-less Caddy for the duration when nothing is listening, and
+      uses whatever is already there when something is.
+    interactive: true
+    deps: [caddy:build]
+    status:
+      - scripts/dev-tls.sh is-trusted system {{.CADDY_ROOT}}
+    cmd: scripts/dev-tls.sh trust-caddy
+    env:
+      CADDY_BIN: "{{.CADDY_BIN}}"
+
+  tls:trust-browser:
+    desc: Add Caddy's local CA root to the browser trust store
+    summary: |
+      `caddy trust` stops as soon as it finds its root in the system store and never looks at
+      the browser database, so a machine that already has the system half keeps failing in
+      Chrome with nothing reporting why. The database belongs to you, so this needs no
+      privileges. Restart the browser afterwards.
+    status:
+      - scripts/dev-tls.sh is-trusted browser Caddy
+    cmd: scripts/dev-tls.sh nss-add {{.CADDY_ROOT}} "Caddy Local Authority"
+
+  # --- the development session -----------------------------------------------------------
+
+  dev:
+    desc: Run the Go backend (plaintext on loopback, fronted by Caddy)
+    summary: |
+      Start `task caddy:dev` first. Dinchy pushes its routes to Caddy once, at startup, waits a
+      few seconds if it has to, and then gives up — there is no job that converges later, so
+      that changes you make to the running proxy stay yours. If you start them the wrong way
+      round, restart Dinchy.
+    cmd: go run ./cmd/dinchy
+
+  dev:watch:
+    desc: Run the Go backend, restarting it whenever a .go file changes
+    sources:
+      - "**/*.go"
+    cmd: go run ./cmd/dinchy
+
+  dev:up:
+    desc: Start the datastores, wait for Postgres, and migrate
+    summary: |
+      Everything the backend needs before `task dev` or the Zed debugger. The steps run in
+      order rather than as parallel deps, so a migration cannot race a cold container. Caddy
+      and Vite stay separate long-lived processes.
+    deps: [infra:up]
+    cmds:
+      - task: infra:wait
+      - task: db:migrate
+
+  # --- infra -----------------------------------------------------------------------------
+
+  infra:up:
+    desc: Start local Postgres, Redis and Mailpit (podman-compose)
+    summary: |
+      NETAVARK_FW, if set in .env, is inherited from here — see .env.example for the WSL2 note.
+    preconditions:
+      - sh: test -f {{.CERT_DIR}}/mailpit.pem
+        msg: "Mailpit's certificate is missing from {{.CERT_DIR}}; run `task setup` first."
+    cmd: podman-compose up -d
+
+  infra:down:
+    desc: Stop local infra, keeping its data
+    cmd: podman-compose down
+
+  infra:logs:
+    desc: Follow local infra logs
+    cmd: podman-compose logs -f
+
+  infra:reset:
+    desc: Destroy local infra and its data volumes, then start clean
+    summary: |
+      The way out of a Postgres data directory a newer major version refuses to start, which is
+      what a major-version bump in compose.yaml leaves behind.
+    prompt: This deletes the local Postgres and Redis data volumes. Continue?
+    cmds:
+      - podman-compose down -v
+      - task: dev:up
+
+  infra:wait:
+    desc: Block until Postgres accepts connections on DINCHY_POSTGRES_DSN
+    summary: |
+      Waits on goose rather than pg_isready, to exercise the exact DSN the app uses with no
+      dependency on the container's name.
+    requires:
+      vars: [DINCHY_POSTGRES_DSN]
+    cmd: |
+      for _ in $(seq 1 30); do
+        if goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" status >/dev/null 2>&1; then
+          exit 0
+        fi
+        sleep 1
+      done
+      echo "Postgres did not accept connections on $DINCHY_POSTGRES_DSN within 30s; the error was:" >&2
+      goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" status
+
+  # --- database --------------------------------------------------------------------------
+
+  db:migrate:
+    desc: Apply pending migrations to DINCHY_POSTGRES_DSN
+    requires:
+      vars: [DINCHY_POSTGRES_DSN]
+    cmd: goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" up
+
+  db:status:
+    desc: Show migration status for DINCHY_POSTGRES_DSN
+    requires:
+      vars: [DINCHY_POSTGRES_DSN]
+    cmd: goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" status
+
+  # --- Caddy -----------------------------------------------------------------------------
+
+  caddy:build:
+    desc: Build the pinned, vanilla Caddy into tmp/caddy
+    summary: |
+      go.mod locks the Caddy version, so this is reproducible with no manifest of our own.
+      Fingerprinted: rebuilt only when cmd/caddy or the module graph changes.
+    run: once
+    sources:
+      - cmd/caddy/**/*.go
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.CADDY_BIN}}"
+    cmd: go build -o {{.CADDY_BIN}} ./cmd/caddy
+
+  caddy:dev:
+    desc: Run Caddy — terminates TLS on :8443 and routes to the backend
+    summary: |
+      Start this before `task dev`. `--resume` restores the last configuration Dinchy pushed,
+      so Caddy keeps serving across backend restarts and across its own.
+    deps: [caddy:build]
+    cmd: "{{.CADDY_BIN}} run --resume"
+
+  caddy:version:
+    desc: Print the pinned Caddy version, for building a plugin against the same one
+    summary: |
+      Parsed with awk rather than `go list -f`, whose {{ "{{...}}" }} template task would expand
+      itself:
+
+        xcaddy build "$(task caddy:version)" --with <module> --output tmp/caddy
+    silent: true
+    cmd: go list -m github.com/caddyserver/caddy/v2 | awk '{print $2}'
+
+  caddy:modules:
+    desc: List the Caddy modules compiled into tmp/caddy
+    summary: |
+      The only reliable answer to "is my plugin loaded": a Go module can resolve and build
+      while registering no Caddy module at all.
+    deps: [caddy:build]
+    cmd: "{{.CADDY_BIN}} list-modules --versions"
+
+  # --- build, test, lint -----------------------------------------------------------------
+
+  build:
+    desc: Build the production binary
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - dinchy
+    cmd: go build -o dinchy ./cmd/dinchy
+
+  test:
+    desc: Run the Go test suite
+    cmd: go test ./...
+
+  test:race:
+    desc: Run the Go test suite under the race detector
+    summary: |
+      The race detector requires cgo; the app itself stays cgo-free, so this is opt-in for
+      environments that have a C toolchain.
+    cmd: CGO_ENABLED=1 go test -race ./...
+
+  test:cover:
+    desc: Run the Go test suite and report per-function coverage
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -func=coverage.out
+
+  lint:
+    desc: Run golangci-lint
+    cmd: golangci-lint run
+
+  lint:fix:
+    desc: Run golangci-lint with autofixes
+    cmd: golangci-lint run --fix {{.CLI_ARGS}}
+
+  lint:logreturn:
+    desc: Check that no function both logs and returns an error
+    cmd: go run ./cmd/coderules logreturn ./...
+
+  fmt:
+    desc: Format the Go sources
+    cmd: golangci-lint fmt
+
+  check:
+    desc: Run every check — Go lint and tests, catalog validation, frontend lint and types
+    summary: |
+      The same ground the pre-push hook covers, on demand. Independent, so they run in
+      parallel.
+    deps:
+      - lint
+      - lint:logreturn
+      - test
+      - check:catalogs
+      - web:check
+      - web:typecheck
+
+  check:catalogs:
+    desc: Validate the event, i18n and permission catalogs without regenerating anything
+    summary: |
+      Generation validates too — cmd/codegen runs the same manifest.Validate* checks before it
+      writes — but this is the read-only form, so it reports a bad catalog without needing to
+      touch the generated files.
+    cmds:
+      - go run ./cmd/validate event
+      - go run ./cmd/validate i18n -input internal/foundation/i18n/catalog
+      - go run ./cmd/validate permission
+
+  generate:
+    desc: Regenerate all generated code — Go, sqlc, and the frontend route tree
+    summary: |
+      Whole-codebase on purpose: a new //go:generate directive is picked up without editing
+      this task. Deliberately not fingerprinted — the pre-push hook proves the tree is clean by
+      running this and diffing, and a skipped run would pass that check vacuously.
+
+      The pre-commit hook scopes generation per catalog; this is the exhaustive run.
+    deps: [web:generate-routes]
+    cmds:
+      - go generate ./...
+      - sqlc generate

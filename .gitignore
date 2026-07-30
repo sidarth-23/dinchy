@@ -32,8 +32,8 @@ web/.env
 web/.env.*
 !web/.env*.example
 
-# Local dev TLS material from mkcert (never committed; the generator script is tracked)
-/deploy/certs/*.pem
+# Task's fingerprint cache for its sources/generates checks
+/.task/
 
 # Runtime data
 *.db

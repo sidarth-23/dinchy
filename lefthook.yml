@@ -1,4 +1,7 @@
-# Git hooks install automatically via `mise install` (see the [hooks] postinstall in mise.toml).
+# Git hooks install with `task setup` (or `task hooks:install`).
+#
+# Commands go through `mise exec --` so they resolve the pinned tools whether or not the shell
+# git hands us has mise activated.
 #
 # Pre-commit jobs are scoped to what changed: every job declares the sources *and* the
 # generated targets it owns, so staging a stale generated file re-runs its generator.
@@ -56,7 +59,7 @@ pre-commit:
 
         - name: golangci-lint
           glob: "*.go"
-          run: for dir in $(printf '%s\n' {staged_files} | xargs -n1 dirname | sort -u); do mise run lint:fix -- --new-from-rev=HEAD "$dir" || exit $?; done
+          run: for dir in $(printf '%s\n' {staged_files} | xargs -n1 dirname | sort -u); do mise exec -- task lint:fix -- --new-from-rev=HEAD "$dir" || exit $?; done
           stage_fixed: true
 
         # `root` both scopes the job to the frontend and makes {staged_files} relative to
@@ -72,20 +75,25 @@ pre-commit:
 pre-push:
     jobs:
         - name: coderules logreturn
-          run: mise run lint:logreturn
+          run: mise exec -- task lint:logreturn
+
+        # The read-only form of the checks generation performs, so a bad catalog is reported
+        # even when the generated files it would have written are already current.
+        - name: catalogs valid
+          run: mise exec -- task check:catalogs
 
         # Biome does not typecheck, so the only gate on a type error is tsc. Unscoped for the
         # same reason as the jobs around it: a change in one file can break types in another.
         - name: web typecheck
-          run: mise run web:typecheck
+          run: mise exec -- task web:typecheck
 
         # Compares a working-tree snapshot across the run rather than asking for a clean
         # tree, so unrelated uncommitted edits do not fail the push.
         - name: generators up to date
           run: |
               before=$(git status --porcelain; git diff)
-              mise run generate
+              mise exec -- task generate
               if [ "$before" != "$(git status --porcelain; git diff)" ]; then
-                  echo "generated files are out of date; commit the output of 'mise run generate'" >&2
+                  echo "generated files are out of date; commit the output of 'task generate'" >&2
                   exit 1
               fi

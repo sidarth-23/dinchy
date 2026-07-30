@@ -1,17 +1,17 @@
 # Local development infrastructure for Dinchy: Postgres + Redis + Mailpit.
-# Run via `mise run infra:up` (podman-compose — drives podman directly, no Docker daemon).
+# Run via `task infra:up` (podman-compose — drives podman directly, no Docker daemon).
 # Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT / DINCHY_MAILPIT_*_PORT.
 # The defaults below match .env.example; keep the two in step.
 #
 # Postgres and Redis run plaintext on loopback (dev only) — mounting TLS keys into
 # rootless-podman containers is not worth the friction locally. Caddy still terminates
 # HTTPS for the app, signing its own certificates, and Mailpit still enforces STARTTLS +
-# auth from the mkcert pair `mise run dev:certs` writes — Mailpit cannot generate one
+# auth from the mkcert pair `task tls:mailpit-cert` writes — Mailpit cannot generate one
 # itself, which is the only reason mkcert is still here. Production infra TLS is configured
 # separately in deploy/. Dev-only; production uses the units in deploy/quadlet/.
 #
 # Caddy is deliberately not a service here: it runs as a host process via
-# `mise run caddy:dev`, matching the host-native systemd unit used in production.
+# `task caddy:dev`, matching the host-native systemd unit used in production.
 services:
   postgres:
     image: docker.io/library/postgres:18
@@ -43,7 +43,9 @@ services:
       - "${DINCHY_MAILPIT_SMTP_PORT:-1025}:1025"  # SMTP intake (DINCHY_SMTP_PORT points here)
       - "${DINCHY_MAILPIT_UI_PORT:-8025}:8025"    # web UI + REST API
     volumes:
-      - ./deploy/certs:/certs:ro
+      # task exports DINCHY_DEV_CERT_DIR from the XDG state directory; there is no default
+      # because a silently-empty mount would leave Mailpit serving no STARTTLS certificate.
+      - ${DINCHY_DEV_CERT_DIR:?start local infra with `task infra:up`}:/certs:ro
     environment:
       # Require SMTP auth; credentials must match DINCHY_SMTP_USERNAME/PASSWORD in .env.
       MP_SMTP_AUTH: "dinchy:localpass"

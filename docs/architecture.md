@@ -10,7 +10,7 @@ Dinchy needs direct system access: spawning PTYs for web terminal, talking to th
 
 **Consequence:** Distribution is the Dinchy binary + a Caddy binary + service files. Installation is an install script, not `docker pull`.
 
-The Caddy binary is deliberately **rebuildable by the operator**, which costs the "one artifact" story: compiling it needs a Go toolchain and network access at install time. First-class plugin extensibility is worth more than a single-artifact install. `cmd/caddy` is a vanilla build whose only job is to pin the Caddy version through `go.mod`; plugins are the operator's, compiled with `xcaddy` against that same pinned version (`mise run caddy:version`). There is no manifest and no second lockfile to keep honest.
+The Caddy binary is deliberately **rebuildable by the operator**, which costs the "one artifact" story: compiling it needs a Go toolchain and network access at install time. First-class plugin extensibility is worth more than a single-artifact install. `cmd/caddy` is a vanilla build whose only job is to pin the Caddy version through `go.mod`; plugins are the operator's, compiled with `xcaddy` against that same pinned version (`task caddy:version`). There is no manifest and no second lockfile to keep honest.
 
 ---
 

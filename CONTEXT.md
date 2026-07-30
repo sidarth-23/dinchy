@@ -65,7 +65,7 @@ This file is domain facts, not rules of conduct: behavioral rules live in
 
 - **Caddy build** (`cmd/caddy`) — vanilla upstream Caddy, existing only to pin the version
   through `go.mod`. Plugins belong to the operator and are compiled with `xcaddy` against
-  that same version (`mise run caddy:version`). What a build actually provides is read with
+  that same version (`task caddy:version`). What a build actually provides is read with
   `caddy list-modules`, never from a manifest, because a Go module can resolve and build
   while registering no Caddy module.
 

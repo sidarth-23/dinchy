@@ -1,138 +1,55 @@
 [
+  // Deliberately only the long-lived, order-dependent processes — the things a terminal pane is
+  // genuinely better for. Everything else is `task --list` in a terminal, which cannot fall out
+  // of step with Taskfile.yml the way a copy here would.
+  //
   // The "Dev:" group is the startup sequence, in order. Step 4 is normally the debugger
   // ("Backend: API (Delve)" in debug.json) rather than the task below.
   {
     "label": "Dev: start infra (up, wait, migrate)",
-    "command": "mise",
-    "args": ["run", "dev:up"],
+    "command": "task",
+    "args": ["dev:up"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always"
   },
   {
     "label": "Dev: run Caddy edge (TLS on :8443)",
-    "command": "mise",
-    "args": ["run", "caddy:dev"],
+    "command": "task",
+    "args": ["caddy:dev"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "use_new_terminal": true
   },
   {
     "label": "Dev: run web UI (Vite on :3000)",
-    "command": "mise",
-    "args": ["run", "web:dev"],
+    "command": "task",
+    "args": ["web:dev"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "use_new_terminal": true
   },
   {
     "label": "Dev: run API (no debugger)",
-    "command": "mise",
-    "args": ["run", "dev"],
+    "command": "task",
+    "args": ["dev"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "use_new_terminal": true
   },
   {
-    "label": "Dev: set up machine (env, TLS trust)",
-    "command": "mise",
-    "args": ["run", "dev:setup"],
+    "label": "Dev: set up machine (env, hooks, TLS trust)",
+    "command": "task",
+    "args": ["setup"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "use_new_terminal": true
   },
   {
-    "label": "Infra: stop",
-    "command": "mise",
-    "args": ["run", "infra:down"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Infra: follow logs",
-    "command": "mise",
-    "args": ["run", "infra:logs"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always",
-    "use_new_terminal": true
-  },
-  {
-    "label": "Infra: wait for Postgres",
-    "command": "mise",
-    "args": ["run", "infra:wait"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Database: migrate",
-    "command": "mise",
-    "args": ["run", "db:migrate"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Database: migration status",
-    "command": "mise",
-    "args": ["run", "db:status"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Check: Go tests",
-    "command": "mise",
-    "args": ["run", "test"],
+    "label": "Check: all",
+    "command": "task",
+    "args": ["check"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "save": "all"
-  },
-  {
-    "label": "Check: Go lint",
-    "command": "mise",
-    "args": ["run", "lint"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Check: web lint and format",
-    "command": "mise",
-    "args": ["run", "web:check"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always",
-    "save": "all"
-  },
-  {
-    "label": "Check: web types",
-    "command": "mise",
-    "args": ["run", "web:typecheck"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always",
-    "save": "all"
-  },
-  {
-    "label": "Build: API binary",
-    "command": "mise",
-    "args": ["run", "build"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Build: Caddy binary",
-    "command": "mise",
-    "args": ["run", "caddy:build"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Build: web assets",
-    "command": "mise",
-    "args": ["run", "web:build"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
-  },
-  {
-    "label": "Build: regenerate code",
-    "command": "mise",
-    "args": ["run", "generate"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always"
   }
 ]

@@ -52,7 +52,7 @@ func caddyBinary(t *testing.T) string {
 			return resolved
 		}
 	}
-	t.Skip("no runnable Caddy binary found; run `mise run caddy:build`")
+	t.Skip("no runnable Caddy binary found; run `task caddy:build`")
 	return ""
 }
 

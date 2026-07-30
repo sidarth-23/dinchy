@@ -1,0 +1,67 @@
+# Frontend tasks. Included from the root Taskfile with `dir: ./web`, so every command here runs
+# where package.json and biome.json live and none of them has to say so.
+#
+# Bun is the JS runtime for this project; node is pinned in mise.toml for compatibility only.
+version: "3"
+
+tasks:
+  install:
+    desc: Install frontend dependencies
+    summary: |
+      Fingerprinted against the manifest and the lockfile, so the tasks that depend on it cost
+      nothing once node_modules is current.
+    run: once
+    sources:
+      - package.json
+      - bun.lock
+    generates:
+      - node_modules/.bin/vite
+    cmd: bun install
+
+  dev:
+    desc: Run the Vite dev server on 127.0.0.1:3000
+    summary: |
+      The port is pinned in vite.config.ts with strictPort rather than on the command line:
+      Caddy proxies to a fixed upstream, so falling back to the next free port would surface as
+      a blank page behind the proxy instead of an error at startup. Reach it through Caddy at
+      https://localhost:8443 — HMR's WebSocket is pointed there too, and the browser never
+      dials :3000 itself.
+    deps: [install]
+    cmd: bun run dev
+
+  build:
+    desc: Build production frontend assets into web/dist
+    deps: [install]
+    cmd: bun run build
+
+  preview:
+    desc: Serve the built assets from web/dist
+    deps: [build]
+    cmd: bun run preview
+
+  generate-routes:
+    desc: Regenerate the TanStack route tree
+    deps: [install]
+    cmd: bun run generate-routes
+
+  lint:
+    desc: Lint the frontend sources
+    deps: [install]
+    cmd: bun run lint
+
+  check:
+    desc: Lint and check formatting of the frontend sources
+    deps: [install]
+    cmd: bun run check
+
+  fmt:
+    desc: Fix lint and formatting issues in the frontend sources
+    deps: [install]
+    cmd: bun run check:fix
+
+  typecheck:
+    desc: Typecheck the frontend sources
+    summary: |
+      Biome does not typecheck, so tsc is the only gate on a type error.
+    deps: [install]
+    cmd: bun run typecheck
