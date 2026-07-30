@@ -13,9 +13,13 @@ const (
 	TLSIssuerInternal = "internal"
 )
 
-// CaddyConfig holds the settings for the Caddy reverse proxy that fronts Dinchy.
-// Caddy is the only TLS terminator: Dinchy always serves plaintext on loopback and
-// Caddy owns certificates, automatic HTTPS, and HSTS.
+// CaddyConfig holds the settings for the shared Caddy edge that fronts Dinchy.
+//
+// The edge is not Dinchy's: it owns its own listeners, ports, certificate storage and admin
+// endpoint, and it fronts every application on the host. Dinchy is one tenant, and writes only
+// the two objects it owns — see internal/platform/caddy.
+//
+// Caddy is still the only TLS terminator; Dinchy serves plaintext and owns no certificate.
 //
 // An empty environment variable keeps the default below, so a value that must differ
 // from its default has to be set explicitly — writing DINCHY_CADDY_ENABLED= leaves
@@ -24,15 +28,29 @@ type CaddyConfig struct {
 	// Enabled turns on Caddy configuration management. When false Dinchy pushes
 	// nothing and an operator drives Caddy themselves.
 	Enabled bool `env:"DINCHY_CADDY_ENABLED"`
-	// AdminEndpoint is the host:port of Caddy's admin API.
+	// AdminEndpoint is the host:port of the edge's admin API.
+	//
+	// The admin API is unauthenticated, so whichever network carries it is a trust boundary:
+	// anything that can reach it can reconfigure the whole edge, including other tenants'
+	// routes. Keep it off any network wider than the one the applications share.
 	AdminEndpoint string `env:"DINCHY_CADDY_ADMIN_ENDPOINT" mod:"trim" validate:"required,hostname_port"`
-	// AdminTimeout bounds a single admin API call. Loading a configuration can block
+	// AdminTimeout bounds a single admin API call. Applying a configuration can block
 	// on certificate provisioning, so this is generous by default.
 	AdminTimeout time.Duration `env:"DINCHY_CADDY_ADMIN_TIMEOUT" validate:"gt=0"`
-	// HTTPSPort is the port Caddy serves HTTPS on.
-	HTTPSPort uint16 `env:"DINCHY_CADDY_HTTPS_PORT" validate:"gt=0"`
+	// EdgeServerName is the key of the edge's HTTP server this deployment writes its route
+	// into. The edge's base configuration creates it; Dinchy never creates or replaces it.
+	EdgeServerName string `env:"DINCHY_CADDY_EDGE_SERVER" mod:"trim" validate:"required"`
+	// Tenant namespaces the configuration objects this deployment owns, so two Dinchy
+	// instances behind one edge address their own and never each other's.
+	Tenant string `env:"DINCHY_CADDY_TENANT" mod:"trim" validate:"required"`
 	// PanelHost is the hostname Caddy serves the Dinchy panel on.
 	PanelHost string `env:"DINCHY_CADDY_PANEL_HOST" mod:"trim,lower" validate:"required,hostname_rfc1123"`
+	// PanelUpstream is the host:port the edge dials to reach this app's API, when that
+	// differs from the listen address. Empty falls back to Addr.
+	//
+	// The two are different values: a container listens on 0.0.0.0 and is dialed by name,
+	// and an address the app binds is not necessarily one the edge can reach.
+	PanelUpstream string `env:"DINCHY_CADDY_PANEL_UPSTREAM" mod:"trim" validate:"omitempty,hostname_port"`
 	// TLSIssuer selects where certificates come from: TLSIssuerACME for a public domain,
 	// or TLSIssuerInternal for Caddy's own local CA. Development uses the local CA
 	// because no public authority can validate localhost; `caddy trust` installs its root
@@ -42,12 +60,6 @@ type CaddyConfig struct {
 	ACMEEmail string `env:"DINCHY_CADDY_ACME_EMAIL" mod:"trim" validate:"omitempty,email"`
 	// ACMECA overrides the ACME directory URL, for a staging or private authority.
 	ACMECA string `env:"DINCHY_CADDY_ACME_CA" mod:"trim" validate:"omitempty,http_url"`
-	// StoragePath overrides where Caddy keeps certificates and ACME account keys. Empty
-	// leaves Caddy's own XDG-based location, which deploy/systemd/caddy.service pins.
-	// Wherever it points must be persistent: if it moves, Caddy re-registers with the
-	// certificate authority and re-issues everything, which is a fast way to hit
-	// Let's Encrypt's per-domain rate limit.
-	StoragePath string `env:"DINCHY_CADDY_STORAGE_PATH" mod:"trim"`
 	// HSTSMaxAge sets Strict-Transport-Security on proxied responses. Zero omits the
 	// header, which is the right default for local development — pinning HSTS on
 	// localhost would affect every other plaintext server on the same host.
@@ -63,7 +75,8 @@ func DefaultCaddy() CaddyConfig {
 		Enabled:               true,
 		AdminEndpoint:         "127.0.0.1:2019",
 		AdminTimeout:          30 * time.Second,
-		HTTPSPort:             443,
+		EdgeServerName:        "edge",
+		Tenant:                "dinchy",
 		PanelHost:             "localhost",
 		TLSIssuer:             TLSIssuerACME,
 		HSTSMaxAge:            365 * 24 * time.Hour,

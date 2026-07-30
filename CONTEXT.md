@@ -29,10 +29,10 @@ This file is domain facts, not rules of conduct: behavioral rules live in
 
 ## Routing
 
-- **Route** (`internal/platform/caddy`) — one fully-resolved public entrypoint Caddy
-  serves: the host it answers on, an optional path prefix, the loopback upstream it
-  proxies to, its TLS mode, and its response headers. The owning module composes it; the
-  platform module only translates and applies it. The routing analogue of `Content`.
+- **Route** (`internal/platform/caddy`) — one fully-resolved public entrypoint the edge
+  serves: the host it answers on, an optional path prefix, the upstream it proxies to, and its
+  response headers. The owning module composes it; the platform module only translates and
+  applies it. The routing analogue of `Content`. Every Route proxies — see **Edge** below.
 
 - **RouteSource** (`internal/platform/caddy`) — the contribution seam. A module that owns
   public entrypoints implements `Routes(ctx)` and registers on the `Reconciler` at app
@@ -41,33 +41,52 @@ This file is domain facts, not rules of conduct: behavioral rules live in
   from stored state, which is the prerequisite for converging at startup and repairing
   drift at all.
 
-- **Reconciler** (`internal/platform/caddy`) — the apply seam. `ReconcileAll` replaces
-  Caddy's whole configuration, once, at startup. That is the only write there is: Dinchy
-  does not re-assert on a timer, because the operator owns the running proxy once it is set
-  up. Replacing the whole configuration makes Caddy close active streaming connections, so
-  once routes come and go, changing one must address that one instead.
+- **Edge** (`deploy/caddy`) — the one Caddy that fronts every application on a host, owning its
+  own listeners, ports, certificate storage and admin endpoint. It is the only thing that
+  publishes a host port. It is *shared*, so it can read none of any one application's files:
+  every Route proxies, and a built asset is served by an upstream beside the application.
+
+- **Tenant** (`DINCHY_CADDY_TENANT`) — one application's identity on the edge. It namespaces
+  the two configuration objects that application owns, so two deployments behind one edge
+  address their own and never each other's.
+
+- **Contribution** (`internal/platform/caddy`) — the slice of the edge's configuration this
+  deployment owns, and the whole of what it writes: one `@id`-addressed route nesting every
+  entrypoint as a subroute, plus one certificate automation policy naming their hosts. One
+  route object rather than several is what makes the write atomic, makes a re-push idempotent
+  across a restart, and prunes an entrypoint a source stopped reporting by leaving it out.
+
+- **Reconciler** (`internal/platform/caddy`) — the apply seam. `ReconcileAll` applies the
+  Contribution, once, at startup, addressing each object by its `@id` so every other tenant's
+  routes survive. That is the only write there is: Dinchy does not re-assert on a timer,
+  because the operator owns the running proxy once it is set up and other tenants own theirs.
+  The policy goes first, because a route whose certificate could not be arranged fails its
+  handshake while a certificate no route uses yet breaks nothing. The isolation is of
+  configuration, not of connections — Caddy still reloads on any mutation.
 
 - **Panel** — Dinchy's own UI and API, served as one `Route` like any deployment
   (`DINCHY_CADDY_PANEL_HOST`). It is the entrypoint that must not be lost: losing the panel
   means losing the only interface that could repair the routing. Reserving its host against
   other sources is deferred until there is a source that could claim it.
 
-- **Upstream** — the loopback `host:port` a `Route` proxies to. The panel API's is
-  `DINCHY_ADDR`; a deployment's is its published container port.
+- **Upstream** — the `host:port` the edge dials for a `Route`. It is a different value from
+  the address the upstream binds: a container listens on `0.0.0.0` and is reached by name, so
+  the panel API advertises `DINCHY_CADDY_PANEL_UPSTREAM` and falls back to `DINCHY_ADDR` only
+  when they coincide.
 
-- **Serve mode** (`caddy.ServeMode`) — whether a `Route` proxies to an Upstream or serves
-  static files from a Root. The compiled web UI uses the file mode with a `FallbackPath`, so
-  client-side routes survive a page load. The panel is therefore *two* Routes on one
-  hostname — `/api` proxying to Dinchy and the catch-all serving files — which keeps the
-  browser same-origin and so keeps `SameSite=Lax` cookies and CSRF working without CORS.
-  Within a host, a Route with a longer PathPrefix is matched first, because Caddy stops at
-  the first terminal match.
+- The panel is *two* Routes on one hostname — `/api` proxying to Dinchy and the catch-all
+  proxying to whatever serves the built assets (Vite in development, a static server beside
+  the app otherwise). One hostname keeps the browser same-origin, and so keeps `SameSite=Lax`
+  cookies and CSRF working without CORS. Within a host, a Route with a longer PathPrefix is
+  matched first, because Caddy stops at the first terminal match.
 
 - **Caddy build** (`cmd/caddy`) — vanilla upstream Caddy, existing only to pin the version
-  through `go.mod`. Plugins belong to the operator and are compiled with `xcaddy` against
-  that same version (`task caddy:version`). What a build actually provides is read with
-  `caddy list-modules`, never from a manifest, because a Go module can resolve and build
-  while registering no Caddy module.
+  through `go.mod`. It is what the edge image is built from, and what `caddy trust` runs from
+  on a development machine. A plugin therefore belongs here as a blank import, pinned by
+  `go.mod`; `xcaddy` against the same version (`task caddy:version`) stays available for a
+  throwaway experiment. What a build actually provides is read with `caddy list-modules`,
+  never from a manifest, because a Go module can resolve and build while registering no Caddy
+  module.
 
 - **TLS issuer** (`DINCHY_CADDY_TLS_ISSUER`) — `acme` for a public domain, `internal` for
   Caddy's own local CA. Dinchy never loads a certificate from disk; development uses the
@@ -82,14 +101,21 @@ This file is domain facts, not rules of conduct: behavioral rules live in
   failure detail is exposed. Rendering lives in transport, not in `internal/errors`:
   the errors package stays foundational and free of the HTTP framework.
 
-- **Transport security is Caddy's, not the app's.** Dinchy has no notion of whether a
-  request arrived securely and no endpoint rejects one for being plaintext. Caddy is the
-  only ingress and serves only HTTPS, and `DINCHY_ADDR` is required to be a loopback
-  address — enforced at startup — so a plaintext request from the network cannot reach the
-  app at all. Two consequences to keep in mind when adding transport code: the request
-  scheme must come from configuration (`Config.PublicScheme`, used for CORS origin
-  matching), and the client address must come from `X-Forwarded-For` (read once in
-  `RequestInfo`), because it is persisted to `audit_logs.ip_address`.
+- **Transport security is the edge's, not the app's.** Dinchy has no notion of whether a
+  request arrived securely and no endpoint rejects one for being plaintext. The edge is the
+  only intended ingress and serves only HTTPS. Two consequences to keep in mind when adding
+  transport code: the request scheme must come from configuration (`Config.PublicScheme`, used
+  for CORS origin matching), and the client address must come from `X-Forwarded-For` (read
+  once in `RequestInfo`), because it is persisted to `audit_logs.ip_address`.
+
+- **Trusted proxies** (`DINCHY_TRUSTED_PROXIES`) — what makes that forwarded address
+  trustworthy. `DINCHY_ADDR` may face the edge's network rather than loopback, so anything else
+  on that network could reach the listener directly; `RequestInfo` therefore honors
+  `X-Forwarded-For` only from a peer inside the trusted set, and records the peer's own address
+  otherwise. The default covers loopback alone, which is exactly what a host-native deployment
+  behind the edge needs. A listener reachable beyond loopback with only loopback trusted is
+  **rejected at startup**: it is not forgeable, but it would record the edge's address for every
+  request, which is wrong in a way no operator would see.
 
 - **Dinchy serves no documents, only the API.** Caddy delivers the web UI, so the
   Content-Security-Policy in `middleware.SecureHeaders` is a JSON policy —

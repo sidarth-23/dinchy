@@ -18,11 +18,20 @@ import (
 
 // Config holds all startup configuration values for the Dinchy server.
 type Config struct {
-	// Addr is the plaintext listen address for the main HTTP server. Caddy terminates
-	// TLS and proxies here, and Load rejects a non-loopback value: the app trusts the
-	// forwarded client address and carries no transport check of its own, so restricting
-	// who can connect at all is the boundary that replaces one.
+	// Addr is the plaintext listen address for the main HTTP server. Caddy terminates TLS
+	// and proxies here. It may face the network the edge reaches it on — a container
+	// address rather than loopback — and TrustedProxies is what keeps the forwarded client
+	// address trustworthy when it does.
 	Addr string `env:"DINCHY_ADDR" validate:"required"`
+	// TrustedProxies lists the CIDR blocks, or bare addresses, whose forwarded headers the
+	// app honors, comma-separated. A peer outside it has its X-Forwarded-For ignored, so
+	// the address recorded in audit rows is one that peer could not choose. The default
+	// covers loopback alone, which is what a host-native deployment behind Caddy needs.
+	TrustedProxies string `env:"DINCHY_TRUSTED_PROXIES" mod:"trim"`
+	// TrustedProxyPrefixes is TrustedProxies parsed, derived at Load like SSOProviders. It
+	// carries no env tag on purpose: the env walker handles scalars only, so a tagged slice
+	// would fail to load rather than being skipped.
+	TrustedProxyPrefixes []netip.Prefix
 	// InternalAddr is the listen address for internal health/ready endpoints.
 	InternalAddr string `env:"DINCHY_INTERNAL_ADDR" validate:"required"`
 	// SecureCookies marks every cookie Secure. It is deployment-wide rather than
@@ -34,13 +43,11 @@ type Config struct {
 	Database DatabaseConfig
 	// DevMode enables development mode (relaxed CSP, frontend proxy).
 	DevMode bool `env:"DINCHY_DEV"`
-	// DevProxyURL is the Vite dev server URL Caddy forwards web requests to in dev mode.
-	// Required when DevMode is true. Dinchy never proxies to it: Caddy does, so the
-	// browser reaches Vite through the panel hostname and stays same-origin.
-	DevProxyURL string `env:"DINCHY_DEV_PROXY_URL" validate:"required_if=DevMode true,omitempty,http_url"`
-	// FrontendRoot is the directory Caddy serves the compiled web UI from outside dev
-	// mode. The assets never pass through Dinchy.
-	FrontendRoot string `env:"DINCHY_FRONTEND_ROOT" mod:"trim" validate:"required"`
+	// FrontendURL is the URL the edge forwards web requests to: the Vite dev server in
+	// development, a static file server alongside the app otherwise. The assets never pass
+	// through Dinchy, and never through the edge's filesystem — the edge is shared between
+	// applications and can see none of their files.
+	FrontendURL string `env:"DINCHY_FRONTEND_URL" validate:"required,http_url"`
 	// ExposeInternalErrors adds a debug object to every error response carrying the
 	// internal code, cause chain (including SQL errors), and metadata. It leaks internal
 	// detail and must stay disabled outside local or trusted debugging environments.
@@ -85,23 +92,23 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Addr:          "127.0.0.1:8080",
-		InternalAddr:  "127.0.0.1:9090",
-		SecureCookies: true,
-		DevProxyURL:   "http://127.0.0.1:3000",
-		FrontendRoot:  "web/dist",
-		Caddy:         DefaultCaddy(),
-		Database:      DefaultDatabase(),
-		Session:       DefaultSession(),
-		Auth:          DefaultAuth(),
-		SMTP:          DefaultSMTP(),
-		Redis:         DefaultRedis(),
-		Cache:         DefaultCache(),
-		EventBus:      DefaultEventBus(),
-		Worker:        DefaultWorker(),
-		Jobs:          DefaultJobs(),
-		Logging:       DefaultLogging(),
-		Telemetry:     DefaultTelemetry(),
+		Addr:           "127.0.0.1:8080",
+		TrustedProxies: "127.0.0.1/32,::1/128",
+		InternalAddr:   "127.0.0.1:9090",
+		SecureCookies:  true,
+		FrontendURL:    "http://127.0.0.1:3000",
+		Caddy:          DefaultCaddy(),
+		Database:       DefaultDatabase(),
+		Session:        DefaultSession(),
+		Auth:           DefaultAuth(),
+		SMTP:           DefaultSMTP(),
+		Redis:          DefaultRedis(),
+		Cache:          DefaultCache(),
+		EventBus:       DefaultEventBus(),
+		Worker:         DefaultWorker(),
+		Jobs:           DefaultJobs(),
+		Logging:        DefaultLogging(),
+		Telemetry:      DefaultTelemetry(),
 	}
 	if err := loadFromEnvValue(reflect.ValueOf(&cfg).Elem()); err != nil {
 		return Config{}, err
@@ -119,52 +126,118 @@ func Load() (Config, error) {
 		return Config{}, apperrors.Internal(i18n.Msg(i18n.CodePlatformConfigValidationFailed), apperrors.WithCause(fmt.Errorf("public base URL is required when SMTP is configured")))
 	}
 
-	if err := validateLoopbackAddr(cfg.Addr); err != nil {
+	trustedProxies, err := validateForwardedTrust(cfg)
+	if err != nil {
 		return Config{}, err
 	}
+	cfg.TrustedProxyPrefixes = trustedProxies
 
 	return cfg, nil
 }
 
-// validateLoopbackAddr rejects a public listen address.
+// validateForwardedTrust parses the trusted proxy set and rejects a listener that set cannot
+// account for.
 //
-// Caddy terminates TLS and is the only intended client, so the app trusts the forwarded
-// client address and no longer carries a transport check of its own. Restricting the
-// listener to loopback is what makes that safe, which makes this a hard requirement
-// rather than a recommendation.
-func validateLoopbackAddr(addr string) error {
+// The app records the forwarded client address in audit rows and honors it only from a trusted
+// peer, so a listener reachable beyond loopback while no non-loopback proxy is named would record
+// the proxy's own address for every request. That is wrong in a way an operator cannot see, which
+// is why it fails at startup rather than being left to a reader of the audit log.
+//
+// The converse — a loopback listener with wider trust — is harmless and is not policed: nothing
+// outside loopback can reach the listener to exercise it.
+func validateForwardedTrust(cfg Config) ([]netip.Prefix, error) {
 	invalid := func(reason error) error {
 		return apperrors.Internal(
 			i18n.Msg(i18n.CodePlatformConfigValidationFailed),
 			apperrors.WithCause(reason),
 		)
 	}
+
+	prefixes, err := parseTrustedProxies(cfg.TrustedProxies)
+	if err != nil {
+		return nil, invalid(err)
+	}
+
+	reachable, err := listenerIsReachable(cfg.Addr)
+	if err != nil {
+		return nil, invalid(err)
+	}
+	if !reachable {
+		return prefixes, nil
+	}
+
+	for _, prefix := range prefixes {
+		if !prefix.Addr().IsLoopback() {
+			return prefixes, nil
+		}
+	}
+	return nil, invalid(fmt.Errorf(
+		"DINCHY_ADDR %q is reachable beyond loopback but DINCHY_TRUSTED_PROXIES %q names only loopback; add the network the reverse proxy reaches this listener from, or bind a loopback address",
+		cfg.Addr, cfg.TrustedProxies))
+}
+
+// parseTrustedProxies turns the configured list into prefixes, accepting a bare address as the
+// single-address prefix it means. Accepting both spellings removes a class of startup failure
+// whose message says nothing about the missing "/32".
+func parseTrustedProxies(configured string) ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
+	for entry := range strings.SplitSeq(configured, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if prefix, err := netip.ParsePrefix(entry); err == nil {
+			prefixes = append(prefixes, prefix.Masked())
+			continue
+		}
+		address, err := netip.ParseAddr(entry)
+		if err != nil {
+			return nil, fmt.Errorf("DINCHY_TRUSTED_PROXIES entry %q is neither a CIDR block nor an IP address", entry)
+		}
+		prefixes = append(prefixes, netip.PrefixFrom(address, address.BitLen()))
+	}
+	return prefixes, nil
+}
+
+// listenerIsReachable reports whether the listen address accepts connections from beyond
+// loopback. A host that is not an IP address counts as reachable: it cannot be classified here,
+// and treating the unknown as exposed is the direction that fails safe.
+func listenerIsReachable(addr string) (bool, error) {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return invalid(fmt.Errorf("DINCHY_ADDR %q is not a host:port address: %w", addr, err))
+		return false, fmt.Errorf("DINCHY_ADDR %q is not a host:port address: %w", addr, err)
 	}
 	if host == "" {
-		return invalid(fmt.Errorf("DINCHY_ADDR %q binds every interface; it must be a loopback address such as 127.0.0.1:8080, because Caddy is the only intended client", addr))
+		return true, nil
 	}
 	parsed, err := netip.ParseAddr(strings.Trim(host, "[]"))
 	if err != nil {
-		return invalid(fmt.Errorf("DINCHY_ADDR host %q is not an IP address; use a loopback address such as 127.0.0.1:8080", host))
+		return true, nil
 	}
-	if !parsed.IsLoopback() {
-		return invalid(fmt.Errorf("DINCHY_ADDR host %q is not a loopback address; Caddy terminates TLS and proxies to this listener, which must not be reachable from the network", host))
-	}
-	return nil
+	return !parsed.IsLoopback(), nil
 }
 
-// FrontendUpstream returns the host:port Caddy forwards web requests to in dev mode,
-// derived from DevProxyURL. Empty when the URL cannot be parsed, which validation on
-// DevProxyURL already prevents.
+// FrontendUpstream returns the host:port the edge forwards web requests to, derived from
+// FrontendURL. Empty when the URL cannot be parsed, which validation on FrontendURL already
+// prevents.
 func (c Config) FrontendUpstream() string {
-	parsed, err := url.Parse(c.DevProxyURL)
+	parsed, err := url.Parse(c.FrontendURL)
 	if err != nil {
 		return ""
 	}
 	return parsed.Host
+}
+
+// PanelUpstream returns the host:port the edge dials to reach the API.
+//
+// It is not the listen address, though it falls back to it. A container listens on every interface
+// and is reached by name, and an address the app binds is not necessarily one the edge can route
+// to — so the advertised address is configuration in its own right.
+func (c Config) PanelUpstream() string {
+	if c.Caddy.PanelUpstream != "" {
+		return c.Caddy.PanelUpstream
+	}
+	return c.Addr
 }
 
 // PublicScheme returns the scheme users reach the app on, derived from PublicBaseURL.

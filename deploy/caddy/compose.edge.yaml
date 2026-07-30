@@ -1,0 +1,69 @@
+# The shared Caddy edge, for development. Run via `task edge:up`, which drives podman-compose with
+# its own project name so this has a lifecycle of its own.
+#
+# It is deliberately not a service in the repository's compose.yaml. The edge is shared with every
+# other project on this machine, so `task infra:down` must not stop it, and `task infra:reset`
+# must not reach its volumes — that task exists to destroy data, and /data here holds the local
+# certificate authority the browser has been told to trust.
+#
+# Only this file publishes host ports. Applications stay internal and are reached by container DNS
+# on the caddy-edge network. See README.md in this directory for the invariants the base
+# configuration has to satisfy.
+services:
+  caddy:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+      target: caddy
+    image: localhost/dinchy-caddy:${DINCHY_DEV_CADDY_TAG:-dev}
+    container_name: caddy-edge
+    networks:
+      edge:
+        aliases: [caddy-edge]
+    ports:
+      # https_port in base.dev.json is 8443, and Caddy generates port-bearing redirects from it,
+      # so the host port has to match rather than being remapped.
+      - "127.0.0.1:${DINCHY_DEV_HTTPS_PORT:-8443}:8443"
+      # The admin API, on loopback only: `caddy trust` and scripts/dev-tls.sh read the local CA
+      # through it. Production publishes nothing here — see README.md.
+      - "127.0.0.1:${DINCHY_DEV_ADMIN_PORT:-2019}:2019"
+    volumes:
+      # Only the certificate directory is shared with the host, and only because the local CA lives
+      # in it: sharing it means the CA the edge generates is the CA `caddy trust` reads, so
+      # Taskfile.yml's CADDY_ROOT and the whole tls:* chain keep working unchanged. keep-id below is
+      # what makes the files land owned by the invoking user.
+      #
+      # `z` is required on any SELinux host and is not optional here: keep-id gets the ownership
+      # right, but ~/.local/share carries data_home_t, which container_t cannot reach — Caddy fails
+      # with "permission denied" on a file and nothing in that message mentions SELinux. Lowercase z
+      # relabels to a *shared* label, so the host's own caddy binary keeps working; uppercase Z would
+      # make it exclusive to this container and break `caddy trust`.
+      - ${DINCHY_DEV_CADDY_DATA:?start the edge with `task edge:up`}:/data/caddy:z
+      # The autosave is deliberately NOT shared with the host, and this is load-bearing. Caddy
+      # ignores --config whenever an autosave exists, so a shared directory would make the edge
+      # resume whatever a host `caddy` last wrote — for anyone who ran this project before the edge
+      # was a container, a configuration naming files that no longer exist. A named volume gives the
+      # edge its own, and matches what production does for both directories.
+      - caddy-edge-config:/config
+      - ${DINCHY_DEV_CADDY_BASE:?start the edge with `task edge:up`}:/etc/caddy/base.json:ro,z
+    # Maps the invoking user's UID to itself inside the container, so everything written into the
+    # two bind mounts above is readable and writable by the host user. Without it Caddy writes as a
+    # subordinate UID and neither side can use the other's certificate authority.
+    userns_mode: keep-id
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  # The edge's own autosave. `task edge:reset` empties this and nothing else.
+  caddy-edge-config:
+
+networks:
+  # Shared with every application on this machine and created outside any project, so no
+  # `podman-compose down` can take it away. `task edge:net` creates it.
+  edge:
+    external: true
+    name: caddy-edge

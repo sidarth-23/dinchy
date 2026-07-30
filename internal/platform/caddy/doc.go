@@ -1,11 +1,18 @@
-// Package caddy configures the Caddy reverse proxy that fronts Dinchy and every
-// deployment it serves.
+// Package caddy configures the shared Caddy edge that fronts Dinchy and every deployment it
+// serves.
 //
-// Caddy is the only TLS terminator. Dinchy always listens plaintext on loopback; Caddy
-// owns certificates, automatic HTTPS, and HSTS, and no certificate is ever loaded from
-// disk — production obtains them over ACME, development signs them with Caddy's own local
-// CA. Caddy is driven entirely through its JSON admin API, so there is no configuration
-// file to keep in step.
+// The edge is not Dinchy's. One Caddy fronts every application on a host, owning its own
+// listeners, ports, certificate storage and admin endpoint; Dinchy is one tenant on it and writes
+// only the two objects it owns. deploy/caddy/ holds the edge itself.
+//
+// Caddy is the only TLS terminator. Dinchy always listens plaintext, and no certificate is ever
+// loaded from disk — production obtains them over ACME, development signs them with Caddy's own
+// local CA. Caddy is driven entirely through its JSON admin API, so there is no configuration file
+// to keep in step.
+//
+// The edge reads nothing from disk on an application's behalf either. It is shared, so it can see
+// none of any one application's files: every [Route] reverse-proxies, and a built asset is served
+// by an upstream beside the application rather than by the edge.
 //
 // # Ownership
 //
@@ -20,32 +27,62 @@
 // makes the desired configuration recomputable from stored state at any moment, which is
 // the prerequisite for converging at startup and for repairing drift on request later.
 //
+// # Scoped writes
+//
+// [BuildContribution] produces the only two objects Dinchy writes, each addressed by a Caddy
+// "@id" namespaced to this deployment (see [RouteObjectID], [TLSPolicyObjectID]):
+//
+//   - one route inside the edge's HTTP server, nesting every entrypoint as a subroute;
+//   - one certificate automation policy covering the hosts those entrypoints answer on.
+//
+// Addressing one object each is what lets several applications share one edge. Replacing the whole
+// document would drop every other tenant's routes — an unrelated operator's web terminal among
+// them.
+//
+// A route is one object rather than several because that makes the write atomic, makes re-pushing
+// it idempotent across a restart, and prunes an entrypoint a source has stopped reporting simply by
+// leaving it out of the replacement. That last property is why there is no Remove operation.
+//
+// The route is terminal and matches on the union of the hosts it serves. Both matter: without the
+// host matcher it would swallow every other tenant's traffic.
+//
+// # What the edge has to provide
+//
+// Caddy will not create a missing parent — it answers "invalid traversal path" — so the edge's base
+// configuration must already contain the HTTP server named by DINCHY_CADDY_EDGE_SERVER with a
+// routes array, and an automation policies array. That contract, and the reasoning behind each part
+// of it, lives in deploy/caddy/README.md.
+//
 // # One write, at startup
 //
-// [Reconciler.ReconcileAll] replaces the entire configuration, and it is the only write
-// this package performs. It runs once, when the application starts. Nothing re-asserts it
-// afterwards: on a self-hosted host the operator owns the running proxy, and a management
-// plane that overwrites their changes on a timer is one they cannot work with.
+// [Reconciler.ReconcileAll] runs once, when the application starts, and nothing re-asserts it
+// afterwards: on a self-hosted host the operator owns the running proxy, and a management plane
+// that overwrites their changes on a timer is one they cannot work with.
 //
-// Replacing everything costs nothing while the only routes are the panel's and they never
-// change at runtime. Once routes come and go, changing one must address that one —
-// otherwise adding a domain drops an unrelated operator's web terminal — and that is when
-// Caddy's per-object "@id" addressing earns its place here.
-//
-// The configuration Dinchy loads always contains an admin block, because a document
-// omitting it would tear down the very endpoint used to push and leave no way to recover
-// without hand-editing files.
+// The policy is written before the route, because a route whose certificate could not be arranged
+// leaves the host failing its handshake, while a certificate no route uses yet breaks nothing.
 //
 // # Validation
 //
-// Almost none happens here. Caddy provisions the whole document on load and rolls back to
-// the previous one if anything fails, so its rejection is the check — and a better error
-// than one written twice. The exception is two routes claiming the same host and path,
-// which Caddy accepts while leaving the loser unreachable behind the first terminal match.
+// Almost none happens here. Caddy provisions the resulting whole configuration and rolls back to
+// the previous one if anything fails, so its rejection is the check — and a better error than one
+// written twice. A rejected write therefore leaves every other tenant serving.
+//
+// Two exceptions. Two of this deployment's own routes claiming the same host and path, which Caddy
+// accepts while leaving the loser unreachable behind the first terminal match. And a host claimed
+// by two different tenants, which nothing detects at all: each validates only its own slice, so
+// first-in-array wins and the loser is silently unreachable. Finding that needs a read of the whole
+// running configuration, which is a future concern rather than this one.
 //
 // Caddy does not parse reverse-proxy dial addresses at load time either, so a malformed
 // upstream loads cleanly and 502s per request. Anything composing a [Route] from user
 // input has to screen that itself.
+//
+// # What isolation does and does not mean
+//
+// It is isolation of configuration, not of connections. Caddy reloads on any config mutation, so
+// one tenant's push can still cut another's long-lived connections. What it guarantees is that the
+// other tenant's routes are still there afterwards.
 //
 // # Staying reachable
 //
@@ -58,11 +95,14 @@
 //
 // # Forwarded headers
 //
-// The generated configuration is the only place forwarded headers are normalized. Dinchy
-// has no forwarded-header middleware: it trusts X-Forwarded-For for the client address it
-// records in audit rows, and relies on a loopback-only listener rather than a per-request
-// check. That makes the header operations here load-bearing, which is why they are asserted
-// against a live Caddy in the contract test rather than only against these structs.
+// The generated configuration is the only place forwarded headers are set, and it is one half of an
+// invariant. Dinchy records X-Forwarded-For as the client address in audit rows; what makes that
+// value trustworthy is the other half, DINCHY_TRUSTED_PROXIES, which stops the app honoring the
+// header from any peer but the edge (see internal/transport/middleware.RequestInfo). The listener
+// may face the edge's network, so the header alone proves nothing.
+//
+// That makes the header operations here load-bearing, which is why they are asserted against a live
+// Caddy in the contract test rather than only against these structs.
 //
 // # Errors and logging
 //

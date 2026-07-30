@@ -1,0 +1,10 @@
+# What never belongs in the frontend's build context. podman reads this in preference to
+# .dockerignore.
+#
+# node_modules is excluded deliberately: the image installs from bun.lock, and copying the host's
+# tree in would carry native binaries built for the host's libc.
+node_modules/
+dist/
+.tanstack/
+.zed/
+*.local

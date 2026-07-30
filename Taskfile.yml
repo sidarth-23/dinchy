@@ -1,12 +1,18 @@
 # Every developer command lives here. mise owns the toolchain (see mise.toml) and nothing else;
 # this file owns the tasks. `task --list` is the index, `task --summary <task>` the detail.
 #
-# Bootstrap on a new machine: `mise trust && mise install`, then `task setup`.
+# Bootstrap on a new machine: `mise trust && mise install`, then `task bootstrap`.
 version: "3"
 
-# .env is the single source of truth for local configuration, and `.zed/debug.json` loads the
-# same file. A missing .env is not an error: `task setup` is what creates it, and setup itself
-# reads nothing from it.
+# .env is the single source of truth for local configuration. It reaches the containers from here:
+# these values land in this process's environment, podman-compose inherits them for interpolation,
+# and compose.yaml also names the file directly with `env_file:`.
+#
+# The editor is not in that chain. `.zed/debug.json` attaches to a process the container already
+# started, so it injects no environment at all — which is why a change here takes effect on the next
+# `task dev:watch`, not the next debugger launch.
+#
+# A missing .env is not an error: `task env:seed` is what creates it, and it reads nothing from it.
 dotenv: [".env"]
 
 includes:
@@ -17,6 +23,15 @@ includes:
 vars:
   CADDY_BIN: tmp/caddy
   MIGRATIONS: internal/platform/store/migrations
+  # The shared Caddy edge. It has its own compose project because it outlives this one and is
+  # shared with every other project on the machine — see deploy/caddy/README.md.
+  EDGE_NET: caddy-edge
+  EDGE_PROJECT: caddy-edge
+  EDGE_COMPOSE: deploy/caddy/compose.edge.yaml
+  # The admin API as reached from the host, through the port the edge publishes on loopback. The
+  # app reaches the same API as caddy-edge:2019 over the container network; these are two routes
+  # to one endpoint, which is why the variable is not DINCHY_CADDY_ADMIN_ENDPOINT.
+  EDGE_ADMIN: "127.0.0.1:2019"
   # Development TLS material lives outside the repo, in the XDG state directory: it is machine
   # state, not source, and a private key has no business in a working tree. Anything that reads
   # it — Mailpit, through the bind mount below — is pointed here by task, never by a path
@@ -30,10 +45,22 @@ vars:
     sh: echo "${CAROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/mkcert}/rootCA.pem"
 
 env:
-  # compose.yaml bind-mounts the Mailpit certificate from here. This is a compose-only
-  # variable — the binary never reads it, so it is deliberately absent from .env.example,
-  # which stays app configuration sourced from internal/config.
+  # Compose-only variables: the binary never reads any of them, so they are deliberately absent
+  # from .env.example, which stays app configuration sourced from internal/config.
+  #
+  # compose.yaml bind-mounts the Mailpit certificate from here.
   DINCHY_DEV_CERT_DIR: "{{.CERT_DIR}}"
+  # The edge shares the host's certificate directory, so the local CA it generates lands exactly
+  # where CADDY_ROOT above already points and the whole tls:* chain keeps working unchanged. Its
+  # autosave is a named volume instead — see the reasoning in deploy/caddy/compose.edge.yaml.
+  DINCHY_DEV_CADDY_DATA: "{{.DATA_HOME}}/caddy"
+  DINCHY_DEV_CADDY_BASE: "{{.ROOT_DIR}}/deploy/caddy/base.dev.json"
+  # The backend container mounts the repository at this exact path, which is what lets Delve report
+  # source paths the editor can open with no substitution configured anywhere.
+  DINCHY_DEV_REPO_PATH: "{{.ROOT_DIR}}"
+  # The backend verifies Mailpit's STARTTLS certificate against mkcert's root, which the image's
+  # own CA bundle knows nothing about.
+  DINCHY_DEV_MKCERT_ROOT: "{{.MKCERT_ROOT}}"
 
 tasks:
   default:
@@ -43,18 +70,52 @@ tasks:
   # --- setup ----------------------------------------------------------------------------
 
   setup:
-    desc: One-time machine setup — .env, git hooks, frontend deps, and local TLS trust
+    desc: One-time machine setup — .env, git hooks, frontend deps, podman, and local TLS trust
     summary: |
-      Run this once after `mise install`, from a terminal: the TLS half installs CA roots and
-      so prompts for your password.
+      Run this once after `mise install`, from a terminal: the podman and TLS halves install
+      system packages and CA roots, and so prompt for your password.
 
       Every step tests for its own result first, so running setup again is a no-op and is the
       way to repair a half-finished machine. Nothing here is hung off `mise install` — mise
       installs tools and has no side effects, which is why setup is allowed to be interactive.
+
+      podman comes before TLS because trusting the local CA now means reading it out of the
+      running edge, which is a container.
     deps: [env:seed, web:install]
     cmds:
       - task: hooks:install
+      - task: podman
       - task: tls
+
+  bootstrap:
+    desc: Everything a fresh checkout needs to reach https://localhost:8443
+    summary: |
+      `mise trust && mise install` first; this is the rest of it.
+
+      The ordering is the point, and it is not expressible as deps:
+
+        1. .env exists before anything reads it
+        2. podman exists before any container starts
+        3. mkcert's root and Mailpit's certificate exist before the stack starts
+        4. the shared edge is up before `caddy trust` can read its CA
+        5. the CA is trusted before the browser will accept the page
+        6. the application stack starts last, and finds the edge already there
+
+      Every step tests for its own result, so running this again repairs a half-finished machine
+      rather than redoing it. Interactive: the podman and trust steps ask for your password.
+    interactive: true
+    cmds:
+      - task: env:seed
+      - task: podman
+      - task: hooks:install
+      - task: web:install
+      - task: tls:certutil
+      - task: tls:nssdb
+      - task: tls:mailpit-cert
+      - task: edge:up
+      - task: tls:trust-system
+      - task: tls:trust-browser
+      - task: dev:up
 
   env:seed:
     desc: Create .env from the committed template if you have none
@@ -67,11 +128,63 @@ tasks:
       - cp .env.example .env
       - 'echo "Created .env from .env.example — review it before starting the app."'
 
+  env:check:
+    desc: Report keys that .env and .env.example disagree about
+    summary: |
+      `env:seed` only creates a .env that does not exist, so a renamed or removed variable never
+      repairs itself — which is how a .env accumulates dead keys and a stale port and keeps
+      starting the app on defaults nobody intended.
+
+      It compares key sets only, never values: the values are yours. A commented-out key still
+      counts as mentioned, so the optional ones (NETAVARK_FW, the SSO secrets) are not reported as
+      drift in either direction.
+    silent: true
+    cmd: |
+      # Set by the variable being live; mentioned by it being live or documented as an option.
+      set_keys() { grep -oE '^[A-Z_][A-Z0-9_]*' "$1" | sort -u; }
+      mentioned_keys() { grep -oE '^#? *[A-Z_][A-Z0-9_]*=' "$1" | tr -d '# =' | sort -u; }
+      missing=$(comm -23 <(set_keys .env.example) <(mentioned_keys .env))
+      extra=$(comm -23 <(set_keys .env) <(mentioned_keys .env.example))
+      if [ -n "$missing" ]; then
+        echo "In .env.example but not your .env:" >&2
+        echo "$missing" | sed 's/^/  /' >&2
+      fi
+      if [ -n "$extra" ]; then
+        echo "In your .env but no longer in .env.example (probably removed from internal/config):" >&2
+        echo "$extra" | sed 's/^/  /' >&2
+      fi
+      if [ -n "$missing" ] || [ -n "$extra" ]; then
+        echo "Reconcile them against .env.example, then re-run." >&2
+        exit 1
+      fi
+      echo ".env and .env.example agree on every key."
+
   hooks:install:
     desc: Install the git hooks defined in lefthook.yml
     status:
       - test -f .git/hooks/pre-commit
     cmd: lefthook install
+
+  podman:
+    desc: Install podman and the rootless prerequisites the container stack needs
+    summary: |
+      podman is the one tool mise cannot own. mise installs pinned binaries and deliberately has
+      no side effects, but rootless podman also needs subordinate UID ranges in /etc/subuid and a
+      lingering user session — machine state a download cannot provide. Hence a setup step, and
+      hence the password prompt.
+
+      Linger matters more here than it looks: the shared Caddy edge is long-lived and shared with
+      every other project on this machine, so without it logging out takes every project's
+      routing down.
+
+      The status check is the full requirement set, so a machine that is only half set up runs
+      this again rather than reporting success.
+    interactive: true
+    status:
+      - scripts/dev-podman.sh is-ready
+    cmds:
+      - scripts/dev-podman.sh install
+      - scripts/dev-podman.sh verify
 
   # --- local TLS ------------------------------------------------------------------------
 
@@ -160,10 +273,13 @@ tasks:
   tls:trust-system:
     desc: Put Caddy's local CA root into the system trust store
     summary: |
-      `caddy trust` reads the root from the admin API rather than from disk, so Caddy has to be
-      running — and setup has to work before the edge is up, because that is what setup is. The
-      script starts a configuration-less Caddy for the duration when nothing is listening, and
-      uses whatever is already there when something is.
+      `caddy trust` reads the root from the admin API rather than from disk, so a Caddy has to be
+      running. Two things make that work without caring which one:
+
+      The edge container shares the host's own Caddy directories, so the CA it generates is the CA
+      a host binary would read. And when nothing is listening at all, the script starts a
+      configuration-less Caddy for the duration — which is what lets setup run before the edge
+      exists, because that is what setup is for.
     interactive: true
     deps: [caddy:build]
     status:
@@ -171,6 +287,7 @@ tasks:
     cmd: scripts/dev-tls.sh trust-caddy
     env:
       CADDY_BIN: "{{.CADDY_BIN}}"
+      DINCHY_DEV_CADDY_ADMIN: "{{.EDGE_ADMIN}}"
 
   tls:trust-browser:
     desc: Add Caddy's local CA root to the browser trust store
@@ -186,98 +303,256 @@ tasks:
   # --- the development session -----------------------------------------------------------
 
   dev:
-    desc: Run the Go backend (plaintext on loopback, fronted by Caddy)
+    desc: Follow the backend's log
     summary: |
-      Start `task caddy:dev` first. Dinchy pushes its routes to Caddy once, at startup, waits a
-      few seconds if it has to, and then gives up — there is no job that converges later, so
-      that changes you make to the running proxy stay yours. If you start them the wrong way
-      round, restart Dinchy.
-    cmd: go run ./cmd/dinchy
+      The backend is a container, started by `task dev:up` and already running under Delve. This
+      watches it; the editor's "Backend: API (Delve, in container)" configuration attaches to it.
+
+      Nothing has to be started in a particular order any more. The edge restores the routes every
+      tenant pushed from its autosave, so a backend starting later converges rather than
+      bootstraps.
+    cmd: podman-compose logs -f dinchy-api
 
   dev:watch:
-    desc: Run the Go backend, restarting it whenever a .go file changes
+    desc: Restart the backend, recompiling from the warm build cache
+    summary: |
+      This is the edit-and-run loop. There is no file watcher inside the container on purpose:
+      when the target process exits, the debug session is over regardless, so a watcher would only
+      hide that. Restarting is the honest form of the same thing, and the Go build cache is a
+      volume, so it is a couple of seconds rather than a cold build.
+
+      Fingerprinted, so a restart with nothing changed is a no-op.
+
+      It calls podman rather than podman-compose deliberately. `podman-compose restart` re-resolves
+      depends_on, and the migration container has by then exited successfully — which podman reports
+      as "container state improper", refusing the restart. The dependencies were satisfied when this
+      container was created; restarting it does not need them re-checked.
     sources:
       - "**/*.go"
-    cmd: go run ./cmd/dinchy
+    cmd: podman restart dinchy-api
 
   dev:up:
-    desc: Start the datastores, wait for Postgres, and migrate
+    desc: Start the whole application stack in containers
     summary: |
-      Everything the backend needs before `task dev` or the Zed debugger. The steps run in
-      order rather than as parallel deps, so a migration cannot race a cold container. Caddy
-      and Vite stay separate long-lived processes.
-    deps: [infra:up]
+      Three ordered steps rather than one, and the ordering is the point: a migration must not race
+      a cold database, and the backend must not start against an unmigrated one.
+
+      It is not expressed with depends_on because that has two problems on podman.
+      `service_completed_successfully` waits for the container to *stop* without checking its exit
+      code, unlike Docker Compose, so a failed migration would let the backend start and fail later
+      on a missing table with goose's error nowhere in sight. Worse, podman records that dependency
+      on the container and then refuses to restart anything that depends on an exited container,
+      which would break `task dev:watch` permanently.
+
+      Running the migration in the foreground here fixes both: its exit code is checked, and its
+      output is on your terminal.
+    preconditions:
+      - sh: task env:check >/dev/null
+        msg: "Your .env disagrees with .env.example; run `task env:check` to see which keys."
     cmds:
-      - task: infra:wait
+      - task: infra:datastores
       - task: db:migrate
+      - task: infra:up
 
   # --- infra -----------------------------------------------------------------------------
 
-  infra:up:
-    desc: Start local Postgres, Redis and Mailpit (podman-compose)
+  infra:datastores:
+    desc: Start Postgres, Redis and Mailpit, and wait until they are healthy
     summary: |
-      NETAVARK_FW, if set in .env, is inherited from here — see .env.example for the WSL2 note.
+      The first step of `task dev:up`. Split out so the migration has something to run against
+      before the backend exists.
+    deps: [edge:net]
     preconditions:
+      - sh: scripts/dev-podman.sh is-ready
+        msg: "podman is not set up for rootless containers; run `task podman` (it explains what it needs)."
       - sh: test -f {{.CERT_DIR}}/mailpit.pem
         msg: "Mailpit's certificate is missing from {{.CERT_DIR}}; run `task setup` first."
-    cmd: podman-compose up -d
+    cmds:
+      - podman-compose up -d postgres redis mailpit
+      - |
+        for _ in $(seq 1 60); do
+          if [ "$(podman inspect -f '{{ "{{.State.Health.Status}}" }}' dinchy_postgres_1 2>/dev/null)" = healthy ]; then
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Postgres did not become healthy within 60s; check \`task infra:logs\`." >&2
+        exit 1
+
+  infra:up:
+    desc: Start the stack — datastores, mail catcher, backend under Delve, and Vite
+    summary: |
+      Only two ports are published, both on loopback: Delve and Mailpit's web UI. Everything else
+      is reached by the shared edge over the caddy-edge network.
+
+      The edge is checked rather than started: it is shared with every other project on this
+      machine, so this one has no business owning its lifecycle.
+
+      NETAVARK_FW, if set in .env, is inherited from here — see .env.example for the WSL2 note.
+    deps: [edge:net]
+    preconditions:
+      - sh: scripts/dev-podman.sh is-ready
+        msg: "podman is not set up for rootless containers; run `task podman` (it explains what it needs)."
+      - sh: test -f {{.CERT_DIR}}/mailpit.pem
+        msg: "Mailpit's certificate is missing from {{.CERT_DIR}}; run `task setup` first."
+      - sh: test -d web/node_modules
+        msg: "The frontend's dependencies are missing; run `task web:install` (the container shares them with the host)."
+      - sh: curl -fsS "http://{{.EDGE_ADMIN}}/config/" >/dev/null
+        msg: "The shared Caddy edge is not running; start it with `task edge:up`."
+    cmd: podman-compose up -d --build
 
   infra:down:
-    desc: Stop local infra, keeping its data
+    desc: Stop the stack, keeping its data
+    summary: |
+      The shared edge is left running: other projects are behind it.
     cmd: podman-compose down
 
   infra:logs:
-    desc: Follow local infra logs
+    desc: Follow every service's logs
     cmd: podman-compose logs -f
 
   infra:reset:
-    desc: Destroy local infra and its data volumes, then start clean
+    desc: Destroy the stack and its data volumes, then start clean
     summary: |
       The way out of a Postgres data directory a newer major version refuses to start, which is
       what a major-version bump in compose.yaml leaves behind.
+
+      It does not touch the edge or its certificate storage — those belong to another project and
+      hold the local CA the browser has been told to trust. `task edge:reset` is the edge's own
+      equivalent, and it is deliberately narrower.
     prompt: This deletes the local Postgres and Redis data volumes. Continue?
     cmds:
       - podman-compose down -v
       - task: dev:up
 
-  infra:wait:
-    desc: Block until Postgres accepts connections on DINCHY_POSTGRES_DSN
-    summary: |
-      Waits on goose rather than pg_isready, to exercise the exact DSN the app uses with no
-      dependency on the container's name.
-    requires:
-      vars: [DINCHY_POSTGRES_DSN]
-    cmd: |
-      for _ in $(seq 1 30); do
-        if goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" status >/dev/null 2>&1; then
-          exit 0
-        fi
-        sleep 1
-      done
-      echo "Postgres did not accept connections on $DINCHY_POSTGRES_DSN within 30s; the error was:" >&2
-      goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" status
-
   # --- database --------------------------------------------------------------------------
 
   db:migrate:
     desc: Apply pending migrations to DINCHY_POSTGRES_DSN
+    summary: |
+      Runs in a container: Postgres publishes no host port, so the DSN names a container on the
+      internal network and does not resolve on this machine. `run` drops the service's published
+      ports unless asked for them, so a one-off cannot collide with anything already running.
     requires:
       vars: [DINCHY_POSTGRES_DSN]
-    cmd: goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" up
+    cmd: podman-compose run --rm --no-deps migrate
 
   db:status:
     desc: Show migration status for DINCHY_POSTGRES_DSN
     requires:
       vars: [DINCHY_POSTGRES_DSN]
-    cmd: goose -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" status
+    cmd: >
+      podman-compose run --rm --no-deps --entrypoint goose migrate
+      -dir {{.MIGRATIONS}} postgres "$DINCHY_POSTGRES_DSN" status
+
+  db:shell:
+    desc: Open a psql shell on the development database
+    summary: |
+      Postgres is internal-only, so this goes through the container rather than a host client.
+    cmd: podman-compose exec postgres psql -U dinchy -d dinchy
+
+  # --- the shared edge -------------------------------------------------------------------
+
+  edge:net:
+    desc: Create the shared caddy-edge network, which every project attaches to
+    summary: |
+      Created outside any compose project on purpose: the network outlives every project on it, so
+      a `podman-compose down` anywhere must not be able to take it away.
+
+      The subnet is pinned rather than taken from podman's pool, so DINCHY_TRUSTED_PROXIES has a
+      value that stays true across a network recreate. The app honours forwarded headers only from
+      inside this range.
+    status:
+      - podman network exists {{.EDGE_NET}}
+    cmd: podman network create --subnet 10.89.100.0/24 {{.EDGE_NET}}
+
+  edge:image:
+    desc: Build the edge's Caddy image at the version go.mod pins
+    summary: |
+      The image is tagged with the pinned Caddy version, so the status check below rebuilds when
+      go.mod moves and does nothing otherwise. `generates:` cannot name an image, which is why this
+      uses a status check rather than fingerprinting.
+    run: once
+    vars:
+      CADDY_VERSION:
+        sh: go list -m github.com/caddyserver/caddy/v2 | awk '{print $2}'
+    status:
+      - podman image exists localhost/dinchy-caddy:{{.CADDY_VERSION}}
+    cmds:
+      - podman build --target caddy -t localhost/dinchy-caddy:{{.CADDY_VERSION}} -t localhost/dinchy-caddy:dev -f Containerfile .
+
+  edge:up:
+    desc: Start the shared Caddy edge — the only thing that publishes a host port
+    summary: |
+      Shared with every other project on this machine, so it is started once and left running.
+      `task infra:up` checks that it is there rather than starting it, because a project has no
+      business owning something it shares.
+
+      Nothing needs to be started in a particular order any more: the edge restores the routes
+      every tenant pushed from its autosave, so a backend starting later converges rather than
+      bootstraps.
+    preconditions:
+      - sh: scripts/dev-podman.sh is-ready
+        msg: "podman is not set up for rootless containers; run `task podman` (it explains what it needs)."
+    deps: [edge:net, edge:image]
+    cmds:
+      - podman-compose -p {{.EDGE_PROJECT}} -f {{.EDGE_COMPOSE}} up -d
+      - task: edge:wait
+
+  edge:wait:
+    desc: Block until the edge's admin API answers
+    summary: |
+      Polls the admin API rather than the container's state: a running container whose admin
+      endpoint is not yet listening is exactly the window in which a push would fail.
+    cmd: |
+      for _ in $(seq 1 30); do
+        if curl -fsS "http://{{.EDGE_ADMIN}}/config/" >/dev/null 2>&1; then
+          exit 0
+        fi
+        sleep 1
+      done
+      echo "The Caddy edge's admin API did not answer on {{.EDGE_ADMIN}} within 30s." >&2
+      echo "Check it with: podman-compose -p {{.EDGE_PROJECT}} -f {{.EDGE_COMPOSE}} logs" >&2
+      exit 1
+
+  edge:down:
+    desc: Stop the shared Caddy edge, keeping its certificates and its configuration
+    summary: |
+      This stops routing for every project behind the edge, not just this one.
+    cmd: podman-compose -p {{.EDGE_PROJECT}} -f {{.EDGE_COMPOSE}} down
+
+  edge:logs:
+    desc: Follow the shared Caddy edge's logs
+    cmd: podman-compose -p {{.EDGE_PROJECT}} -f {{.EDGE_COMPOSE}} logs -f
+
+  edge:reset:
+    desc: Re-seed the edge from its base configuration, discarding pushed routes
+    summary: |
+      The way to make an edit to deploy/caddy/base.dev.json take effect. Caddy reads a base file
+      only when there is no autosave — `--resume` overrides `--config` and says so in a warning —
+      so a base file edit does nothing to a running deployment until the autosave is gone.
+
+      Every project's routes go with it. They come back as each backend restarts and pushes again.
+
+      It deliberately does not touch the certificate directory: that holds the local CA the browser
+      has been told to trust, and regenerating it means running `task tls` again.
+    prompt: This discards the routes every project pushed to the edge. Certificates are kept. Continue?
+    cmds:
+      - task: edge:down
+      - podman volume rm -f {{.EDGE_PROJECT}}_caddy-edge-config
+      - task: edge:up
 
   # --- Caddy -----------------------------------------------------------------------------
 
   caddy:build:
-    desc: Build the pinned, vanilla Caddy into tmp/caddy
+    desc: Build the pinned Caddy into tmp/caddy, as the host-side trust and inspection tool
     summary: |
-      go.mod locks the Caddy version, so this is reproducible with no manifest of our own.
-      Fingerprinted: rebuilt only when cmd/caddy or the module graph changes.
+      This is not what serves traffic — the edge container is. It is the binary `caddy trust` runs
+      from, which is how the local CA reaches the system and browser trust stores, and it is a
+      convenient way to inspect a configuration.
+
+      go.mod locks the version, so this and the edge image are the same Caddy. Fingerprinted:
+      rebuilt only when cmd/caddy or the module graph changes.
     run: once
     sources:
       - cmd/caddy/**/*.go
@@ -287,33 +562,46 @@ tasks:
       - "{{.CADDY_BIN}}"
     cmd: go build -o {{.CADDY_BIN}} ./cmd/caddy
 
-  caddy:dev:
-    desc: Run Caddy — terminates TLS on :8443 and routes to the backend
-    summary: |
-      Start this before `task dev`. `--resume` restores the last configuration Dinchy pushed,
-      so Caddy keeps serving across backend restarts and across its own.
-    deps: [caddy:build]
-    cmd: "{{.CADDY_BIN}} run --resume"
-
   caddy:version:
-    desc: Print the pinned Caddy version, for building a plugin against the same one
+    desc: Print the pinned Caddy version, which the edge image is tagged with
     summary: |
       Parsed with awk rather than `go list -f`, whose {{ "{{...}}" }} template task would expand
-      itself:
+      itself.
+
+      A plugin belongs in cmd/caddy as a blank import, so go.mod pins it and `task edge:image`
+      picks it up. xcaddy against this version stays available for a throwaway experiment:
 
         xcaddy build "$(task caddy:version)" --with <module> --output tmp/caddy
     silent: true
     cmd: go list -m github.com/caddyserver/caddy/v2 | awk '{print $2}'
 
   caddy:modules:
-    desc: List the Caddy modules compiled into tmp/caddy
+    desc: List the Caddy modules compiled into the edge image
     summary: |
       The only reliable answer to "is my plugin loaded": a Go module can resolve and build
-      while registering no Caddy module at all.
-    deps: [caddy:build]
-    cmd: "{{.CADDY_BIN}} list-modules --versions"
+      while registering no Caddy module at all. It reads the image rather than tmp/caddy, because
+      the image is what serves traffic.
+    deps: [edge:image]
+    cmd: podman run --rm localhost/dinchy-caddy:dev list-modules --versions
 
   # --- build, test, lint -----------------------------------------------------------------
+
+  images:
+    desc: Build every production image — the edge, the API, and the web UI
+    summary: |
+      What a deployment installs. The quadlets in deploy/quadlet/ reference these tags, so this is
+      the step between a commit and a host that can run it; deploy/README.md covers how they get
+      there.
+
+      The edge image is shared across every application on a host, so it is tagged with the Caddy
+      version go.mod pins rather than with a Dinchy version.
+    vars:
+      CADDY_VERSION:
+        sh: go list -m github.com/caddyserver/caddy/v2 | awk '{print $2}'
+    cmds:
+      - podman build --target caddy -t localhost/dinchy-caddy:{{.CADDY_VERSION}} -t localhost/dinchy-caddy:latest -f Containerfile .
+      - podman build --target dinchy -t localhost/dinchy:latest -f Containerfile .
+      - podman build --target static -t localhost/dinchy-web:latest -f web/Containerfile ./web
 
   build:
     desc: Build the production binary

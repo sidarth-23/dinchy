@@ -19,15 +19,21 @@ tasks:
     cmd: bun install
 
   dev:
-    desc: Run the Vite dev server on 127.0.0.1:3000
+    desc: Follow the Vite dev server's log
     summary: |
-      The port is pinned in vite.config.ts with strictPort rather than on the command line:
-      Caddy proxies to a fixed upstream, so falling back to the next free port would surface as
-      a blank page behind the proxy instead of an error at startup. Reach it through Caddy at
-      https://localhost:8443 — HMR's WebSocket is pointed there too, and the browser never
-      dials :3000 itself.
-    deps: [install]
-    cmd: bun run dev
+      Vite runs in a container, started with the rest of the stack by `task dev:up`. It publishes
+      no port: the shared Caddy edge reaches it over the container network, and the browser reaches
+      it through the edge at https://localhost:8443. HMR's WebSocket is pointed at the edge too, so
+      nothing ever dials :3000 directly.
+
+      The port is still pinned in vite.config.ts with strictPort rather than on the command line,
+      for the same reason as before: the edge proxies to a fixed upstream, so falling back to the
+      next free port would surface as a blank page behind the proxy instead of an error at startup.
+
+      node_modules stays on the host filesystem, shared with the container through the bind mount,
+      because `task check` and the editor's Biome both read it.
+    dir: ..
+    cmd: podman-compose logs -f dinchy-web
 
   build:
     desc: Build production frontend assets into web/dist

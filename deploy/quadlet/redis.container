@@ -8,8 +8,8 @@ After=network-online.target
 Image=docker.io/library/redis:8.4
 ContainerName=dinchy-redis
 Network=dinchy.network
-# Published to loopback only; the host-native Dinchy binary connects on 127.0.0.1:6379.
-PublishPort=127.0.0.1:6379:6379
+# Nothing is published: the management plane is a container on this same network and
+# reaches it by name. Nothing on the host needs it, and nothing off the host should.
 # Persist Redis data across restarts.
 Volume=dinchy-redis-data:/data
 

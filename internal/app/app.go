@@ -120,6 +120,7 @@ func (a *App) Start() error {
 	}
 	a.public = transport.New(transport.Options{
 		Addr:                 a.cfg.Addr,
+		TrustedProxies:       a.cfg.TrustedProxyPrefixes,
 		ExposeInternalErrors: a.cfg.ExposeInternalErrors,
 		SecureCookies:        a.cfg.SecureCookies,
 		PublicScheme:         a.cfg.PublicScheme(),

@@ -26,10 +26,10 @@ const (
 // owns. Only the panel route exists today; features that own public entrypoints
 // register their own caddy.RouteSource here.
 //
-// A proxy that cannot be reached must not stop the process from starting. Routing being
-// broken is exactly when an operator needs the interface that can repair it, so the
-// failure is recorded once here and Dinchy keeps serving on its loopback listener, which
-// is what makes recovery over an SSH tunnel possible.
+// An edge that cannot be reached must not stop the process from starting. Routing being broken is
+// exactly when an operator needs the interface that can repair it, so the failure is recorded once
+// here and Dinchy keeps serving on its own listener — which is what makes recovery possible without
+// the edge, over an SSH tunnel or from inside the container network.
 func (a *App) startCaddy(ctx context.Context) error {
 	if !a.cfg.Caddy.Enabled {
 		logging.Info(ctx, a.logger, "Caddy management disabled", slog.String("component", "caddy"))
@@ -46,11 +46,12 @@ func (a *App) startCaddy(ctx context.Context) error {
 	return nil
 }
 
-// reconcileCaddyAtStartup converges the proxy once and reports the outcome.
+// reconcileCaddyAtStartup converges this deployment's slice of the edge once and reports the
+// outcome.
 //
-// This is the only time Dinchy writes to Caddy. It does not re-assert on a timer: the
-// operator owns the running configuration once it is set up, and a management plane that
-// silently overwrites their changes every minute is one they cannot work with.
+// This is the only time Dinchy writes to the edge. It does not re-assert on a timer: the operator
+// owns the running configuration once it is set up, other tenants own theirs, and a management
+// plane that silently overwrites either every minute is one nobody can work with.
 //
 // It returns nothing on purpose: startup is the end of the line for this failure, so it is
 // logged here and nowhere else.
@@ -90,37 +91,29 @@ func isCaddyUnreachable(err error) bool {
 // panelRoutes describes the entrypoints serving Dinchy's own API and web UI, on one
 // hostname split by path.
 //
-// The web assets do not pass through Dinchy: Caddy reads them from disk in production and
-// proxies to the Vite dev server in development, so the Go process only ever answers the
-// API. Keeping one hostname keeps the browser same-origin, which is what lets the session
-// and CSRF cookies stay SameSite=Lax and keeps CORS out of the picture.
+// The web assets do not pass through Dinchy, and they do not pass through the edge's filesystem
+// either: the edge is shared between applications and can see none of their files, so the assets
+// are an upstream like any other — Vite in development, a static server alongside the app in
+// production. The Go process only ever answers the API. Keeping one hostname keeps the browser
+// same-origin, which is what lets the session and CSRF cookies stay SameSite=Lax and keeps CORS out
+// of the picture.
 //
 // The app layer composes these because they span the listen address, the proxy settings
 // and the frontend location, the same way it composes the outbound email links.
 func (a *App) panelRoutes() []caddy.Route {
-	api := caddy.Route{
-		Owner:      caddy.PanelOwner,
-		Host:       a.cfg.Caddy.PanelHost,
-		PathPrefix: transport.APIPathPrefix,
-		Upstream:   a.cfg.Addr,
+	return []caddy.Route{
+		{
+			Owner:      caddy.PanelOwner,
+			Host:       a.cfg.Caddy.PanelHost,
+			PathPrefix: transport.APIPathPrefix,
+			Upstream:   a.cfg.PanelUpstream(),
+		},
+		{
+			Owner:    caddy.PanelOwner,
+			Host:     a.cfg.Caddy.PanelHost,
+			Upstream: a.cfg.FrontendUpstream(),
+		},
 	}
-
-	web := caddy.Route{
-		Owner: caddy.PanelOwner,
-		Host:  a.cfg.Caddy.PanelHost,
-	}
-	if a.cfg.DevMode {
-		// Vite serves the assets and its own HMR socket; Caddy forwards to it.
-		web.Upstream = a.cfg.FrontendUpstream()
-	} else {
-		web.Serve = caddy.ServeModeFiles
-		web.Root = a.cfg.FrontendRoot
-		// Client-side routes have no file behind them, so an unmatched path must serve
-		// the application document rather than 404.
-		web.FallbackPath = caddy.SPAFallbackPath
-	}
-
-	return []caddy.Route{api, web}
 }
 
 // caddyHealthCheck reports proxy health in the readiness payload without making the

@@ -13,61 +13,34 @@ import (
 	"github.com/sidarth-23/dinchy/internal/foundation/i18n"
 )
 
-// ServerName is the key of the HTTP server Dinchy owns inside Caddy's configuration.
-// Everything Dinchy manages lives under it, so an operator's own servers are left alone.
-const ServerName = "dinchy"
+// objectIDPrefix namespaces every "@id" this package writes, so an object Dinchy owns is
+// recognizable in a configuration it shares with other tenants.
+const objectIDPrefix = "dinchy"
+
+// RouteObjectID is the "@id" of the single route object carrying every entrypoint this
+// deployment serves. It is namespaced by tenant so two deployments sharing one edge address
+// their own route and never each other's.
+func RouteObjectID(tenant string) string {
+	return objectIDPrefix + "." + tenant + ".routes"
+}
+
+// TLSPolicyObjectID is the "@id" of the certificate automation policy covering this
+// deployment's hosts, namespaced the same way RouteObjectID is.
+func TLSPolicyObjectID(tenant string) string {
+	return objectIDPrefix + "." + tenant + ".tls"
+}
 
 // Caddy's configuration objects, modeled as plain structs rather than importing
 // Caddy's own packages: the management plane keeps a small dependency tree, and the
 // wire format is a stable, documented API.
+//
+// Only the objects Dinchy writes are modeled. The edge owns the admin endpoint, the storage
+// location, the ports and the servers, and nothing here can express them.
 type (
-	// Config is a whole Caddy configuration document.
-	Config struct {
-		Admin   *AdminConfig   `json:"admin,omitempty"`
-		Storage *StorageConfig `json:"storage,omitempty"`
-		Apps    *AppsConfig    `json:"apps,omitempty"`
-	}
-
-	// AdminConfig configures the admin API endpoint Dinchy drives.
-	AdminConfig struct {
-		Listen string `json:"listen,omitempty"`
-	}
-
-	// StorageConfig pins where Caddy keeps certificates and ACME account keys.
-	StorageConfig struct {
-		Module string `json:"module"`
-		Root   string `json:"root,omitempty"`
-	}
-
-	// AppsConfig holds the Caddy apps Dinchy configures.
-	AppsConfig struct {
-		HTTP *HTTPApp `json:"http,omitempty"`
-		TLS  *TLSApp  `json:"tls,omitempty"`
-	}
-
-	// HTTPApp is Caddy's HTTP app.
-	HTTPApp struct {
-		HTTPPort  int                    `json:"http_port,omitempty"`
-		HTTPSPort int                    `json:"https_port,omitempty"`
-		Servers   map[string]*HTTPServer `json:"servers,omitempty"`
-	}
-
-	// HTTPServer is one listening HTTP server. It carries no TLS connection policy:
-	// Caddy adds one itself for a server that listens only on the HTTPS port, and every
-	// certificate here is one Caddy manages.
-	HTTPServer struct {
-		Listen         []string        `json:"listen"`
-		Routes         []ServerRoute   `json:"routes,omitempty"`
-		AutomaticHTTPS *AutomaticHTTPS `json:"automatic_https,omitempty"`
-	}
-
-	// AutomaticHTTPS controls Caddy's implicit HTTP-to-HTTPS redirect.
-	AutomaticHTTPS struct {
-		DisableRedirects bool `json:"disable_redirects,omitempty"`
-	}
-
-	// ServerRoute is one route within a server.
+	// ServerRoute is one route within a server. ID is set only on the one route this
+	// deployment owns, which is what makes it addressable without a path.
 	ServerRoute struct {
+		ID       string         `json:"@id,omitempty"`
 		Match    []RouteMatch   `json:"match,omitempty"`
 		Handle   []RouteHandler `json:"handle,omitempty"`
 		Terminal bool           `json:"terminal,omitempty"`
@@ -75,15 +48,8 @@ type (
 
 	// RouteMatch selects the requests a route handles.
 	RouteMatch struct {
-		Host []string     `json:"host,omitempty"`
-		Path []string     `json:"path,omitempty"`
-		File *FileMatcher `json:"file,omitempty"`
-	}
-
-	// FileMatcher matches when one of TryFiles exists on disk under the current root.
-	// It is what lets a single-page application fall back to its index document.
-	FileMatcher struct {
-		TryFiles []string `json:"try_files,omitempty"`
+		Host []string `json:"host,omitempty"`
+		Path []string `json:"path,omitempty"`
 	}
 
 	// RouteHandler is one handler in a route's chain.
@@ -92,12 +58,8 @@ type (
 		Response  *HeaderOps    `json:"response,omitempty"`
 		Upstreams []Upstream    `json:"upstreams,omitempty"`
 		Headers   *ProxyHeaders `json:"headers,omitempty"`
-		// Root is the filesystem root, set by the "vars" handler before file matching.
-		Root string `json:"root,omitempty"`
-		// URI is the rewritten request URI, used by the "rewrite" handler.
-		URI string `json:"uri,omitempty"`
-		// Routes are the nested routes of a "subroute" handler, which is how per-path
-		// matching is expressed inside one addressable top-level route.
+		// Routes are the nested routes of a "subroute" handler, which is how several
+		// entrypoints are expressed inside one addressable top-level route.
 		Routes []ServerRoute `json:"routes,omitempty"`
 	}
 
@@ -117,18 +79,10 @@ type (
 		Dial string `json:"dial"`
 	}
 
-	// TLSApp configures certificate automation.
-	TLSApp struct {
-		Automation *TLSAutomation `json:"automation,omitempty"`
-	}
-
-	// TLSAutomation holds the certificate automation policies.
-	TLSAutomation struct {
-		Policies []AutomationPolicy `json:"policies,omitempty"`
-	}
-
-	// AutomationPolicy governs how certificates for Subjects are obtained.
+	// AutomationPolicy governs how certificates for Subjects are obtained. ID makes this
+	// deployment's policy addressable inside the edge's shared policy array.
 	AutomationPolicy struct {
+		ID       string   `json:"@id,omitempty"`
 		Subjects []string `json:"subjects,omitempty"`
 		Issuers  []Issuer `json:"issuers,omitempty"`
 	}
@@ -141,74 +95,88 @@ type (
 	}
 )
 
-// BuildConfig translates the desired routes into a whole Caddy configuration document.
-//
-// The admin block is always present. POST /load replaces the entire configuration
-// including that block, so a document that omitted it would tear down the very endpoint
-// Dinchy uses to push, leaving no way to recover without editing files by hand.
-func BuildConfig(cfg config.CaddyConfig, routes []Route) (Config, error) {
-	ordered, err := orderRoutes(routes)
-	if err != nil {
-		return Config{}, err
-	}
-
-	serverRoutes := make([]ServerRoute, 0, len(ordered))
-	for i := range ordered {
-		serverRoutes = append(serverRoutes, buildServerRoute(cfg, ordered[i]))
-	}
-
-	built := Config{
-		Admin: &AdminConfig{Listen: cfg.AdminEndpoint},
-		Apps: &AppsConfig{
-			HTTP: &HTTPApp{
-				HTTPSPort: int(cfg.HTTPSPort),
-				Servers: map[string]*HTTPServer{
-					ServerName: {
-						Listen: []string{":" + strconv.Itoa(int(cfg.HTTPSPort))},
-						Routes: serverRoutes,
-					},
-				},
-			},
-		},
-	}
-	if cfg.StoragePath != "" {
-		built.Storage = &StorageConfig{Module: "file_system", Root: cfg.StoragePath}
-	}
-	server := built.Apps.HTTP.Servers[ServerName]
-	built.Apps.TLS = buildTLS(cfg, ordered)
-	if cfg.UsesLocalCA() {
-		// Caddy creates the redirect vhost on port 80 for every HTTPS site regardless of
-		// the site's own port. On a development machine where unprivileged ports start at
-		// 1024, binding 80 fails and Caddy rejects the whole configuration.
-		server.AutomaticHTTPS = &AutomaticHTTPS{DisableRedirects: true}
-	}
-	return built, nil
+// Contribution is the slice of the edge's configuration this deployment owns: one addressable
+// route carrying every entrypoint it serves, and one certificate automation policy covering
+// their hosts. Nothing outside it is Dinchy's to write.
+type Contribution struct {
+	// Route carries every entrypoint, nested inside one addressable object.
+	Route ServerRoute
+	// Policy covers the hosts those entrypoints answer on.
+	Policy AutomationPolicy
+	// RouteCount is how many entrypoints Route nests, for reporting.
+	RouteCount int
 }
 
-// buildTLS configures certificate automation for every host Dinchy serves. Nothing is
-// loaded from disk and no connection policy is emitted: every certificate here is one
-// Caddy manages, and Caddy adds the policy itself for a server that listens only on the
-// HTTPS port.
-func buildTLS(cfg config.CaddyConfig, routes []Route) *TLSApp {
-	subjects := make([]string, 0, len(routes))
-	for i := range routes {
-		subjects = append(subjects, routes[i].Host)
-	}
-	if len(subjects) == 0 {
-		return nil
-	}
-	slices.Sort(subjects)
+// Empty reports whether there is nothing to apply, which is what an empty route set produces.
+func (c Contribution) Empty() bool { return c.RouteCount == 0 }
 
+// BuildContribution translates the desired routes into the two objects Dinchy pushes.
+//
+// Every entrypoint is nested inside one addressable route rather than contributed as several
+// top-level ones. That is what makes the write atomic, makes re-pushing it idempotent, and prunes
+// a route a source has stopped reporting simply by leaving it out of the replacement.
+//
+// The outer route matches on the union of the hosts it serves, and that matcher is load-bearing: it
+// is terminal, so without a host matcher it would swallow every other tenant's traffic on the
+// shared edge.
+func BuildContribution(cfg config.CaddyConfig, routes []Route) (Contribution, error) {
+	ordered, err := orderRoutes(routes)
+	if err != nil {
+		return Contribution{}, err
+	}
+	if len(ordered) == 0 {
+		return Contribution{}, nil
+	}
+
+	nested := make([]ServerRoute, 0, len(ordered))
+	for i := range ordered {
+		nested = append(nested, buildServerRoute(cfg, ordered[i]))
+	}
+	hosts := serviceHosts(ordered)
+
+	return Contribution{
+		Route: ServerRoute{
+			ID:       RouteObjectID(cfg.Tenant),
+			Match:    []RouteMatch{{Host: hosts}},
+			Handle:   []RouteHandler{{Handler: "subroute", Routes: nested}},
+			Terminal: true,
+		},
+		Policy:     buildPolicy(cfg, hosts),
+		RouteCount: len(ordered),
+	}, nil
+}
+
+// serviceHosts is the deduplicated, ordered set of hosts the routes answer on.
+func serviceHosts(routes []Route) []string {
+	hosts := make([]string, 0, len(routes))
+	for i := range routes {
+		hosts = append(hosts, routes[i].Host)
+	}
+	slices.Sort(hosts)
+	return slices.Compact(hosts)
+}
+
+// buildPolicy configures certificate automation for every host Dinchy serves. No certificate is
+// loaded from disk and no connection policy is emitted: every certificate here is one the edge
+// manages, and the edge's server carries the connection policy.
+//
+// Subjects are always named. A policy without them is a catch-all, and Caddy takes the first
+// policy that matches — so an unnamed one would take over issuance for every host on the edge,
+// including other tenants'. The converse matters too: a host served by a route but named by no
+// policy falls through to the edge's default issuer, which in development means a real ACME
+// attempt for a name that cannot validate.
+func buildPolicy(cfg config.CaddyConfig, hosts []string) AutomationPolicy {
 	// The local CA takes no contact address or directory URL — both are ACME notions, and
 	// Issuer.CA means an authority identifier to the internal module, not a directory.
 	issuer := Issuer{Module: config.TLSIssuerInternal}
 	if !cfg.UsesLocalCA() {
 		issuer = Issuer{Module: config.TLSIssuerACME, CA: cfg.ACMECA, Email: cfg.ACMEEmail}
 	}
-	return &TLSApp{Automation: &TLSAutomation{Policies: []AutomationPolicy{{
-		Subjects: slices.Compact(subjects),
+	return AutomationPolicy{
+		ID:       TLSPolicyObjectID(cfg.Tenant),
+		Subjects: hosts,
 		Issuers:  []Issuer{issuer},
-	}}}}
+	}
 }
 
 // matcherPath renders a PathPrefix as the Caddy path matcher it becomes, or empty for a
@@ -236,41 +204,13 @@ func buildServerRoute(cfg config.CaddyConfig, route Route) ServerRoute {
 	if response := buildResponseHeaders(cfg, route); response != nil {
 		handlers = append(handlers, RouteHandler{Handler: "headers", Response: response})
 	}
-	if route.ServesFiles() {
-		handlers = append(handlers, staticFileHandler(route))
-	} else {
-		handlers = append(handlers, RouteHandler{
-			Handler:   "reverse_proxy",
-			Upstreams: []Upstream{{Dial: route.Upstream}},
-			Headers:   &ProxyHeaders{Request: forwardedHeaderOps()},
-		})
-	}
+	handlers = append(handlers, RouteHandler{
+		Handler:   "reverse_proxy",
+		Upstreams: []Upstream{{Dial: route.Upstream}},
+		Headers:   &ProxyHeaders{Request: forwardedHeaderOps()},
+	})
 
 	return ServerRoute{Match: []RouteMatch{match}, Handle: handlers, Terminal: true}
-}
-
-// staticFileHandler serves Root from disk, optionally falling back to a single document
-// for paths that match no file.
-//
-// The three steps are nested in a subroute because the fallback needs its own matcher and
-// a top-level route carries only one: the root is set first so file matching resolves
-// against it, then a rewrite redirects unmatched paths to the fallback, then the file
-// server responds. This mirrors what Caddy's own Caddyfile adapter emits for
-// `root` + `try_files` + `file_server`, verified with `caddy adapt`.
-func staticFileHandler(route Route) RouteHandler {
-	nested := []ServerRoute{
-		{Handle: []RouteHandler{{Handler: "vars", Root: route.Root}}},
-	}
-	if route.FallbackPath != "" {
-		nested = append(nested, ServerRoute{
-			Match: []RouteMatch{{File: &FileMatcher{
-				TryFiles: []string{"{http.request.uri.path}", route.FallbackPath},
-			}}},
-			Handle: []RouteHandler{{Handler: "rewrite", URI: "{http.matchers.file.relative}"}},
-		})
-	}
-	nested = append(nested, ServerRoute{Handle: []RouteHandler{{Handler: "file_server"}}})
-	return RouteHandler{Handler: "subroute", Routes: nested}
 }
 
 // forwardedHeaderOps normalizes the forwarded headers reaching every upstream.

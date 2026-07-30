@@ -16,29 +16,43 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/caddy"
 )
 
-// spyAdmin records what the reconciler pushed to Caddy.
+// spyAdmin records what the reconciler pushed to the edge, in the order it pushed it.
 type spyAdmin struct {
-	mu         sync.Mutex
-	loads      int
-	loadErr    error
-	pingErr    error
-	loadedHost []string
+	mu        sync.Mutex
+	applied   []string
+	routes    int
+	policies  int
+	routeErr  error
+	policyErr error
+	pingErr   error
+	hosts     []string
+	server    string
 }
 
-func (s *spyAdmin) LoadConfig(_ context.Context, cfg caddy.Config) error {
+func (s *spyAdmin) ApplyRoute(_ context.Context, edgeServerName string, route caddy.ServerRoute) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.loads++
-	if s.loadErr != nil {
-		return s.loadErr
+	s.applied = append(s.applied, "route")
+	s.routes++
+	if s.routeErr != nil {
+		return s.routeErr
 	}
-	s.loadedHost = nil
-	if cfg.Apps != nil && cfg.Apps.HTTP != nil {
-		for _, route := range cfg.Apps.HTTP.Servers[caddy.ServerName].Routes {
-			s.loadedHost = append(s.loadedHost, route.Match[0].Host[0])
+	s.server = edgeServerName
+	s.hosts = nil
+	for _, handler := range route.Handle {
+		for _, nested := range handler.Routes {
+			s.hosts = append(s.hosts, nested.Match[0].Host[0])
 		}
 	}
 	return nil
+}
+
+func (s *spyAdmin) ApplyTLSPolicy(_ context.Context, _ caddy.AutomationPolicy) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.applied = append(s.applied, "policy")
+	s.policies++
+	return s.policyErr
 }
 
 func (s *spyAdmin) Ping(context.Context) error {
@@ -47,10 +61,17 @@ func (s *spyAdmin) Ping(context.Context) error {
 	return s.pingErr
 }
 
-func (s *spyAdmin) loadCount() int {
+// writeCount is how many configuration writes reached the edge, of either kind.
+func (s *spyAdmin) writeCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.loads
+	return s.routes + s.policies
+}
+
+func (s *spyAdmin) order() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.applied...)
 }
 
 // failingSource is a RouteSource that always fails.
@@ -72,7 +93,7 @@ func panelSource(cfg config.CaddyConfig) caddy.RouteSource {
 	return caddy.NewStaticSource(caddy.PanelOwner, panelRoute(cfg.PanelHost, "127.0.0.1:8080"))
 }
 
-func TestReconcileAll_LoadsTheWholeConfigurationOnce(t *testing.T) {
+func TestReconcileAll_AppliesTheRouteAndThePolicy(t *testing.T) {
 	cfg := productionConfig()
 	admin := &spyAdmin{}
 	reconciler := newReconciler(t, cfg, admin, panelSource(cfg))
@@ -80,9 +101,50 @@ func TestReconcileAll_LoadsTheWholeConfigurationOnce(t *testing.T) {
 	result, err := reconciler.ReconcileAll(context.Background())
 	require.NoError(t, err)
 
-	assert.True(t, result.Reloaded)
+	assert.True(t, result.Applied)
 	assert.Equal(t, 1, result.RouteCount)
-	assert.Equal(t, 1, admin.loadCount())
+	assert.Equal(t, 2, admin.writeCount(), "one route object and one policy object")
+	assert.Equal(t, cfg.EdgeServerName, admin.server)
+}
+
+// TestReconcileAll_AppliesThePolicyBeforeTheRoute pins the order, because the two half-applied
+// states are not equally bad. A route without its policy leaves the host answering with no
+// certificate, so the handshake fails; a policy without its route provisions a certificate nothing
+// uses yet and breaks nothing.
+func TestReconcileAll_AppliesThePolicyBeforeTheRoute(t *testing.T) {
+	cfg := productionConfig()
+	admin := &spyAdmin{}
+	reconciler := newReconciler(t, cfg, admin, panelSource(cfg))
+
+	_, err := reconciler.ReconcileAll(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"policy", "route"}, admin.order())
+}
+
+// TestReconcileAll_PolicyFailureStopsBeforeTheRoute follows from the ordering above: publishing a
+// route whose certificate could not be arranged would break the host outright.
+func TestReconcileAll_PolicyFailureStopsBeforeTheRoute(t *testing.T) {
+	cfg := productionConfig()
+	admin := &spyAdmin{policyErr: apperrors.Internal(i18n.Msg(i18n.CodePlatformRoutingApplyFailed))}
+	reconciler := newReconciler(t, cfg, admin, panelSource(cfg))
+
+	_, err := reconciler.ReconcileAll(context.Background())
+
+	assertCode(t, err, i18n.CodePlatformRoutingApplyFailed, http.StatusInternalServerError)
+	assert.Equal(t, []string{"policy"}, admin.order(), "the route must not be published")
+}
+
+func TestReconcileAll_NoRoutesPushesNothing(t *testing.T) {
+	cfg := productionConfig()
+	admin := &spyAdmin{}
+	reconciler := newReconciler(t, cfg, admin)
+
+	result, err := reconciler.ReconcileAll(context.Background())
+	require.NoError(t, err)
+
+	assert.False(t, result.Applied)
+	assert.Zero(t, admin.writeCount())
 }
 
 func TestReconcileAll_RejectsConflictingRoutesWithoutCallingCaddy(t *testing.T) {
@@ -99,7 +161,7 @@ func TestReconcileAll_RejectsConflictingRoutesWithoutCallingCaddy(t *testing.T) 
 	_, err := reconciler.ReconcileAll(context.Background())
 
 	assertCode(t, err, i18n.CodePlatformRoutingHostConflict, http.StatusConflict)
-	assert.Zero(t, admin.loadCount(), "a rejected route set must not reach Caddy")
+	assert.Zero(t, admin.writeCount(), "a rejected route set must not reach Caddy")
 }
 
 func TestReconcileAll_SourceFailureAbortsBeforeTouchingCaddy(t *testing.T) {
@@ -111,7 +173,7 @@ func TestReconcileAll_SourceFailureAbortsBeforeTouchingCaddy(t *testing.T) {
 	_, err := reconciler.ReconcileAll(context.Background())
 	require.Error(t, err)
 
-	assert.Zero(t, admin.loadCount())
+	assert.Zero(t, admin.writeCount())
 
 	var appErr *apperrors.AppError
 	require.ErrorAs(t, err, &appErr)
@@ -153,8 +215,8 @@ func TestReconciler_DisabledDoesNothing(t *testing.T) {
 	result, err := reconciler.ReconcileAll(context.Background())
 	require.NoError(t, err)
 
-	assert.False(t, result.Reloaded)
-	assert.Zero(t, admin.loadCount())
+	assert.False(t, result.Applied)
+	assert.Zero(t, admin.writeCount())
 }
 
 func TestReconciler_ConcurrentCallsSerialize(t *testing.T) {
@@ -172,7 +234,7 @@ func TestReconciler_ConcurrentCallsSerialize(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.Equal(t, 8, admin.loadCount())
+	assert.Equal(t, 16, admin.writeCount(), "eight reconciles, two writes each")
 }
 
 func TestNewReconciler_RequiresAnAdminClient(t *testing.T) {
@@ -193,5 +255,5 @@ func TestStaticSource_DefaultsOwnerToSourceName(t *testing.T) {
 
 	admin.mu.Lock()
 	defer admin.mu.Unlock()
-	assert.Contains(t, admin.loadedHost, "app.example.com")
+	assert.Contains(t, admin.hosts, "app.example.com")
 }

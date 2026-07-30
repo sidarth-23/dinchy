@@ -1,0 +1,41 @@
+[Unit]
+Description=Dinchy management plane
+Documentation=https://github.com/sidarth-23/dinchy
+After=network-online.target postgres.service redis.service caddy.service
+Wants=network-online.target
+Requires=postgres.service redis.service
+# Caddy is pulled in and started first, because Dinchy pushes its configuration once at startup and
+# does not retry indefinitely. Never Requires=: if routing breaks, Dinchy is the only thing that can
+# repair it, so the edge's failure must not stop the management plane.
+#
+# The ordering is now a convenience rather than a requirement. The edge restores every tenant's
+# routes from its own autosave, so a Dinchy that starts first simply converges on the next attempt.
+Wants=caddy.service
+
+[Container]
+Image=localhost/dinchy:latest
+ContainerName=dinchy-api
+# Two networks, for two different reasons: dinchy.network carries the datastores, which no other
+# tenant should reach, and caddy-edge lets the shared edge reach this API.
+Network=dinchy.network
+Network=caddy-edge.network
+# Nothing is published. The edge is the only ingress, and it dials dinchy-api:8080 over caddy-edge.
+# DINCHY_ADDR therefore binds every interface, and DINCHY_TRUSTED_PROXIES is what keeps the
+# forwarded client address in audit rows trustworthy — see deploy/dinchy.env.example.
+EnvironmentFile=/etc/dinchy/dinchy.env
+# Dinchy manages user deployments through the container runtime, so it needs the socket. This is the
+# most consequential grant in this file: the socket is root-equivalent on this host.
+Volume=%t/podman/podman.sock:/run/podman/podman.sock
+Environment=DOCKER_HOST=unix:///run/podman/podman.sock
+HealthCmd=wget -qO- http://127.0.0.1:9090/readyz >/dev/null
+HealthInterval=30s
+HealthStartPeriod=15s
+
+[Service]
+Restart=on-failure
+RestartSec=5
+# Never let the OOM killer target the management plane, even during a runaway build.
+OOMScoreAdjust=-1000
+
+[Install]
+WantedBy=default.target

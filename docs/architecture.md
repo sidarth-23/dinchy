@@ -6,11 +6,25 @@ Key decisions made during design, with reasoning. This is the "why" behind the t
 
 ## Go binary over Docker container
 
-Dinchy needs direct system access: spawning PTYs for web terminal, talking to the Docker socket natively, and reading `/proc/meminfo` for build safety. Running inside a Docker container would require mounting the host filesystem and using `nsenter` to escape into the host's namespace — complex and negating the isolation Docker provides. A Go binary runs directly on the host as a dedicated system user with exactly the permissions it needs (docker group, no sudo).
+> **Superseded.** Dinchy runs as a container. What survives is the *reasoning* below about what a
+> container must therefore be granted — and the grants are explicit rather than incidental. See
+> "Containers over host binaries" immediately after this section.
 
-**Consequence:** Distribution is the Dinchy binary + a Caddy binary + service files. Installation is an install script, not `docker pull`.
+Dinchy needs direct system access: spawning PTYs for web terminal, talking to the container socket natively, and reading `/proc/meminfo` for build safety. Running inside a Docker container would require mounting the host filesystem and using `nsenter` to escape into the host's namespace — complex and negating the isolation Docker provides. A Go binary runs directly on the host as a dedicated system user with exactly the permissions it needs (docker group, no sudo).
 
-The Caddy binary is deliberately **rebuildable by the operator**, which costs the "one artifact" story: compiling it needs a Go toolchain and network access at install time. First-class plugin extensibility is worth more than a single-artifact install. `cmd/caddy` is a vanilla build whose only job is to pin the Caddy version through `go.mod`; plugins are the operator's, compiled with `xcaddy` against that same pinned version (`task caddy:version`). There is no manifest and no second lockfile to keep honest.
+The Caddy binary is deliberately **rebuildable by the operator**, which costs the "one artifact" story: compiling it needs a Go toolchain and network access at install time. First-class plugin extensibility is worth more than a single-artifact install. `cmd/caddy` is a vanilla build whose only job is to pin the Caddy version through `go.mod`. That part is unchanged; only where the build lands has moved.
+
+---
+
+## Containers over host binaries
+
+This reverses the decision above. What forced it was not the application but the *edge*: one host should be able to serve several applications, and a Caddy that owns `:443` as a host process can only ever front one. Making the edge a shared container — reachable by every application on a dedicated network, publishing the only host port — is what makes a second application on the same machine possible at all.
+
+Once the edge is a container, the rest follows. A containerized edge cannot dial another process's `127.0.0.1`, so the application has to be reachable on a network; once it is, the loopback-bind security argument (below, under Consequences) needs replacing rather than relaxing, and `DINCHY_TRUSTED_PROXIES` is that replacement. And a shared edge can read no application's files, so the compiled UI needs its own container rather than a directory.
+
+**What the earlier reasoning got right, and what it cost.** The host-native design avoided granting anything: a process on the host simply *has* `/proc`, a PTY, and the container socket. The container has to be handed each one, and `deploy/quadlet/dinchy.container` is where those grants are visible and reviewable. The container socket is the significant one — it is root-equivalent on the host — and it is mounted for exactly the reason the original decision cited, that the management plane manages user containers. The trade is that the grant is now written down instead of implied.
+
+**Consequence:** distribution is four small images rather than two binaries — the shared edge, the API, the compiled UI, and the datastores. A Go toolchain and network access are still needed to *build* them, and still not needed on the host that runs them. `xcaddy` remains available, but a plugin is better added as a blank import in `cmd/caddy/main.go`, where `go.mod` pins it and the image build picks it up with no second lockfile to keep honest.
 
 ---
 
@@ -59,16 +73,23 @@ TLS is *not* a reload concern: Caddy keeps its certificate cache in a process-le
 
 ### Caddy is the validator, except for upstreams
 
-Dinchy screens almost nothing before pushing. `POST /load` provisions the whole document and rolls back to the previous one if anything fails, so a bad module identifier or a malformed structure comes back as a rejection with Caddy's own explanation — duplicating that in Go buys worse messages and a second thing to keep current across Caddy releases.
+Dinchy screens almost nothing before pushing. Caddy provisions the whole resulting configuration and rolls back to the previous one if anything fails, so a bad module identifier or a malformed structure comes back as a rejection with Caddy's own explanation — duplicating that in Go buys worse messages and a second thing to keep current across Caddy releases. That rollback is also what keeps one tenant's bad push from being every tenant's outage, and it is pinned by a contract test that asserts the other tenant is still serving afterwards.
 
-Two gaps make Dinchy check anything at all:
+Three gaps make Dinchy check anything at all:
 
-- **Duplicate host + path.** Caddy accepts it, stops at the first terminal match, and leaves the losing route silently unreachable. Dinchy rejects the pair instead.
+- **Duplicate host + path.** Caddy accepts it, stops at the first terminal match, and leaves the losing route silently unreachable. Dinchy rejects the pair instead — but only within its own slice. A host claimed by *two different tenants* is detected by nobody, because each validates only what it owns; first-in-array wins and the loser is silently unreachable. Finding that needs a read of the whole running configuration, which no tenant does today.
 - **Reverse-proxy dial addresses.** Caddy does *not* parse these at load time — `not a host:8080` loads with a 200 and every request through the route 502s (pinned by a contract test). Nothing composing a Route from user input can rely on Caddy to catch a typo here.
 
 ### Restart durability
 
-Caddy runs as `caddy run --resume`, with no `--config`. The API is the source of truth, so Caddy's autosaved configuration *is* the state to restore. That is what makes restarting Caddy — after a plugin rebuild, or a crash — safe without Dinchy being up. `--watch` is irrelevant for the same reason: there is no configuration file to watch.
+The edge runs as `caddy run --resume --config /etc/caddy/base.json`. The API is the source of truth, so Caddy's autosaved configuration *is* the state to restore, and restarting the edge — after a plugin rebuild, or a crash — is safe with no management plane up. `--watch` is irrelevant for the same reason: there is no configuration file to watch.
+
+Two details are worth pinning because both have surprised:
+
+- **`--resume` overrides `--config`.** Whenever an autosave exists Caddy ignores the base file, warning that it did. So the base file seeds the *first* start and nothing after it, which means editing it does nothing to a running edge until the autosave is removed.
+- **Every admin write autosaves the whole resulting document**, not just the part written. That is what makes the shared edge durable across a restart: one application's push preserves every other tenant's routes on disk, and the edge comes back serving all of them with nothing running to re-push.
+
+The base file is a contract rather than a convenience: Caddy refuses to traverse into a path whose parents are absent, so the server and the policy array a tenant addresses have to exist before it can write into them. `deploy/caddy/README.md` enumerates the invariants.
 
 ### Caddy issues every certificate, development included
 
@@ -80,23 +101,25 @@ mkcert survives for Mailpit alone, which serves STARTTLS from a cert file or not
 
 ### Consequences
 
-- Dinchy listens **plaintext on loopback** in every environment, development included. `DINCHY_TLS_*` no longer exists; there is exactly one TLS terminator and one place automatic HTTPS can live.
+- Dinchy listens **plaintext** in every environment, development included. `DINCHY_TLS_*` no longer exists; there is exactly one TLS terminator and one place automatic HTTPS can live.
 - Caddy owns HSTS, because the responses that most need it — the HTTP-to-HTTPS redirect and upstream-failure pages — are generated by Caddy and never reach Dinchy.
-- **The app carries no transport check of its own.** It has no notion of whether a request was secure, and no endpoint rejects one for being plaintext. Caddy is the only ingress, it serves only HTTPS, and Dinchy binds loopback — so a plaintext request from the network is not something the app has to detect, it is something that cannot reach it.
+- **The app carries no transport check of its own.** It has no notion of whether a request was secure, and no endpoint rejects one for being plaintext. The edge is the only intended ingress and serves only HTTPS.
 
-  This replaced a per-request trusted-proxy check that could never fire: with a loopback listener, every peer that can connect *is* loopback, so the check always answered "trusted". It was also blind to the threat it was written for, since a host-networked container reaching the host's `127.0.0.1` looks identical to Caddy. The in-app 403 guards it fed were forgeable by any local process, so they never stopped a realistic attacker.
+  This used to rest on a loopback bind, and the reasoning is worth keeping because it explains why the replacement looks the way it does. A per-request trusted-proxy check was removed once as unable to ever fire: with a loopback listener every peer that can connect *is* loopback, so it always answered "trusted", and it was blind to the threat it was written for, since a host-networked container reaching the host's `127.0.0.1` looks identical to Caddy.
 
-  The boundary is therefore enforced once, at startup: `config.Load` **rejects a non-loopback `DINCHY_ADDR`**. That check is load-bearing rather than advisory — an operator who removed it would expose the auth surface in plaintext.
+  Containerizing the edge invalidated the premise, not the analysis. The listener now faces `caddy-edge`, where other containers live, so a trusted-proxy check *can* fire and is the only thing that distinguishes the edge from a co-tenant. It came back — but as a set of prefixes rather than a single "is it loopback" question, and gating exactly one thing (see below) rather than feeding forgeable in-app 403 guards.
 
-- **The client IP comes from `X-Forwarded-For`** and is read in `RequestInfo`. This is a functional dependency, not a security one: the value is persisted to `audit_logs.ip_address` and `sessions.ip_address`, so reading the connection's own address instead would record loopback for every request. Caddy replaces the header rather than appending, so a client cannot forge it.
+- **The client IP comes from `X-Forwarded-For`, and `DINCHY_TRUSTED_PROXIES` is what makes it trustworthy.** The value is persisted to `audit_logs.ip_address` and `sessions.ip_address`, so reading the connection's own address instead would record the edge for every request — that half is a functional dependency. Honoring the header *only from a trusted peer* is the security half: anything else on the edge's network could otherwise choose what the audit log records about it. The edge replaces the header rather than appending, so there is no chain to walk and a trusted peer's value is the client address.
 
-- **Caddy serves the web UI directly; Dinchy is API-only.** One hostname is split by path: `/api/*` reaches the Go process, everything else is the compiled SPA, which Caddy reads from disk in production and forwards to the Vite dev server in development. Asset requests never enter a Go goroutine, and — more importantly — the browser stays same-origin, so the session and CSRF cookies remain `SameSite=Lax` and CORS is never in play. A cross-origin split would have required `SameSite=None`, a different CSRF strategy, and an explicit `connect-src`.
+  The invariant is enforced once, at startup, and it is the pair rather than either half: `config.Load` **rejects a listener reachable beyond loopback when only loopback is trusted.** Such a deployment is not forgeable, but it would silently record the edge's own address for every request — wrong in a way no operator would ever see. The default trust set is loopback alone, which is exactly what the old loopback-only listener guaranteed, so a host-native deployment behaves as it always did.
+
+- **The edge serves no files; Dinchy is API-only.** One hostname is split by path: `/api/*` reaches the Go process, everything else the compiled SPA — served by its own container in production and by the Vite dev server in development, and *proxied* either way. A shared edge can read no single application's files, so file serving left the routing model entirely: `caddy.Route` has no static-file mode any more, and the single-page fallback lives in the image that holds the files. Asset requests never enter a Go goroutine, and — more importantly — the browser stays same-origin, so the session and CSRF cookies remain `SameSite=Lax` and CORS is never in play. A cross-origin split would have required `SameSite=None`, a different CSRF strategy, and an explicit `connect-src`.
 
   The consequence for **Content-Security-Policy** is easy to get wrong: CSP is a document policy, delivered on the HTML response. Since Dinchy no longer serves that document, its policy governs JSON only and is correspondingly strict — `default-src 'none'` — because a JSON response has no legitimate reason to load a script or a frame. The document policy naming `script-src`, `style-src` and `connect-src` belongs to whoever serves the HTML: Caddy in production, Vite in development. That is also why Dinchy has no development CSP variant any more; the relaxations hot reloading needs are Vite's to declare.
 
   Path ordering is correctness, not tidiness: Caddy stops at the first terminal match, so the `/api` route must precede the catch-all. `orderRoutes` sorts longest-prefix-first for that reason.
 
-- **Caddy is the only place forwarded headers are normalized.** The generated configuration deletes `X-Real-IP`, `True-Client-IP` and `Forwarded`, which Caddy does **not** do by default — it passes them through untouched. Common Go middleware prefers those two over `X-Forwarded-For`, so the deletion is what stops a forged value from becoming the recorded client IP. It is covered by the contract test in `internal/platform/caddy` because nothing else would notice if it regressed.
+- **The edge is the only place forwarded headers are set**, and that is one half of the invariant above. The generated configuration deletes `X-Real-IP`, `True-Client-IP` and `Forwarded`, which Caddy does **not** do by default — it passes them through untouched. Common Go middleware prefers those two over `X-Forwarded-For`, so the deletion is what stops a forged value from becoming the recorded client IP. It is covered by the contract test in `internal/platform/caddy` because nothing else would notice if it regressed.
 - The proxied `Host` header is never rewritten: CORS origin checking and cookie scoping both depend on the original value.
 
 ---
@@ -113,14 +136,19 @@ mkcert survives for Mailpit alone, which serves STARTTLS from a cert file or not
 
 ## systemd + OpenRC (not Docker for supervision)
 
-Using Docker to run Dinchy itself was considered. Rejected because:
+> **Partly superseded.** systemd is still the supervisor; it now supervises containers through
+> podman quadlets rather than host binaries. See "Containers over host binaries".
+
+Using Docker to run Dinchy itself was considered and initially rejected because:
 - Web terminal via PTY requires the process to be on the host, not inside a container
 - Reading host system metrics (`/proc/meminfo`, disk usage) is simpler from the host
 - Docker-in-Docker for managing user containers adds a layer of indirection
 
-systemd covers 95%+ of homelab host OSes (Debian, Ubuntu, Fedora, Arch, Proxmox, RHEL). OpenRC covers Alpine and Gentoo. The binary is init-system-agnostic — it just runs in the foreground. Service files are packaging artifacts, not architecture.
+Each is a *grant* rather than a blocker, and containerizing the edge made paying them worthwhile — a host-process Caddy owning `:443` can front only one application. The grants are explicit in `deploy/quadlet/dinchy.container`, which is the improvement: what the management plane can reach is now reviewable rather than implied by being a host process.
 
-`OOMScoreAdjust=-1000` in the systemd unit prevents the Linux OOM killer from ever targeting the management plane, even during a runaway build.
+**systemd remains the supervisor**, through quadlets: a `.container` file generates a `.service` unit, so ordering, restart policy and `OOMScoreAdjust` all still work, and the unit names still resolve — `caddy.container` generates `caddy.service`, which is what `dinchy.container` orders itself after. It covers 95%+ of homelab host OSes (Debian, Ubuntu, Fedora, Arch, Proxmox, RHEL). OpenRC coverage for Alpine and Gentoo is the cost of this change: quadlets are systemd-specific.
+
+`OOMScoreAdjust=-1000` in the unit prevents the Linux OOM killer from ever targeting the management plane, even during a runaway build.
 
 ---
 

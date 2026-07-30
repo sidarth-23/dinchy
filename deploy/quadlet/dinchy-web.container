@@ -1,0 +1,23 @@
+[Unit]
+Description=Dinchy web UI
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# The compiled single-page app, served by a small Caddy of its own. It exists because the shared
+# edge cannot serve it: the edge fronts every application on this host and can read none of their
+# files, so a built asset is an upstream like any other. The single-page fallback lives in this
+# image, beside the files it falls back to.
+Image=localhost/dinchy-web:latest
+ContainerName=dinchy-web-static
+# Only the edge network: this serves files and talks to nothing.
+Network=caddy-edge.network
+# Nothing published. DINCHY_FRONTEND_URL points the edge at dinchy-web-static:8081.
+HealthCmd=wget -qO- http://127.0.0.1:8081/ >/dev/null
+HealthInterval=30s
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -1,22 +1,35 @@
-# Local development infrastructure for Dinchy: Postgres + Redis + Mailpit.
-# Run via `task infra:up` (podman-compose — drives podman directly, no Docker daemon).
-# Host ports are interpolated from the environment (.env): DINCHY_POSTGRES_PORT / DINCHY_REDIS_PORT / DINCHY_MAILPIT_*_PORT.
-# The defaults below match .env.example; keep the two in step.
+# The whole local development stack for Dinchy: datastores, the mail catcher, the backend under
+# Delve, and the Vite dev server. Run via `task dev:up`.
 #
-# Postgres and Redis run plaintext on loopback (dev only) — mounting TLS keys into
-# rootless-podman containers is not worth the friction locally. Caddy still terminates
-# HTTPS for the app, signing its own certificates, and Mailpit still enforces STARTTLS +
-# auth from the mkcert pair `task tls:mailpit-cert` writes — Mailpit cannot generate one
-# itself, which is the only reason mkcert is still here. Production infra TLS is configured
-# separately in deploy/. Dev-only; production uses the units in deploy/quadlet/.
+# Nothing here publishes an application port. The shared Caddy edge is the only ingress, it lives in
+# its own compose project (deploy/caddy/), and it reaches these services by container DNS on the
+# caddy-edge network. That is what lets several projects be developed at once: this one moves two
+# numbers in .env and stops colliding with anything.
 #
-# Caddy is deliberately not a service here: it runs as a host process via
-# `task caddy:dev`, matching the host-native systemd unit used in production.
+# The two published ports are both deliberate, and both loopback-only:
+#   - Delve, so the editor can attach. Env-driven, so a second project picks its own.
+#   - Mailpit's web UI, because reading a captured invite email needs a browser.
+# Mailpit's SMTP port is not published: only the backend talks to it, and it is on this network.
+#
+# Postgres and Redis are reachable only from the `internal` network. goose therefore runs in a
+# container too — see the `migrate` service and `task db:migrate`.
+#
+# --- two podman-compose behaviours this file depends on ---
+#
+# 1. Every service declares `networks:` explicitly. With more than one network and none named
+#    `default`, podman-compose otherwise attaches containers to podman's built-in `bridge` network,
+#    which has DNS disabled — names would silently stop resolving.
+# 2. Service names are globally unique (`dinchy-api`, not `api`). A service name becomes a DNS alias
+#    on *every* network it joins, including the shared one, so two projects each with an `api`
+#    service would give aardvark-dns two records for `api` and round-robin between them.
+# 3. Every bind mount carries `z`. On an SELinux host the container cannot otherwise read a path
+#    labelled for your home directory, and the failure names a file rather than SELinux. Lowercase
+#    z relabels to a shared label, so host tooling and a second container keep working; uppercase Z
+#    would make each path exclusive to one container and break exactly that sharing.
 services:
   postgres:
     image: docker.io/library/postgres:18
-    ports:
-      - "${DINCHY_POSTGRES_PORT:-5432}:5432"
+    networks: [internal]
     environment:
       POSTGRES_USER: dinchy
       POSTGRES_PASSWORD: change-me
@@ -27,32 +40,160 @@ services:
       # /var/lib/postgresql/data instead would leave the real data directory in the
       # container's writable layer, discarded on every recreate.
       - dinchy-pg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dinchy -d dinchy"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
   redis:
     # 8.4+ required: the event bus uses XREADGROUP ... CLAIM (matches deploy quadlet).
     image: docker.io/library/redis:8.4
-    ports:
-      - "${DINCHY_REDIS_PORT:-6380}:6379"
+    networks: [internal]
     volumes:
       - dinchy-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
   mailpit:
     # Local SMTP sink with a web mailbox UI + REST API; catches the invite/reset
     # emails so the flows can be exercised without a real mail server. Enforces
     # STARTTLS + auth like production (no insecure/accept-any bypass).
     image: docker.io/axllent/mailpit:latest
+    networks: [internal]
     ports:
-      - "${DINCHY_MAILPIT_SMTP_PORT:-1025}:1025"  # SMTP intake (DINCHY_SMTP_PORT points here)
-      - "${DINCHY_MAILPIT_UI_PORT:-8025}:8025"    # web UI + REST API
+      # The UI only, and on loopback. A second project moves this number in .env.
+      - "127.0.0.1:${DINCHY_MAILPIT_UI_PORT:-8025}:8025"
     volumes:
       # task exports DINCHY_DEV_CERT_DIR from the XDG state directory; there is no default
       # because a silently-empty mount would leave Mailpit serving no STARTTLS certificate.
-      - ${DINCHY_DEV_CERT_DIR:?start local infra with `task infra:up`}:/certs:ro
+      - ${DINCHY_DEV_CERT_DIR:?start the stack with `task dev:up`}:/certs:ro,z
     environment:
       # Require SMTP auth; credentials must match DINCHY_SMTP_USERNAME/PASSWORD in .env.
       MP_SMTP_AUTH: "dinchy:localpass"
-      # STARTTLS from the mkcert pair, so the app's mandatory-TLS client connects and
-    # verifies it through the system trust store.
+      # STARTTLS from the mkcert pair, so the app's mandatory-TLS client connects and verifies
+      # it. `task tls:mailpit-cert` issues it for the name `mailpit`, which is exactly the name
+      # the backend now dials — do not drop that SAN.
       MP_SMTP_TLS_CERT: /certs/mailpit.pem
       MP_SMTP_TLS_KEY: /certs/mailpit-key.pem
+
+  migrate:
+    # Postgres publishes no host port, so goose runs here rather than on the host. This is also
+    # the readiness gate for the backend: it exercises the real DSN against the real database,
+    # which pg_isready alone does not.
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: backend-dev
+    image: localhost/dinchy-backend-dev:latest
+    networks: [internal]
+    env_file: [.env]
+    working_dir: ${DINCHY_DEV_REPO_PATH:?start the stack with `task dev:up`}
+    volumes:
+      - ${DINCHY_DEV_REPO_PATH:?}:${DINCHY_DEV_REPO_PATH:?}:rw,z
+      - dinchy-gomodcache:/gomodcache
+      - dinchy-gobuildcache:/gocache
+    # $$ escapes the interpolation, so the DSN is expanded by the container's shell from env_file
+    # rather than by compose from the host's environment. The two are the same value today, and
+    # keeping the expansion inside the container is what stops that from being load-bearing.
+    command: ["sh", "-c", 'goose -dir internal/platform/store/migrations postgres "$$DINCHY_POSTGRES_DSN" up']
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dinchy-api:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: backend-dev
+    image: localhost/dinchy-backend-dev:latest
+    container_name: dinchy-api
+    networks:
+      internal:
+      edge:
+        aliases: [dinchy-api]
+    ports:
+      # Delve, on loopback only. Non-loopback inside the container is required, not a choice:
+      # Delve skips its same-user check for a non-loopback listen address, and a 127.0.0.1
+      # listener would be both unreachable from the host and rejected by that check.
+      - "127.0.0.1:${DINCHY_DEV_DELVE_PORT:-2345}:2345"
+    env_file: [.env]
+    environment:
+      # Go verifies Mailpit's mkcert-issued STARTTLS certificate against these. SSL_CERT_DIR is
+      # additive and leaves the image's own bundle in play through the default file, so public
+      # TLS (SSO, ACME) still verifies. SSL_CERT_FILE would *replace* that bundle and break it.
+      SSL_CERT_DIR: /etc/ssl/certs:/etc/ssl/mkcert
+    # The repository is mounted at its own host path, and that is what makes the debugger work
+    # without a source-path substitution: Delve records compile-time paths in DWARF and reports
+    # them verbatim, so compiling here means every path it names exists on the host too.
+    working_dir: ${DINCHY_DEV_REPO_PATH:?}
+    volumes:
+      - ${DINCHY_DEV_REPO_PATH:?}:${DINCHY_DEV_REPO_PATH:?}:rw,z
+      - ${DINCHY_DEV_MKCERT_ROOT:?}:/etc/ssl/mkcert/rootCA.pem:ro,z
+      - dinchy-gomodcache:/gomodcache
+      - dinchy-gobuildcache:/gocache
+    # `dlv debug` rather than `exec`: it compiles from the mounted source, matching what
+    # `go run ./cmd/dinchy` used to do, and applies the no-optimise flags itself.
+    #
+    # --continue means the app runs whether or not the editor is attached, and
+    # --accept-multiclient means detaching leaves it running. Restart it with `task dev:watch`.
+    command: >
+      dlv debug ./cmd/dinchy
+      --headless
+      --listen=0.0.0.0:2345
+      --api-version=2
+      --accept-multiclient
+      --continue
+      --log --log-output=debugger
+    # Deliberately does NOT depend on the migration. A `service_completed_successfully`
+    # dependency is recorded on the container by podman, and once the migration has exited
+    # podman refuses to restart anything that depends on it — "container state improper" —
+    # which would make the edit-and-restart loop impossible. `task dev:up` orders the migration
+    # explicitly instead, and gets a readable goose error out of it for free.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dinchy-web:
+    build:
+      context: ./web
+      dockerfile: Containerfile
+      target: dev
+    image: localhost/dinchy-web-dev:latest
+    container_name: dinchy-web
+    # No `internal`: Vite talks to no datastore, and the browser reaches /api through the edge
+    # rather than through Vite.
+    networks:
+      edge:
+        aliases: [dinchy-web]
+    working_dir: ${DINCHY_DEV_REPO_PATH:?}/web
+    volumes:
+      # Mounted at the host path for the same reason the backend is: the browser debugger
+      # resolves Vite's source maps to files the editor can open.
+      - ${DINCHY_DEV_REPO_PATH:?}:${DINCHY_DEV_REPO_PATH:?}:rw,z
+      - dinchy-buncache:/bun-cache
+    command: bun run dev
+
+networks:
+  # This project's own network. Postgres and Redis are on it and nothing else.
+  internal:
+  # Shared with every other project on this machine, created by `task edge:net` so no
+  # `podman-compose down` can take it away.
+  edge:
+    external: true
+    name: caddy-edge
+
 volumes:
   dinchy-pg:
   dinchy-redis:
+  # Warm toolchain caches, so restarting the backend recompiles incrementally rather than from
+  # cold — which is what makes `task dev:watch` a couple of seconds instead of minutes.
+  dinchy-gomodcache:
+  dinchy-gobuildcache:
+  dinchy-buncache:

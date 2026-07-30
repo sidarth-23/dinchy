@@ -4,6 +4,7 @@ package transport
 import (
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -30,8 +31,11 @@ const APIPathPrefix = "/api"
 // Options carries the non-service settings the public server needs. They are grouped
 // so the several values are named at the call site instead of being positional.
 type Options struct {
-	// Addr is the plaintext listen address; Caddy proxies to it.
+	// Addr is the plaintext listen address the edge proxies to.
 	Addr string
+	// TrustedProxies lists the peers whose forwarded headers are honored. It is what makes
+	// the recorded client address one the peer could not choose; see middleware.RequestInfo.
+	TrustedProxies []netip.Prefix
 	// ExposeInternalErrors adds internal failure detail to error responses.
 	ExposeInternalErrors bool
 	// SecureCookies marks every cookie Secure.
@@ -70,7 +74,7 @@ func New(opts Options, authSvc *auth.Service, sessionSvc *session.Service, audit
 	r.Use(mw.Recover(logger, renderer))
 	r.Use(mw.CleanPath())
 	r.Use(mw.CookiePolicy(opts.SecureCookies))
-	r.Use(mw.RequestInfo())
+	r.Use(mw.RequestInfo(opts.TrustedProxies))
 	r.Use(mw.Lang(i18n.Default))
 	r.Use(mw.SecureHeaders())
 	r.Use(mw.CORS(opts.PublicScheme))

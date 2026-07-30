@@ -1,0 +1,15 @@
+[Unit]
+Description=Shared Caddy edge network
+
+[Network]
+# Every application on this host joins this network so the edge can reach it, and the edge is the
+# only container on it that publishes anything. It is separate from dinchy.network on purpose:
+# that one carries an application's datastores, which no other tenant has any business reaching.
+#
+# The subnet is pinned rather than taken from podman's pool, so DINCHY_TRUSTED_PROXIES stays true
+# across a network recreate. An application honours forwarded headers only from inside this range.
+NetworkName=caddy-edge
+Subnet=10.89.100.0/24
+
+[Install]
+WantedBy=default.target

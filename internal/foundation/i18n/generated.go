@@ -79,9 +79,10 @@ const (
 	CodeDiagnosticsAuthTOTPConfirm                           Code = "diagnostics.auth.totp.confirm"
 	CodeDiagnosticsAuthTOTPDisable                           Code = "diagnostics.auth.totp.disable"
 	CodeDiagnosticsAuthTOTPEnroll                            Code = "diagnostics.auth.totp.enroll"
+	CodeDiagnosticsCaddyApplyObject                          Code = "diagnostics.caddy.apply_object"
 	CodeDiagnosticsCaddyBuildConfig                          Code = "diagnostics.caddy.build_config"
 	CodeDiagnosticsCaddyCollectRoutes                        Code = "diagnostics.caddy.collect_routes"
-	CodeDiagnosticsCaddyLoadRequest                          Code = "diagnostics.caddy.load_request"
+	CodeDiagnosticsCaddyLookupObject                         Code = "diagnostics.caddy.lookup_object"
 	CodeDiagnosticsCaddyReadConfig                           Code = "diagnostics.caddy.read_config"
 	CodeDiagnosticsCaddyReconcile                            Code = "diagnostics.caddy.reconcile"
 	CodeDiagnosticsSessionCreateSession                      Code = "diagnostics.session.create_session"
@@ -105,9 +106,10 @@ const (
 	CodeNotificationEmailPasswordResetSubject                Code = "notification.email.password_reset_subject"
 	CodePlatformConfigLoadFailed                             Code = "platform.config.load_failed"
 	CodePlatformConfigValidationFailed                       Code = "platform.config.validation_failed"
+	CodePlatformRoutingApplyFailed                           Code = "platform.routing.apply_failed"
+	CodePlatformRoutingBaseConfigInvalid                     Code = "platform.routing.base_config_invalid"
 	CodePlatformRoutingConfigRejected                        Code = "platform.routing.config_rejected"
 	CodePlatformRoutingHostConflict                          Code = "platform.routing.host_conflict"
-	CodePlatformRoutingReloadFailed                          Code = "platform.routing.reload_failed"
 	CodePlatformRoutingUnavailable                           Code = "platform.routing.unavailable"
 	CodePlatformServerInternalError                          Code = "platform.server.internal_error"
 	CodeTransportRequestValidationFailed                     Code = "transport.request.validation_failed"
@@ -186,9 +188,10 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeDiagnosticsAuthTOTPConfirm:                           "Confirm two-factor authentication failed",
 		CodeDiagnosticsAuthTOTPDisable:                           "Disable two-factor authentication failed",
 		CodeDiagnosticsAuthTOTPEnroll:                            "Enroll two-factor authentication failed",
+		CodeDiagnosticsCaddyApplyObject:                          "Apply Caddy configuration object failed",
 		CodeDiagnosticsCaddyBuildConfig:                          "Build Caddy configuration failed",
 		CodeDiagnosticsCaddyCollectRoutes:                        "Collect routes for Caddy failed",
-		CodeDiagnosticsCaddyLoadRequest:                          "Load Caddy configuration failed",
+		CodeDiagnosticsCaddyLookupObject:                         "Look up Caddy configuration object failed",
 		CodeDiagnosticsCaddyReadConfig:                           "Read Caddy configuration failed",
 		CodeDiagnosticsCaddyReconcile:                            "Caddy reconcile failed",
 		CodeDiagnosticsSessionCreateSession:                      "Create session failed",
@@ -212,9 +215,10 @@ var CatalogData = map[language.Tag]map[Code]string{
 		CodeNotificationEmailPasswordResetSubject:                "Reset your Dinchy password",
 		CodePlatformConfigLoadFailed:                             "Failed to load configuration.",
 		CodePlatformConfigValidationFailed:                       "Configuration is invalid.",
+		CodePlatformRoutingApplyFailed:                           "The routing change could not be applied.",
+		CodePlatformRoutingBaseConfigInvalid:                     "The reverse proxy is missing the configuration this deployment writes into.",
 		CodePlatformRoutingConfigRejected:                        "The reverse proxy rejected the generated configuration.",
 		CodePlatformRoutingHostConflict:                          "Another route already serves this domain and path.",
-		CodePlatformRoutingReloadFailed:                          "The reverse proxy could not be reloaded.",
 		CodePlatformRoutingUnavailable:                           "The reverse proxy is not reachable.",
 		CodePlatformServerInternalError:                          "An unexpected error occurred.",
 		CodeTransportRequestValidationFailed:                     "Some fields need attention.",

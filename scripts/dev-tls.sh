@@ -20,7 +20,10 @@ set -euo pipefail
 
 NSS_DB="$HOME/.pki/nssdb"
 CADDY_BIN="${CADDY_BIN:-tmp/caddy}"
-CADDY_ADMIN="${DINCHY_CADDY_ADMIN_ENDPOINT:-127.0.0.1:2019}"
+# The admin API as reached from this machine. Deliberately not DINCHY_CADDY_ADMIN_ENDPOINT: that is
+# the app's route to the same endpoint over the container network (caddy-edge:2019), which does not
+# resolve here. Taskfile.yml passes the published loopback address.
+CADDY_ADMIN="${DINCHY_DEV_CADDY_ADMIN:-127.0.0.1:2019}"
 
 if [[ $EUID -eq 0 ]]; then
 	SUDO=()

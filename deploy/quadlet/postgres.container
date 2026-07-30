@@ -10,8 +10,8 @@ After=network-online.target
 Image=docker.io/library/postgres:17
 ContainerName=dinchy-postgres
 Network=dinchy.network
-# Published to loopback only; the host-native Dinchy binary connects on 127.0.0.1:5432.
-PublishPort=127.0.0.1:5432:5432
+# Nothing is published: the management plane is a container on this same network and
+# reaches it by name. Nothing on the host needs it, and nothing off the host should.
 # Reads POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB from the shared env file.
 EnvironmentFile=/etc/dinchy/dinchy.env
 Volume=dinchy-postgres-data:/var/lib/postgresql/data

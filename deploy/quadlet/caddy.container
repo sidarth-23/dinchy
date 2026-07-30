@@ -1,0 +1,55 @@
+[Unit]
+Description=Shared Caddy edge
+Documentation=https://caddyserver.com/docs/
+After=network-online.target
+Wants=network-online.target
+# The edge starts before any application and knows nothing about them: --resume restores the last
+# configuration its tenants pushed, so it keeps routing whether or not a management plane is
+# running. Each application orders itself after this unit.
+#
+# Quadlet generates caddy.service from this file, so dinchy.container's After=/Wants=caddy.service
+# keeps referring to the right thing. Do not rename it.
+
+[Container]
+# Built from ./cmd/caddy, so go.mod pins the version and a plugin is a blank import rather than an
+# xcaddy invocation. See deploy/README.md for how the image reaches this host.
+Image=localhost/dinchy-caddy:latest
+ContainerName=caddy-edge
+Network=caddy-edge.network
+# The only ingress on this host. UDP is not optional: HTTP/3 binds it, and omitting it loses h3
+# with no error anywhere.
+PublishPort=80:80
+PublishPort=443:443
+PublishPort=443:443/udp
+# The admin API is deliberately NOT published. It is unauthenticated, so anything that can reach it
+# can reconfigure the whole edge including other tenants' routes; keeping it unpublished is what
+# confines it to this host. Applications reach it over caddy-edge; an operator reaches it with
+#   podman exec caddy-edge wget -qO- http://127.0.0.1:2019/config/
+#
+# Certificates, ACME account keys and the local CA. This must survive a recreate: if it is lost,
+# Caddy re-registers with the certificate authority and re-issues everything, which is a fast way to
+# hit Let's Encrypt's per-domain rate limit.
+Volume=caddy-edge-data:/data
+# autosave.json — the configuration every tenant pushed. Lose it and routing is gone until each
+# management plane restarts and pushes again.
+Volume=caddy-edge-config:/config
+# Seeds the first start only, and any start after the config volume has been emptied: Caddy ignores
+# --config when an autosave exists, and says so in a warning. Bind-mounted rather than baked in so
+# an operator can change the ports or the admin origins without rebuilding the image.
+Volume=/etc/dinchy/caddy-base.json:/etc/caddy/base.json:ro
+Exec=run --resume --config /etc/caddy/base.json
+# No EnvironmentFile: Caddy reads no DINCHY_* variable — its whole configuration arrives over the
+# admin API. Adding the shared env file would put the SMTP and SSO secrets in this container's
+# environment for no benefit. The absence is deliberate, not an oversight.
+HealthCmd=wget -qO- http://127.0.0.1:2019/config/ >/dev/null
+HealthInterval=30s
+HealthStartPeriod=10s
+# Carried over from the host-native unit, where it was set deliberately: the edge holds a connection
+# per client for every application on the host.
+PodmanArgs=--ulimit nofile=1048576:1048576
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

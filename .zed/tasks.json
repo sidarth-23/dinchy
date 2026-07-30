@@ -1,45 +1,50 @@
 [
-  // Deliberately only the long-lived, order-dependent processes — the things a terminal pane is
-  // genuinely better for. Everything else is `task --list` in a terminal, which cannot fall out
-  // of step with Taskfile.yml the way a copy here would.
+  // The session is now two long-lived things, and everything that used to need its own terminal
+  // pane — Caddy, Vite, the Go process — is a container.
   //
-  // The "Dev:" group is the startup sequence, in order. Step 4 is normally the debugger
-  // ("Backend: API (Delve)" in debug.json) rather than the task below.
+  // The edge is separate because it outlives this project and is shared with every other one behind
+  // it. The stack is one command because the ordering that used to matter is the container runtime's
+  // job now, and because the edge restores its routes from its own autosave, so a backend starting
+  // later converges rather than bootstraps.
+  //
+  // Deliberately only these: everything else is `task --list` in a terminal, which cannot fall out
+  // of step with Taskfile.yml the way a copy here would.
   {
-    "label": "Dev: start infra (up, wait, migrate)",
+    "label": "Dev: start shared Caddy edge (TLS on :8443)",
+    "command": "task",
+    "args": ["edge:up"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "Dev: start stack (build, migrate, run under Delve)",
     "command": "task",
     "args": ["dev:up"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always"
   },
   {
-    "label": "Dev: run Caddy edge (TLS on :8443)",
+    "label": "Dev: follow stack logs",
     "command": "task",
-    "args": ["caddy:dev"],
+    "args": ["infra:logs"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "use_new_terminal": true
   },
+  // The edit-and-run loop: save everything, recompile from the warm build cache, reattach the
+  // debugger ("Backend: API (Delve, in container)" in debug.json).
   {
-    "label": "Dev: run web UI (Vite on :3000)",
+    "label": "Dev: restart API (recompile)",
     "command": "task",
-    "args": ["web:dev"],
+    "args": ["dev:watch"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
-    "use_new_terminal": true
+    "save": "all"
   },
   {
-    "label": "Dev: run API (no debugger)",
+    "label": "Dev: bootstrap this machine",
     "command": "task",
-    "args": ["dev"],
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "reveal": "always",
-    "use_new_terminal": true
-  },
-  {
-    "label": "Dev: set up machine (env, hooks, TLS trust)",
-    "command": "task",
-    "args": ["setup"],
+    "args": ["bootstrap"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "reveal": "always",
     "use_new_terminal": true

@@ -1,0 +1,46 @@
+# The frontend's container images. The build context is web/, because everything here installs
+# from package.json and bun.lock — the same reason web/Taskfile.yml is included with `dir: ./web`.
+#
+# Targets:
+#   dev     the Vite dev server, with the sources bind-mounted at runtime
+#   static  the built assets, served by a tiny Caddy beside the application
+ARG BUN_VERSION=1.3.14
+
+# --- the development server ---------------------------------------------------------------------
+
+# Debian, not -alpine, and this is not a preference. web/node_modules is shared with the host —
+# `task check`, `task web:typecheck` and the editor's Biome all read it — and the trustedDependencies
+# in package.json (esbuild, lightningcss) ship prebuilt native binaries selected per libc. A musl
+# image would install binaries the host's glibc cannot load, and vice versa.
+FROM docker.io/oven/bun:${BUN_VERSION} AS dev
+ENV BUN_INSTALL_CACHE_DIR=/bun-cache
+# No sources are copied: the repository arrives at runtime as a bind mount, so an edit is picked up
+# by Vite's watcher without a rebuild.
+EXPOSE 3000
+
+# --- the built assets ---------------------------------------------------------------------------
+
+FROM docker.io/oven/bun:${BUN_VERSION} AS build
+WORKDIR /src
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY . .
+RUN bun run build
+
+# The shared edge cannot serve these: it fronts every application on the host and can read none of
+# their files. So each application brings its own static server, and the edge proxies to it like any
+# other upstream. This is also where the single-page fallback belongs — beside the files it falls
+# back to.
+FROM docker.io/library/caddy:2-alpine AS static
+COPY --from=build /src/dist /srv/web
+COPY <<'CADDYFILE' /etc/caddy/Caddyfile
+:8081 {
+	root * /srv/web
+	# A client-side route has no file behind it, so an unmatched path serves the document
+	# rather than 404 — otherwise a deep link breaks on reload.
+	try_files {path} /index.html
+	file_server
+	encode zstd gzip
+}
+CADDYFILE
+EXPOSE 8081

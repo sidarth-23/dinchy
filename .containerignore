@@ -1,0 +1,27 @@
+# What never belongs in a build context. podman reads this in preference to .dockerignore.
+#
+# The backend image copies no source at all — it receives the repository as a bind mount at
+# runtime — and the caddy image copies only go.mod, go.sum and cmd/caddy. So this list is about
+# keeping the context small and the layer cache stable, not about correctness.
+.git/
+.task/
+tmp/
+dinchy
+dinchy-update
+dinchy.old
+__debug_bin*
+*.test
+*.out
+coverage.out
+
+# The frontend has its own build context; see web/Containerfile.
+web/node_modules/
+web/dist/
+web/.tanstack/
+
+# Local machine configuration, never an input to an image.
+.env
+.env.*
+.zed/
+.idea/
+.vscode/

@@ -417,9 +417,15 @@
               }
             },
             {
-              "name": "load_request",
+              "name": "apply_object",
               "translations": {
-                "en": "Load Caddy configuration failed"
+                "en": "Apply Caddy configuration object failed"
+              }
+            },
+            {
+              "name": "lookup_object",
+              "translations": {
+                "en": "Look up Caddy configuration object failed"
               }
             },
             {

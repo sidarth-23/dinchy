@@ -1,14 +1,31 @@
 [
+  // The backend runs in a container, already under a headless Delve started by `task dev:up`
+  // (--continue, so it serves whether or not anything is attached, and --accept-multiclient, so
+  // detaching leaves it running). This connects to that session.
+  //
+  // `request: attach` with `mode: remote` is required, not a style choice: Delve refuses a launch
+  // request against a server that already has a debug session, answering "use remote attach mode
+  // to connect to a server with an active debug session".
+  //
+  // There is deliberately no `substitutePath`. compose.yaml mounts the repository at its own host
+  // path, so the paths Delve recorded at compile time all exist on this machine and resolve as they
+  // are. If breakpoints ever set but never bind, that mount is what changed.
+  //
+  // Also no `envFile`: the environment comes from compose.yaml's `env_file: [.env]` now, so an edit
+  // to .env takes effect on the next `task dev:watch` rather than the next launch here.
+  //
+  // The port matches DINCHY_DEV_DELVE_PORT in .env. It cannot be read from there — Zed expands only
+  // its own $ZED_* variables — so a second project changes that variable and this line together.
   {
-    "label": "Backend: API (Delve)",
+    "label": "Backend: API (Delve, in container)",
     "adapter": "Delve",
-    "request": "launch",
-    "mode": "debug",
-    "program": "$ZED_WORKTREE_ROOT/cmd/dinchy",
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "args": [],
-    "envFile": "$ZED_WORKTREE_ROOT/.env"
+    "request": "attach",
+    "mode": "remote",
+    "tcp_connection": { "host": "127.0.0.1", "port": 2345 },
+    "cwd": "$ZED_WORKTREE_ROOT"
   },
+  // Tests stay host-native. They build their own environment with t.Setenv, so a stray DINCHY_*
+  // value would mask a bug rather than reproduce one, and nothing in the suite needs the database.
   {
     "label": "Backend: tests in current package (Delve)",
     "adapter": "Delve",
@@ -17,6 +34,10 @@
     "program": "$ZED_DIRNAME",
     "cwd": "$ZED_WORKTREE_ROOT"
   },
+  // The frontend is a single-page app, so its code runs in the browser: this is where you debug it.
+  // webRoot resolves Vite's source maps to files on this machine — which works for the same reason
+  // the backend needs no substitutePath, because Vite serves from that same host path inside its
+  // container.
   {
     "label": "Frontend: web UI (Chrome)",
     "adapter": "JavaScript",

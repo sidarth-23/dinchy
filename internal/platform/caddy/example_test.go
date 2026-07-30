@@ -9,15 +9,15 @@ import (
 	"github.com/sidarth-23/dinchy/internal/platform/caddy"
 )
 
-// Example shows the configuration Dinchy pushes for the panel plus one deployment.
+// Example shows the two objects Dinchy pushes for the panel plus one deployment: one addressable
+// route nesting every entrypoint, and one certificate automation policy naming their hosts.
 func Example() {
 	cfg := config.DefaultCaddy()
 	cfg.PanelHost = "panel.example.com"
 	cfg.ACMEEmail = "ops@example.com"
 	cfg.HSTSMaxAge = 0
-	cfg.StoragePath = ""
 
-	built, err := caddy.BuildConfig(cfg, []caddy.Route{
+	contribution, err := caddy.BuildContribution(cfg, []caddy.Route{
 		{Owner: "deployments", Host: "whoami.example.com", Upstream: "127.0.0.1:32768"},
 		{Owner: caddy.PanelOwner, Host: "panel.example.com", Upstream: "127.0.0.1:8080"},
 	})
@@ -28,92 +28,26 @@ func Example() {
 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(built.Apps.HTTP.Servers[caddy.ServerName].Routes); err != nil {
+	if err := encoder.Encode(contribution.Policy); err != nil {
 		fmt.Println("encode failed:", err)
+		return
 	}
+	fmt.Println(contribution.Route.ID, contribution.Route.Match[0].Host, contribution.RouteCount)
 	// Output:
-	// [
-	//   {
-	//     "match": [
-	//       {
-	//         "host": [
-	//           "panel.example.com"
-	//         ]
-	//       }
-	//     ],
-	//     "handle": [
-	//       {
-	//         "handler": "reverse_proxy",
-	//         "upstreams": [
-	//           {
-	//             "dial": "127.0.0.1:8080"
-	//           }
-	//         ],
-	//         "headers": {
-	//           "request": {
-	//             "set": {
-	//               "X-Forwarded-For": [
-	//                 "{http.request.remote.host}"
-	//               ],
-	//               "X-Forwarded-Host": [
-	//                 "{http.request.host}"
-	//               ],
-	//               "X-Forwarded-Proto": [
-	//                 "{http.request.scheme}"
-	//               ]
-	//             },
-	//             "delete": [
-	//               "X-Real-IP",
-	//               "True-Client-IP",
-	//               "Forwarded"
-	//             ]
-	//           }
-	//         }
-	//       }
-	//     ],
-	//     "terminal": true
-	//   },
-	//   {
-	//     "match": [
-	//       {
-	//         "host": [
-	//           "whoami.example.com"
-	//         ]
-	//       }
-	//     ],
-	//     "handle": [
-	//       {
-	//         "handler": "reverse_proxy",
-	//         "upstreams": [
-	//           {
-	//             "dial": "127.0.0.1:32768"
-	//           }
-	//         ],
-	//         "headers": {
-	//           "request": {
-	//             "set": {
-	//               "X-Forwarded-For": [
-	//                 "{http.request.remote.host}"
-	//               ],
-	//               "X-Forwarded-Host": [
-	//                 "{http.request.host}"
-	//               ],
-	//               "X-Forwarded-Proto": [
-	//                 "{http.request.scheme}"
-	//               ]
-	//             },
-	//             "delete": [
-	//               "X-Real-IP",
-	//               "True-Client-IP",
-	//               "Forwarded"
-	//             ]
-	//           }
-	//         }
-	//       }
-	//     ],
-	//     "terminal": true
-	//   }
-	// ]
+	// {
+	//   "@id": "dinchy.dinchy.tls",
+	//   "subjects": [
+	//     "panel.example.com",
+	//     "whoami.example.com"
+	//   ],
+	//   "issuers": [
+	//     {
+	//       "module": "acme",
+	//       "email": "ops@example.com"
+	//     }
+	//   ]
+	// }
+	// dinchy.dinchy.routes [panel.example.com whoami.example.com] 2
 }
 
 // ExampleRoute_Resolve shows the canonicalization every Route goes through before it is

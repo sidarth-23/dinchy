@@ -39,9 +39,15 @@
               }
             },
             {
-              "name": "reload_failed",
+              "name": "apply_failed",
               "translations": {
-                "en": "The reverse proxy could not be reloaded."
+                "en": "The routing change could not be applied."
+              }
+            },
+            {
+              "name": "base_config_invalid",
+              "translations": {
+                "en": "The reverse proxy is missing the configuration this deployment writes into."
               }
             },
             {

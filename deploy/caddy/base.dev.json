@@ -1,0 +1,21 @@
+{
+  "admin": {
+    "listen": "0.0.0.0:2019",
+    "origins": ["caddy-edge:2019", "localhost:2019", "127.0.0.1:2019", "[::1]:2019"]
+  },
+  "apps": {
+    "http": {
+      "http_port": 8080,
+      "https_port": 8443,
+      "servers": {
+        "edge": {
+          "listen": [":8443"],
+          "routes": [],
+          "automatic_https": { "disable_redirects": true }
+        }
+      }
+    },
+    "tls": { "automation": { "policies": [] } }
+  },
+  "logging": { "logs": { "default": { "level": "INFO" } } }
+}
