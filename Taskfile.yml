@@ -640,7 +640,7 @@ tasks:
 
   lint:logreturn:
     desc: Check that no function both logs and returns an error
-    cmd: go run ./cmd/coderules logreturn ./...
+    cmd: go run ./cmd/validate logreturn ./...
 
   fmt:
     desc: Format the Go sources

@@ -45,9 +45,9 @@ pre-commit:
                         - internal/platform/store/sqlcgen/*
                     run: mise exec -- sqlc generate && git add internal/platform/store/sqlcgen
 
-        - name: coderules logreturn
+        - name: validate logreturn
           glob: "*.go"
-          # Mirrors the skips inside cmd/coderules, so a commit touching only these paths
+          # Mirrors the skips inside cmd/validate, so a commit touching only these paths
           # does not pay for loading packages that produce no findings.
           exclude:
               - "*_test.go"
@@ -55,7 +55,7 @@ pre-commit:
               - internal/platform/logging/*
           # The rule is intra-function, so scanning only the changed packages yields the
           # same verdict as ./... for the code that changed. pre-push covers the rest.
-          run: printf '%s\n' {staged_files} | xargs -r -n1 dirname | sort -u | sed 's|^|./|' | xargs -r go run ./cmd/coderules logreturn
+          run: printf '%s\n' {staged_files} | xargs -r -n1 dirname | sort -u | sed 's|^|./|' | xargs -r go run ./cmd/validate logreturn
 
         - name: golangci-lint
           glob: "*.go"
@@ -74,7 +74,7 @@ pre-commit:
 # never touched, and any generator not fast-pathed above — including newly added ones.
 pre-push:
     jobs:
-        - name: coderules logreturn
+        - name: validate logreturn
           run: mise exec -- task lint:logreturn
 
         # The read-only form of the checks generation performs, so a bad catalog is reported

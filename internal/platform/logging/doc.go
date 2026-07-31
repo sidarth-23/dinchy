@@ -42,7 +42,7 @@
 //
 // AppError carries a log-once marker: these helpers skip an error already marked
 // and mark it on emit, so a failure is recorded at most once even across several
-// boundaries. `go run ./cmd/coderules logreturn ./...` enforces that no function
+// boundaries. `go run ./cmd/validate logreturn ./...` enforces that no function
 // both logs an error and returns one; exempt a deliberate dual-failure path (log
 // the cleanup failure, return the primary) with a `//dinchy:allow-logreturn
 // <reason>` comment on the function, where the reason is mandatory.

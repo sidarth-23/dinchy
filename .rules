@@ -35,7 +35,7 @@ godoc that documents its mechanics in depth.
 * Message style: sentence case, present tense for starting or stopping actions and past tense for completed outcomes, capitalize acronyms (`HTTP`, `URL`, `ID`), no trailing period. Prefer stable structured fields (`component`, `operation`, `task`, `status`, `duration`, `request_id`, `trace_id`, `span_id`) over free-form text:
   * `logging.Info(ctx, logger, "worker run completed", slog.String("task", task))`
 * Error logging is boundary-only and goes solely through `internal/platform/logging.Error` / `logging.HTTPError`; never call `slog` error methods with an error value outside that package. HTTP handlers log only the final 5xx failure at the transport boundary.
-* `AppError` carries a log-once marker, and `go run ./cmd/coderules logreturn ./...` enforces that no function both logs and returns an error (exempt a deliberate dual-failure path with `//dinchy:allow-logreturn <reason>`).
+* `AppError` carries a log-once marker, and `go run ./cmd/validate logreturn ./...` enforces that no function both logs and returns an error (exempt a deliberate dual-failure path with `//dinchy:allow-logreturn <reason>`).
 * Usage — `Info`/`Warn` guidance, message style, boundary-only error logging: `go doc ./internal/platform/logging`.
 
 ## Conventions

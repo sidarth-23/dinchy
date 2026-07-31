@@ -21,6 +21,8 @@ func main() {
 		err = runValidateI18n(os.Args[2:])
 	case "permission":
 		err = runValidatePermission(os.Args[2:])
+	case "logreturn":
+		err = runLogReturn(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
